@@ -3,20 +3,38 @@
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore, updateCardState } from './store/objectStore.svelte';
+	import type { Group } from 'three';
 
-	let { id = '', position = [0, 0, 0] as [number, number, number] } = $props();
+	let { id } = $props();
 
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
+	let groupRef = $state<Group | undefined>(undefined);
 
-	$inspect(position);
+	// Get current position from store
+	const position = $derived($objectStore[id]?.position ?? [0, 0, 0]);
 
+	// Update emissive intensity on hover
 	$effect(() => {
 		emissiveIntensity = isHovered ? 0.5 : 0;
 	});
 
+	// Update group position when store position changes
+	$effect(() => {
+		if (!groupRef) return;
+		if ($dragStore.isDragging === id) {
+			// Instant update during drag
+			groupRef.position.set(...position);
+		} else {
+			// Smooth transition when not dragging
+			const lerp = (a: number, b: number) => a + (b - a) * 0.1;
+			groupRef.position.x = lerp(groupRef.position.x, position[0]);
+			groupRef.position.y = lerp(groupRef.position.y, position[1]);
+			groupRef.position.z = lerp(groupRef.position.z, position[2]);
+		}
+	});
+
 	function handleDragStart() {
-		console.log('Drag start:', id);
 		dragStart(id, position[1]); // Pass current height
 	}
 
@@ -31,7 +49,6 @@
 	}
 
 	function handleDragEnd() {
-		console.log('Drag end:', id);
 		dragEnd();
 	}
 
@@ -45,17 +62,11 @@
 	}
 </script>
 
-<T.Group {position}>
+<T.Group bind:ref={groupRef} {position}>
 	<RigidBody type={$dragStore.isDragging === id ? 'kinematicPosition' : 'dynamic'}>
-		<Collider
-			contactForceEventThreshold={30}
-			restitution={0.4}
-			shape={'cuboid'}
-			args={[0.5, 0.5, 0.5]}
-		/>
+		<Collider restitution={0.4} shape={'cuboid'} args={[0.5, 0.1, 0.5]} />
 		<T.Mesh
 			rotation.x={-Math.PI / 2}
-			position.y={0.01}
 			onpointerdown={handleDragStart}
 			onpointermove={handleDrag}
 			onpointerup={handleDragEnd}

@@ -1,16 +1,22 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import { World } from '@threlte/rapier';
-	import { OrbitControls } from '@threlte/extras';
+	import { Grid, OrbitControls } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { objectStore } from '$lib/store/objectStore.svelte';
+	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
+	import type { CardState } from '$lib/store/objectStore.svelte';
 
 	const isDragging = $derived(!!$dragStore.isDragging);
 	$inspect(isDragging);
 
-	const cards = $derived(Object.entries($objectStore));
+	// Add some test cards
+	updateCardState('card1', [-2, 2.5, 0]);
+	updateCardState('card2', [0, 4.5, 0]);
+	updateCardState('card3', [2, 6.5, 0]);
+
+	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
 
 <T.PerspectiveCamera makeDefault position={[0, 10, 10]} fov={50}>
@@ -21,9 +27,10 @@
 <T.AmbientLight intensity={0.5} />
 
 <World>
+	<Grid position.y={0.3} />
 	<Table />
 	<!-- Add some test cards -->
-	{#each cards as [id, { position, rotation }]}
-		<Card {position} {id} />
+	{#each cards as [id]}
+		<Card {id} />
 	{/each}
 </World>
