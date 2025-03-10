@@ -2,11 +2,14 @@
 	import { T } from '@threlte/core';
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
+	import { objectStore, updateCardState } from './store/objectStore.svelte';
 
-	let { id = '', position = $bindable([0, 0, 0]) as [number, number, number] } = $props();
+	let { id = '', position = [0, 0, 0] as [number, number, number] } = $props();
 
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
+
+	$inspect(position);
 
 	$effect(() => {
 		emissiveIntensity = isHovered ? 0.5 : 0;
@@ -24,10 +27,11 @@
 		if (!intersection) return;
 
 		const { x, z } = intersection.point;
-		position = [x, $dragStore.dragHeight ?? position[1], z];
+		updateCardState(id, [x, $dragStore.dragHeight ?? position[1], z]);
 	}
 
 	function handleDragEnd() {
+		console.log('Drag end:', id);
 		dragEnd();
 	}
 
@@ -37,6 +41,7 @@
 
 	function handlePointerLeave() {
 		isHovered = false;
+		handleDragEnd();
 	}
 </script>
 
