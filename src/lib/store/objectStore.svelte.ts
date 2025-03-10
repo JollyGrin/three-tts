@@ -1,0 +1,48 @@
+import { writable, get } from 'svelte/store';
+
+export interface CardState {
+	position: [number, number, number];
+	rotation: [number, number, number];
+}
+
+type CardsState = Record<string, CardState>;
+
+// Create the writable store
+const cards = writable<CardsState>({
+	a: { position: [0, 3, 0], rotation: [0, 0, 0] },
+	b: { position: [2, 3, 0], rotation: [0, 0, 0] }
+});
+
+// Add or update a card's state
+export function updateCardState(
+	id: string,
+	position: [number, number, number],
+	rotation: [number, number, number] = [0, 0, 0]
+) {
+	cards.update((state) => ({
+		...state,
+		[id]: { position, rotation }
+	}));
+}
+
+// Remove a card
+export function removeCard(id: string) {
+	cards.update((state) => {
+		const { [id]: _, ...rest } = state;
+		return rest;
+	});
+}
+
+// Get a card's state
+export function getCardState(id: string): CardState | undefined {
+	return get(cards)[id];
+}
+
+// Export the store
+export const objectStore = {
+	subscribe: cards.subscribe,
+	update: updateCardState,
+	remove: removeCard,
+	get: getCardState,
+	reset: () => cards.set({})
+};

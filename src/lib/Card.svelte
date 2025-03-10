@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import { Collider, RigidBody } from '@threlte/rapier';
+	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 
-	let { position = [0, 0, 0] as [number, number, number] } = $props();
+	let { id = '', position = $bindable([0, 0, 0]) as [number, number, number] } = $props();
 
-	let isDragging = $state(false);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
@@ -13,20 +13,25 @@
 	});
 
 	function handleDragStart() {
-		isDragging = true;
+		console.log('Drag start:', id);
+		dragStart(id, position[1]); // Pass current height
 	}
 
-	function handleDrag(event: { delta: [number, number] }) {
-		const [x, z] = event.delta;
-		position = [position[0] + x * 0.01, position[1], position[2] + z * 0.01];
+	function handleDrag(event) {
+		if ($dragStore.isDragging !== id) return;
+
+		const [intersection] = event.intersections;
+		if (!intersection) return;
+
+		const { x, z } = intersection.point;
+		position = [x, $dragStore.dragHeight ?? position[1], z];
 	}
 
 	function handleDragEnd() {
-		isDragging = false;
+		dragEnd();
 	}
 
 	function handlePointerEnter() {
-		console.log('hi');
 		isHovered = true;
 	}
 
@@ -36,7 +41,7 @@
 </script>
 
 <T.Group {position}>
-	<RigidBody type={isDragging ? 'kinematicPosition' : 'dynamic'}>
+	<RigidBody type={$dragStore.isDragging === id ? 'kinematicPosition' : 'dynamic'}>
 		<Collider
 			contactForceEventThreshold={30}
 			restitution={0.4}

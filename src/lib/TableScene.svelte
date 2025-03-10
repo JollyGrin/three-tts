@@ -5,9 +5,12 @@
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
+	import { objectStore } from '$lib/store/objectStore.svelte';
 
 	const isDragging = $derived(!!$dragStore.isDragging);
 	$inspect(isDragging);
+
+	const cards = $derived(Object.entries($objectStore));
 </script>
 
 <T.PerspectiveCamera makeDefault position={[0, 10, 10]} fov={50}>
@@ -20,7 +23,7 @@
 <World>
 	<Table />
 	<!-- Add some test cards -->
-	<Card position={[0, 2, 0]} id="a" />
-	<Card position={[1, 3, 1]} id="b" />
-	<Card position={[-1, 4, -1]} id="c" />
+	{#each cards as [id, { position, rotation }]}
+		<Card {position} {id} />
+	{/each}
 </World>
