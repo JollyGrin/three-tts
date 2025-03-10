@@ -1,9 +1,12 @@
 <script lang="ts">
+	//TODO: figure out how to have the original position before rigid body is applied?
+
 	import { T } from '@threlte/core';
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore, updateCardState } from './store/objectStore.svelte';
+	import { onMount } from 'svelte';
 
 	let { id } = $props();
 
@@ -48,7 +51,7 @@
 		if (!intersection) return;
 
 		const { x, y, z } = intersection.point;
-		updateCardState(id, [x, 1.5, z]);
+		updateCardState(id, [x, 2, z]);
 	}
 
 	function handleDragEnd() {
@@ -66,22 +69,23 @@
 	}
 </script>
 
-<RigidBody
-	bind:rigidBody
-	type={isDragging ? 'kinematicPosition' : 'dynamic'}
-	{position}
-	lockRotations={true}
->
-	<Collider restitution={0.4} shape={'cuboid'} args={[0.5, 0.1, 0.5]} />
-	<T.Mesh
-		rotation.x={-Math.PI / 2}
-		onpointerdown={handleDragStart}
-		onpointermove={handleDrag}
-		onpointerup={handleDragEnd}
-		onpointerleave={handlePointerLeave}
-		onpointerenter={handlePointerEnter}
+<T.Group {position}>
+	<RigidBody
+		bind:rigidBody
+		type={isDragging ? 'kinematicPosition' : 'dynamic'}
+		lockRotations={true}
 	>
-		<T.PlaneGeometry args={[1.4, 2]} />
-		<T.MeshStandardMaterial color="white" emissive="#4444ff" {emissiveIntensity} />
-	</T.Mesh>
-</RigidBody>
+		<Collider restitution={0.4} shape={'cuboid'} args={[0.5, 0.03, 0.5]} />
+		<T.Mesh
+			rotation.x={-Math.PI / 2}
+			onpointerdown={handleDragStart}
+			onpointermove={handleDrag}
+			onpointerup={handleDragEnd}
+			onpointerleave={handlePointerLeave}
+			onpointerenter={handlePointerEnter}
+		>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<T.MeshStandardMaterial color="white" emissive="#4444ff" {emissiveIntensity} />
+		</T.Mesh>
+	</RigidBody>
+</T.Group>
