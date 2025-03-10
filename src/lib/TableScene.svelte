@@ -18,7 +18,7 @@
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
 
-<T.PerspectiveCamera makeDefault position={[0, 10, 10]} fov={50}>
+<T.PerspectiveCamera makeDefault position={[0, 20, 10]} fov={30}>
 	<OrbitControls enableRotate={!isDragging} enableDamping maxPolarAngle={Math.PI / 2 - 0.1} />
 </T.PerspectiveCamera>
 
