@@ -9,7 +9,6 @@
 	import type { CardState } from '$lib/store/objectStore.svelte';
 
 	const isDragging = $derived(!!$dragStore.isDragging);
-	$inspect(isDragging);
 
 	// Add some test cards
 	updateCardState('card1', [-2, 2.5, 0]);
