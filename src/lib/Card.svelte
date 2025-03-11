@@ -4,9 +4,10 @@
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
-	import { objectStore } from './store/objectStore.svelte';
+	import { objectStore, updateCardState } from './store/objectStore.svelte';
 	import { spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	let { id } = $props();
 
@@ -27,6 +28,7 @@
 
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
+	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
 
 	// Create derived values for each component
 	const posX = $derived(basePosition[0]);
@@ -48,6 +50,9 @@
 			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
 			rigidBody.setTranslation({ x, y: position[1], z }, true);
 			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
+
+			// TODO: this does not lerp. How can i make this lerp
+			rigidBody.setRotation({ x: baseRotation[0], y: 0, z: 0, w: 0 }, true);
 		} else {
 			const currentPos = rigidBody.translation();
 			const targetY = position[1];
@@ -78,14 +83,18 @@
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
 		isHovered = true;
+		$dragStore.isHovered = id;
 	}
 
 	function handlePointerLeave() {
 		isHovered = false;
+		$dragStore.isHovered = null;
 	}
+
+	$inspect('rot', baseRotation[0]);
 </script>
 
-<T.Group {position}>
+<T.Group {position} rotation.x={DEG2RAD * baseRotation[0]}>
 	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={true}>
 		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
