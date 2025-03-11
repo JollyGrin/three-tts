@@ -2,46 +2,25 @@
 	//TODO: figure out how to have the original position before rigid body is applied?
 
 	import { T } from '@threlte/core';
+	import * as THREE from 'three';
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore, updateCardState } from './store/objectStore.svelte';
 	import { spring } from 'svelte/motion';
 	import { TextureLoader, type Texture } from 'three';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { ImageMaterial } from '@threlte/extras';
 
 	let { id } = $props();
+
+	let card: THREE.Mesh | undefined = $state();
 
 	const isDragging = $derived($dragStore.isDragging === id);
 	const faceImageUrl = $derived($objectStore[id]?.faceImageUrl);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 	let rigidBody = $state<RapierRigidBody | undefined>(undefined);
-	let texture = $state<Texture | null>(null);
-
-	// Load texture when URL changes
-	$effect(() => {
-		if (!faceImageUrl) return;
-		const loader = new TextureLoader();
-		const oldTexture = texture;
-		
-		loader.loadAsync(faceImageUrl)
-			.then(tex => {
-				texture = tex;
-				// Dispose of old texture after new one is loaded
-				if (oldTexture) {
-					oldTexture.dispose();
-				}
-			})
-			.catch(err => console.error('Failed to load texture:', err));
-	});
-
-	// Cleanup texture on component destroy
-	onDestroy(() => {
-		if (texture) {
-			texture.dispose();
-		}
-	});
 
 	// Spring store for height animation
 	const height = spring(0.26, {
@@ -61,11 +40,9 @@
 	// Combine components into position array
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
 
-	$inspect(isDragging);
-
 	// Update emissive intensity on hover
 	$effect(() => {
-		emissiveIntensity = isHovered ? 0.5 : 0;
+		emissiveIntensity = isHovered ? 1 : 0;
 	});
 
 	// Update rigid body position when position changes
@@ -121,6 +98,7 @@
 	}
 
 	function handlePointerEnter() {
+		if (!!$dragStore.isDragging) return;
 		isHovered = true;
 	}
 
@@ -133,11 +111,14 @@
 <T.Group {position}>
 	<RigidBody
 		bind:rigidBody
-		type={isDragging ? 'kinematicPosition' : 'dynamic'}
+		type={isDragging ? 'kinematicPosition' : 'kinematicVelocity'}
 		lockRotations={true}
 	>
 		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
+			castShadow
+			receiveShadow
+			bind:ref={card}
 			rotation.x={-Math.PI / 2}
 			onpointerdown={handleDragStart}
 			onpointermove={handleDrag}
@@ -146,11 +127,12 @@
 			onpointerenter={handlePointerEnter}
 		>
 			<T.PlaneGeometry args={[1.4, 2]} />
-			<T.MeshStandardMaterial 
-				map={texture}
-				color="white"
-				emissive="#4444ff" 
-				{emissiveIntensity}
+			<ImageMaterial
+				url={faceImageUrl}
+				side={0}
+				radius={0.1}
+				monochromeColor={'#fff'}
+				monochromeStrength={emissiveIntensity}
 			/>
 		</T.Mesh>
 	</RigidBody>

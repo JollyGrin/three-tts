@@ -33,7 +33,7 @@
 <T.AmbientLight intensity={0.5} />
 
 <World>
-	<!--	<Grid position.y={0.255} /> -->
+	<Grid position.y={0.255} />
 	<Table />
 	{#each cards as [id]}
 		<Card {id} />
