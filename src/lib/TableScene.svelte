@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
-	import { World, Debug } from '@threlte/rapier';
+	import { World } from '@threlte/rapier';
 	import { Grid, interactivity, OrbitControls } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';

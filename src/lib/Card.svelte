@@ -1,15 +1,11 @@
 <script lang="ts">
-	//TODO: figure out how to have the original position before rigid body is applied?
-
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
-	import { objectStore, updateCardState } from './store/objectStore.svelte';
+	import { objectStore } from './store/objectStore.svelte';
 	import { spring } from 'svelte/motion';
-	import { TextureLoader, type Texture } from 'three';
-	import { onDestroy, onMount } from 'svelte';
 	import { ImageMaterial } from '@threlte/extras';
 
 	let { id } = $props();
@@ -78,16 +74,7 @@
 		setTimeout(() => height.set(2), 150);
 	}
 
-	// $effect(() => {
-	// 	if (isDragging) {
-	// 		const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
-	// 		updateCardState(id, [x, position[1], z]);
-	// 	}
-	// });
-
-	function handleDragEnd() {
-		dragEnd();
-	}
+	const handleDragEnd = dragEnd;
 	$effect(() => {
 		if (!isDragging) {
 			// Animate back to table height with a subtle bounce
@@ -108,11 +95,7 @@
 </script>
 
 <T.Group {position}>
-	<RigidBody
-		bind:rigidBody
-		type={isDragging ? 'kinematicPosition' : 'kinematicVelocity'}
-		lockRotations={true}
-	>
+	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={true}>
 		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
 			castShadow
