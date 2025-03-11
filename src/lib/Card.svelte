@@ -101,11 +101,15 @@
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<ImageMaterial
 				url={faceImageUrl}
-				side={0}
+				side={2}
 				radius={0.1}
 				monochromeColor={'#fff'}
 				monochromeStrength={emissiveIntensity}
 			/>
+		</T.Mesh>
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.001} sides={2}>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<T.MeshBasicMaterial color="white" />
 		</T.Mesh>
 	</RigidBody>
 </T.Group>
