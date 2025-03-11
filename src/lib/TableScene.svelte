@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
-	import { World } from '@threlte/rapier';
+	import { World, Debug } from '@threlte/rapier';
 	import { Grid, ImageMaterial, interactivity, OrbitControls } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
@@ -67,27 +67,26 @@
 	{#each cards as [id]}
 		<Card {id} />
 	{/each}
+
+	<Debug />
 </World>
 
 {#snippet intersectionDot()}
 	{#if !!intersectionPoint}
-		{#if $dragStore.isDragging}
-			{@const card = $objectStore[$dragStore.isDragging]}
-			<T.Mesh
-				position={[intersectionPoint.x, intersectionPoint.y + 0.5, intersectionPoint.z]}
-				rotation.x={-Math.PI / 2}
-			>
-				<T.PlaneGeometry args={[1.4, 2]} />
-				<ImageMaterial
-					url={card?.faceImageUrl}
-					side={0}
-					radius={0.1}
-					transparent={true}
-					opacity={0.2}
-				/>
-			</T.Mesh>
-		{/if}
 		<T.Mesh position={[intersectionPoint.x, intersectionPoint.y, intersectionPoint.z]}>
+			{#if $dragStore.isDragging}
+				{@const card = $objectStore[$dragStore.isDragging]}
+				<T.Mesh rotation.x={-Math.PI / 2}>
+					<T.PlaneGeometry args={[1.4, 2]} />
+					<ImageMaterial
+						url={card?.faceImageUrl}
+						side={0}
+						radius={0.1}
+						transparent={true}
+						opacity={0.2}
+					/>
+				</T.Mesh>
+			{/if}
 			<T.SphereGeometry args={[0.1, 32, 16]} />
 			<T.MeshBasicMaterial color="#ff0000" depthTest={false} />
 		</T.Mesh>
