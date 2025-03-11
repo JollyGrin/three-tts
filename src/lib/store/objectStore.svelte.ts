@@ -3,6 +3,7 @@ import { writable, get } from 'svelte/store';
 export interface CardState {
 	position: [number, number, number];
 	rotation: [number, number, number];
+	faceImageUrl: string;
 }
 
 type CardsState = Record<string, CardState>;
@@ -19,12 +20,17 @@ const cards = writable<CardsState>({});
 export function updateCardState(
 	id: string,
 	position: [number, number, number],
-	rotation: [number, number, number] = [0, 0, 0]
+	_faceImageUrl?: string,
+	_rotation?: [number, number, number]
 ) {
-	cards.update((state) => ({
-		...state,
-		[id]: { position, rotation }
-	}));
+	cards.update((state) => {
+		const rotation = _rotation ?? state[id]?.rotation ?? [0, 0, 0];
+		const faceImageUrl = _faceImageUrl ?? state[id]?.faceImageUrl ?? '';
+		return {
+			...state,
+			[id]: { position, rotation, faceImageUrl }
+		};
+	});
 }
 
 // Remove a card

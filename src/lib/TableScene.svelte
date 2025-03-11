@@ -11,9 +11,9 @@
 	const isDragging = $derived($dragStore.isDragging !== null);
 
 	// Add some test cards
-	updateCardState('card1', [-2, 2.5, 0]);
-	updateCardState('card2', [0, 4.5, 0]);
-	updateCardState('card3', [2, 6.5, 0]);
+	updateCardState('card1', [-2, 2.5, 0], 'https://card.cards.army/cards//beast_of_burden.webp');
+	updateCardState('card2', [0, 4.5, 0], 'https://card.cards.army/cards//bosk_troll.webp');
+	updateCardState('card3', [2, 6.5, 0], ' https://card.cards.army/cards//border_militia.webp');
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
