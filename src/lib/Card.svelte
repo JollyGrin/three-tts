@@ -1,4 +1,5 @@
 <script lang="ts">
+	//TODO: figure out how to makme it flip on its own
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { Collider, RigidBody } from '@threlte/rapier';
@@ -54,6 +55,7 @@
 		emissiveIntensity = isHovered ? 0.2 : 0;
 	});
 
+	// Handle position updates
 	$effect(() => {
 		if (!rigidBody) return;
 		rigidBody.wakeUp();
@@ -62,11 +64,6 @@
 			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
 			rigidBody.setTranslation({ x, y: position[1], z }, true);
 			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
-
-			// Use quaternion for smooth rotation
-			const quaternion = new THREE.Quaternion();
-			quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), DEG2RAD * $rotation);
-			rigidBody.setRotation(quaternion, true);
 		} else {
 			const currentPos = rigidBody.translation();
 			const targetY = position[1];
@@ -75,12 +72,18 @@
 			if (Math.abs(currentPos.y - targetY) > 0.001) {
 				rigidBody.setTranslation({ x: position[0], y: targetY, z: position[2] }, true);
 			}
-
-			// Update rotation even when not dragging
-			const quaternion = new THREE.Quaternion();
-			quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), DEG2RAD * $rotation);
-			rigidBody.setRotation(quaternion, true);
 		}
+	});
+
+	// Separate effect for rotation updates
+	$effect(() => {
+		if (!rigidBody) return;
+		rigidBody.wakeUp();
+
+		// Always update rotation, whether dragging or not
+		const quaternion = new THREE.Quaternion();
+		quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), DEG2RAD * $rotation);
+		rigidBody.setRotation(quaternion, true);
 	});
 
 	function handleDragStart() {
