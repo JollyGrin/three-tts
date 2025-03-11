@@ -62,7 +62,14 @@
 
 <World>
 	{@render intersectionDot()}
-	<Grid position.y={0.255} />
+	<Grid
+		position.y={0.255}
+		cellColor="#fff"
+		sectionColor="#fff"
+		sectionThickness={0}
+		cellThickness={0.5}
+		infiniteGrid
+	/>
 	<Table bind:mesh />
 	{#each cards as [id]}
 		<Card {id} />
