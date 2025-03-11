@@ -18,15 +18,22 @@
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
 
-<T.PerspectiveCamera makeDefault position={[0, 20, 10]} fov={30}>
-	<OrbitControls enableRotate={!isDragging} enableDamping maxPolarAngle={Math.PI / 2 - 0.1} />
+<T.PerspectiveCamera makeDefault position={[0, 30, 0]} rotation.x={-Math.PI / 2} fov={35}>
+	<OrbitControls
+		enableRotate={!isDragging}
+		enableDamping
+		maxPolarAngle={Math.PI / 2 - 0.1}
+		target={[0, 0, 0]}
+		minDistance={20}
+		maxDistance={40}
+	/>
 </T.PerspectiveCamera>
 
 <T.DirectionalLight position={[3, 10, 10]} intensity={1.5} />
 <T.AmbientLight intensity={0.5} />
 
 <World>
-	<Grid position.y={0.26} />
+	<Grid position.y={0.255} />
 	<Table />
 	{#each cards as [id]}
 		<Card {id} />
