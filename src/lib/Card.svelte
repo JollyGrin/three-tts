@@ -1,15 +1,11 @@
 <script lang="ts">
-	//TODO: figure out how to have the original position before rigid body is applied?
-
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
-	import { objectStore, updateCardState } from './store/objectStore.svelte';
+	import { objectStore } from './store/objectStore.svelte';
 	import { spring } from 'svelte/motion';
-	import { TextureLoader, type Texture } from 'three';
-	import { onDestroy, onMount } from 'svelte';
 	import { ImageMaterial } from '@threlte/extras';
 
 	let { id } = $props();
@@ -55,7 +51,9 @@
 		// Update position and handle physics state
 		if (isDragging) {
 			// When dragging, instantly update position and enable kinematic mode
-			rigidBody.setTranslation({ x: position[0], y: position[1], z: position[2] }, true);
+			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+			rigidBody.setTranslation({ x, y: position[1], z }, true);
+			// rigidBody.setTranslation($dragStore.intersectionPoint as THREE.Vector3, true);
 			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
 		} else {
 			// When not dragging, smoothly transition to physics control
@@ -74,28 +72,16 @@
 		// Animate to raised height with some extra bounce
 		height.set(2.2);
 		setTimeout(() => height.set(2), 150);
-		console.log('start', position);
 	}
 
-	function handleDrag(event: {
-		intersections: Array<{ point: { x: number; y: number; z: number } }>;
-	}) {
-		if ($dragStore.isDragging !== id) return;
-
-		const [intersection] = event.intersections;
-		if (!intersection) return;
-
-		const { x, z } = intersection.point;
-		updateCardState(id, [x, position[1], z]);
-	}
-
-	function handleDragEnd() {
-		console.log('end', position);
-		dragEnd();
-		// Animate back to table height with a subtle bounce
-		height.set(0.22);
-		setTimeout(() => height.set(0.26), 150);
-	}
+	const handleDragEnd = dragEnd;
+	$effect(() => {
+		if (!isDragging) {
+			// Animate back to table height with a subtle bounce
+			height.set(0.22);
+			setTimeout(() => height.set(0.26), 150);
+		}
+	});
 
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
@@ -104,16 +90,12 @@
 
 	function handlePointerLeave() {
 		isHovered = false;
-		if (isDragging) handleDragEnd();
+		// if (isDragging) handleDragEnd();
 	}
 </script>
 
 <T.Group {position}>
-	<RigidBody
-		bind:rigidBody
-		type={isDragging ? 'kinematicPosition' : 'kinematicVelocity'}
-		lockRotations={true}
-	>
+	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={true}>
 		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
 			castShadow
@@ -121,7 +103,6 @@
 			bind:ref={card}
 			rotation.x={-Math.PI / 2}
 			onpointerdown={handleDragStart}
-			onpointermove={handleDrag}
 			onpointerup={handleDragEnd}
 			onpointerleave={handlePointerLeave}
 			onpointerenter={handlePointerEnter}
