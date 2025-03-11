@@ -13,7 +13,6 @@
 	const { camera } = useThrelte();
 
 	let intersectionPoint: THREE.Vector3 | null = $state(null);
-	$inspect(intersectionPoint);
 
 	interactivity({
 		compute: (event, state) => {

@@ -76,7 +76,6 @@
 		// Animate to raised height with some extra bounce
 		height.set(2.2);
 		setTimeout(() => height.set(2), 150);
-		console.log('start', position);
 	}
 
 	function handleDrag(event: {
@@ -92,7 +91,6 @@
 	}
 
 	function handleDragEnd() {
-		console.log('end', position);
 		dragEnd();
 		// Animate back to table height with a subtle bounce
 		height.set(0.22);
