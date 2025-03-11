@@ -10,7 +10,8 @@
 
 		const card = $objectStore[id as string];
 		if (event.code === 'KeyF') {
-			card.rotation = [180, 0, 0];
+			const isFlipped = card.rotation[0] === 180;
+			card.rotation = [isFlipped ? 0 : 180, 0, 0];
 		}
 	}
 

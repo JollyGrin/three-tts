@@ -26,6 +26,13 @@
 		precision: 0.0001 // Higher precision for smoother animation
 	});
 
+	// Spring store for rotation animation
+	const rotation = spring(0, {
+		stiffness: 0.1, // Softer for smoother rotation
+		damping: 0.8, // More damping to prevent oscillation
+		precision: 0.001 // Lower precision is fine for rotation
+	});
+
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
 	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
@@ -37,6 +44,11 @@
 
 	// Combine components into position array
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
+
+	// Update rotation spring when base rotation changes
+	$effect(() => {
+		rotation.set(baseRotation[0]);
+	});
 
 	$effect(() => {
 		emissiveIntensity = isHovered ? 0.2 : 0;
@@ -51,8 +63,10 @@
 			rigidBody.setTranslation({ x, y: position[1], z }, true);
 			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
 
-			// TODO: this does not lerp. How can i make this lerp
-			rigidBody.setRotation({ x: baseRotation[0], y: 0, z: 0, w: 0 }, true);
+			// Use quaternion for smooth rotation
+			const quaternion = new THREE.Quaternion();
+			quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), DEG2RAD * $rotation);
+			rigidBody.setRotation(quaternion, true);
 		} else {
 			const currentPos = rigidBody.translation();
 			const targetY = position[1];
@@ -61,6 +75,11 @@
 			if (Math.abs(currentPos.y - targetY) > 0.001) {
 				rigidBody.setTranslation({ x: position[0], y: targetY, z: position[2] }, true);
 			}
+
+			// Update rotation even when not dragging
+			const quaternion = new THREE.Quaternion();
+			quaternion.setFromAxisAngle(new THREE.Vector3(1, 0, 0), DEG2RAD * $rotation);
+			rigidBody.setRotation(quaternion, true);
 		}
 	});
 
@@ -90,11 +109,9 @@
 		isHovered = false;
 		$dragStore.isHovered = null;
 	}
-
-	$inspect('rot', baseRotation[0]);
 </script>
 
-<T.Group {position} rotation.x={DEG2RAD * baseRotation[0]}>
+<T.Group {position}>
 	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={true}>
 		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
@@ -116,7 +133,7 @@
 				monochromeStrength={emissiveIntensity}
 			/>
 		</T.Mesh>
-		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.001} sides={2}>
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={2}>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<T.MeshBasicMaterial color="white" />
 		</T.Mesh>
