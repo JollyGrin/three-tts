@@ -108,7 +108,7 @@
 		type={isDragging ? 'kinematicPosition' : 'dynamic'}
 		lockRotations={true}
 	>
-		<Collider restitution={0.4} shape={'cuboid'} args={[2, 0.1, 1.5]} />
+		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
 			rotation.x={-Math.PI / 2}
 			onpointerdown={handleDragStart}

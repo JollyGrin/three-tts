@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
-	import { AutoColliders } from '@threlte/rapier';
+	import { RigidBody, Collider } from '@threlte/rapier';
 </script>
 
 <T.Group position={[0, 0, 0]}>
-	<!-- Table surface -->
-	<AutoColliders shape="cuboid">
-		<T.Mesh receiveShadow>
-			<T.BoxGeometry args={[60, 0.5, 30]} />
-			<T.MeshStandardMaterial color="#35654d" />
-		</T.Mesh>
-	</AutoColliders>
+	<RigidBody type="fixed">
+		<!-- Table surface -->
+		<Collider shape="cuboid" args={[30, 0.256, 15]} friction={1} restitution={1}>
+			<T.Mesh receiveShadow>
+				<T.BoxGeometry args={[60, 0.5, 30]} />
+				<T.MeshStandardMaterial color="#35654d" />
+			</T.Mesh>
+		</Collider>
+	</RigidBody>
 </T.Group>
