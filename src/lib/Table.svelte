@@ -7,7 +7,7 @@
 	<!-- Table surface -->
 	<AutoColliders shape="cuboid">
 		<T.Mesh receiveShadow>
-			<T.BoxGeometry args={[30, 0.5, 30]} />
+			<T.BoxGeometry args={[60, 0.5, 30]} />
 			<T.MeshStandardMaterial color="#35654d" />
 		</T.Mesh>
 	</AutoColliders>
