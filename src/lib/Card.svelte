@@ -78,24 +78,23 @@
 		setTimeout(() => height.set(2), 150);
 	}
 
-	function handleDrag(event: {
-		intersections: Array<{ point: { x: number; y: number; z: number } }>;
-	}) {
-		if ($dragStore.isDragging !== id) return;
-
-		const [intersection] = event.intersections;
-		if (!intersection) return;
-
-		const { x, z } = intersection.point;
-		updateCardState(id, [x, position[1], z]);
-	}
+	$effect(() => {
+		if (isDragging) {
+			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+			updateCardState(id, [x, position[1], z]);
+		}
+	});
 
 	function handleDragEnd() {
 		dragEnd();
-		// Animate back to table height with a subtle bounce
-		height.set(0.22);
-		setTimeout(() => height.set(0.26), 150);
 	}
+	$effect(() => {
+		if (!isDragging) {
+			// Animate back to table height with a subtle bounce
+			height.set(0.22);
+			setTimeout(() => height.set(0.26), 150);
+		}
+	});
 
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
@@ -121,7 +120,6 @@
 			bind:ref={card}
 			rotation.x={-Math.PI / 2}
 			onpointerdown={handleDragStart}
-			onpointermove={handleDrag}
 			onpointerup={handleDragEnd}
 			onpointerleave={handlePointerLeave}
 			onpointerenter={handlePointerEnter}
