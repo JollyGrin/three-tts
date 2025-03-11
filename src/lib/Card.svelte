@@ -36,27 +36,19 @@
 	// Combine components into position array
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
 
-	// Update emissive intensity on hover
 	$effect(() => {
-		emissiveIntensity = isHovered ? 1 : 0;
+		emissiveIntensity = isHovered ? 0.2 : 0;
 	});
 
-	// Update rigid body position when position changes
 	$effect(() => {
 		if (!rigidBody) return;
-
-		// Always wake up the body when updating position
 		rigidBody.wakeUp();
 
-		// Update position and handle physics state
 		if (isDragging) {
-			// When dragging, instantly update position and enable kinematic mode
 			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
 			rigidBody.setTranslation({ x, y: position[1], z }, true);
-			// rigidBody.setTranslation($dragStore.intersectionPoint as THREE.Vector3, true);
 			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
 		} else {
-			// When not dragging, smoothly transition to physics control
 			const currentPos = rigidBody.translation();
 			const targetY = position[1];
 
@@ -90,7 +82,6 @@
 
 	function handlePointerLeave() {
 		isHovered = false;
-		// if (isDragging) handleDragEnd();
 	}
 </script>
 

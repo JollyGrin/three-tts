@@ -24,7 +24,7 @@
 			$dragStore.intersectionPoint = intersectionPoint;
 
 			if (isDragging) {
-				const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+				const { x, z } = intersectionPoint as THREE.Vector3;
 				updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
 			}
 
