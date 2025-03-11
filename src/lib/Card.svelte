@@ -1,12 +1,14 @@
 <script lang="ts">
+	//TODO: figure out how to makme it flip on its own
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
-	import { objectStore } from './store/objectStore.svelte';
+	import { objectStore, updateCardState } from './store/objectStore.svelte';
 	import { spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	let { id } = $props();
 
@@ -25,8 +27,16 @@
 		precision: 0.0001 // Higher precision for smoother animation
 	});
 
+	// Spring store for rotation animation
+	const rotation = spring(0, {
+		stiffness: 0.1, // Softer for smoother rotation
+		damping: 0.8, // More damping to prevent oscillation
+		precision: 0.001 // Lower precision is fine for rotation
+	});
+
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
+	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
 
 	// Create derived values for each component
 	const posX = $derived(basePosition[0]);
@@ -36,10 +46,16 @@
 	// Combine components into position array
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
 
+	// Update rotation spring when base rotation changes
+	$effect(() => {
+		rotation.set(baseRotation[0]);
+	});
+
 	$effect(() => {
 		emissiveIntensity = isHovered ? 0.2 : 0;
 	});
 
+	// Handle position updates
 	$effect(() => {
 		if (!rigidBody) return;
 		rigidBody.wakeUp();
@@ -57,6 +73,17 @@
 				rigidBody.setTranslation({ x: position[0], y: targetY, z: position[2] }, true);
 			}
 		}
+	});
+
+	// Separate effect for rotation updates
+	$effect(() => {
+		if (!rigidBody) return;
+		rigidBody.wakeUp();
+
+		// Always update rotation, whether dragging or not
+		const quaternion = new THREE.Quaternion();
+		quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), DEG2RAD * $rotation);
+		rigidBody.setRotation(quaternion, true);
 	});
 
 	function handleDragStart() {
@@ -78,10 +105,12 @@
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
 		isHovered = true;
+		$dragStore.isHovered = id;
 	}
 
 	function handlePointerLeave() {
 		isHovered = false;
+		$dragStore.isHovered = null;
 	}
 </script>
 
@@ -101,11 +130,15 @@
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<ImageMaterial
 				url={faceImageUrl}
-				side={0}
+				side={2}
 				radius={0.1}
 				monochromeColor={'#fff'}
 				monochromeStrength={emissiveIntensity}
 			/>
+		</T.Mesh>
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={2}>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<T.MeshBasicMaterial color="white" />
 		</T.Mesh>
 	</RigidBody>
 </T.Group>

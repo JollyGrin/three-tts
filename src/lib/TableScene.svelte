@@ -58,7 +58,7 @@
 	/>
 </T.PerspectiveCamera>
 
-<T.DirectionalLight position={[10, 20, 10]} intensity={1.5} castShadow />
+<T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
 
 <World>
 	{@render intersectionDot()}
