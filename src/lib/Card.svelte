@@ -55,7 +55,9 @@
 		// Update position and handle physics state
 		if (isDragging) {
 			// When dragging, instantly update position and enable kinematic mode
-			rigidBody.setTranslation({ x: position[0], y: position[1], z: position[2] }, true);
+			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+			rigidBody.setTranslation({ x, y: position[1], z }, true);
+			// rigidBody.setTranslation($dragStore.intersectionPoint as THREE.Vector3, true);
 			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
 		} else {
 			// When not dragging, smoothly transition to physics control
@@ -104,7 +106,7 @@
 
 	function handlePointerLeave() {
 		isHovered = false;
-		if (isDragging) handleDragEnd();
+		// if (isDragging) handleDragEnd();
 	}
 </script>
 

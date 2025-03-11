@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { Canvas } from '@threlte/core';
-	import Scene from './Scene.svelte';
+	import TableScene from '$lib/TableScene.svelte';
 </script>
 
 <div class="h-screen w-screen">
 	<Canvas>
-		<Scene />
+		<TableScene />
 	</Canvas>
 </div>

@@ -1,12 +1,38 @@
 <script lang="ts">
-	import { T } from '@threlte/core';
+	import { T, useThrelte } from '@threlte/core';
+	import * as THREE from 'three';
 	import { World, Debug } from '@threlte/rapier';
-	import { Grid, OrbitControls } from '@threlte/extras';
+	import { Grid, interactivity, OrbitControls } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
 	import type { CardState } from '$lib/store/objectStore.svelte';
+
+	let mesh: THREE.Mesh | undefined = $state();
+	const { camera } = useThrelte();
+
+	let intersectionPoint: THREE.Vector3 | null = $state(null);
+	$inspect(intersectionPoint);
+
+	interactivity({
+		compute: (event, state) => {
+			if (!mesh) return;
+			const intersects = state.raycaster.intersectObject(mesh);
+			const [intersection] = intersects;
+			intersectionPoint = intersection?.point ?? null;
+			$dragStore.intersectionPoint = intersectionPoint;
+
+			state.pointer.update((p) => {
+				p.x = (event.clientX / window.innerWidth) * 2 - 1;
+				p.y = -(event.clientY / window.innerHeight) * 2 + 1;
+				return p;
+			});
+
+			// Update the raycaster
+			state.raycaster.setFromCamera(state.pointer.current, $camera);
+		}
+	});
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 
@@ -33,9 +59,19 @@
 <T.AmbientLight intensity={0.5} />
 
 <World>
+	{@render intersectionDot()}
 	<Grid position.y={0.255} />
-	<Table />
+	<Table bind:mesh />
 	{#each cards as [id]}
 		<Card {id} />
 	{/each}
 </World>
+
+{#snippet intersectionDot()}
+	{#if !!intersectionPoint}
+		<T.Mesh position={[intersectionPoint.x, intersectionPoint.y, intersectionPoint.z]}>
+			<T.SphereGeometry args={[0.1, 32, 16]} />
+			<T.MeshBasicMaterial color="#ff0000" depthTest={false} />
+		</T.Mesh>
+	{/if}
+{/snippet}
