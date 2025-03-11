@@ -76,7 +76,7 @@
 		<T.Mesh position={[intersectionPoint.x, intersectionPoint.y, intersectionPoint.z]}>
 			{#if $dragStore.isDragging}
 				{@const card = $objectStore[$dragStore.isDragging]}
-				<T.Mesh rotation.x={-Math.PI / 2}>
+				<T.Mesh position.y={0.01} rotation.x={-Math.PI / 2}>
 					<T.PlaneGeometry args={[1.4, 2]} />
 					<ImageMaterial
 						url={card?.faceImageUrl}
