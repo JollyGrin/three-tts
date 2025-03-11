@@ -28,7 +28,6 @@
 <World>
 	<Grid position.y={0.26} />
 	<Table />
-	<!-- Add some test cards -->
 	{#each cards as [id]}
 		<Card {id} />
 	{/each}
