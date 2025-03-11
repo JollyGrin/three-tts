@@ -11,39 +11,66 @@ interface DragState {
 const initialState: DragState = {
 	isDragging: null,
 	isHovered: null,
-	dragHeight: undefined
+	dragHeight: undefined,
+	intersectionPoint: undefined
 };
 
-export const dragStore = writable<DragState>(initialState);
+const dragStore = writable<DragState>(initialState);
 
 // Start dragging a card
-export function dragStart(id: string, height: number) {
-	dragStore.update((e) => ({
-		...e,
+function dragStart(id: string, height: number) {
+	dragStore.update((state) => ({
+		...state,
 		isDragging: id,
 		isHovered: id,
 		dragHeight: height
 	}));
 }
 
-// End dragging
-export function dragEnd() {
+// Update intersection point during drag
+function updateIntersection(point: Vector3) {
+	dragStore.update((state) => {
+		// Only update if we're actually dragging
+		if (!state.isDragging) return state;
+		
+		return {
+			...state,
+			intersectionPoint: point
+		};
+	});
+}
+
+// End dragging and reset state
+function dragEnd() {
 	dragStore.set(initialState);
 }
 
 // Set hover state
-export function setHover(id: string | null) {
+function setHover(id: string | null) {
 	dragStore.update((state) => ({
 		...state,
-		isHovered: id
+		// Don't update hover if we're dragging
+		isHovered: state.isDragging ? state.isHovered : id
 	}));
 }
 
-// Export store actions
-export const dragActions = {
+// Create store actions object
+const dragActions = {
 	subscribe: dragStore.subscribe,
 	start: dragStart,
 	end: dragEnd,
 	hover: setHover,
+	updateIntersection,
 	reset: () => dragStore.set(initialState)
+};
+
+// Export all public API
+export {
+	dragStore,
+	dragStart,
+	dragEnd,
+	setHover,
+	updateIntersection,
+	dragActions,
+	type DragState
 };

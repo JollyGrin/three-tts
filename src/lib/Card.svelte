@@ -78,12 +78,12 @@
 		setTimeout(() => height.set(2), 150);
 	}
 
-	$effect(() => {
-		if (isDragging) {
-			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
-			updateCardState(id, [x, position[1], z]);
-		}
-	});
+	// $effect(() => {
+	// 	if (isDragging) {
+	// 		const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+	// 		updateCardState(id, [x, position[1], z]);
+	// 	}
+	// });
 
 	function handleDragEnd() {
 		dragEnd();

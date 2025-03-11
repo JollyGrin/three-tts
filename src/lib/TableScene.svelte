@@ -9,6 +9,7 @@
 	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
 	import type { CardState } from '$lib/store/objectStore.svelte';
 
+	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
 	const { camera } = useThrelte();
 
@@ -22,6 +23,11 @@
 			intersectionPoint = intersection?.point ?? null;
 			$dragStore.intersectionPoint = intersectionPoint;
 
+			if (isDragging) {
+				const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+				updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
+			}
+
 			state.pointer.update((p) => {
 				p.x = (event.clientX / window.innerWidth) * 2 - 1;
 				p.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -32,8 +38,6 @@
 			state.raycaster.setFromCamera(state.pointer.current, $camera);
 		}
 	});
-
-	const isDragging = $derived($dragStore.isDragging !== null);
 
 	// Add some test cards
 	updateCardState('card1', [-2, 2.5, 0], 'https://card.cards.army/cards//beast_of_burden.webp');
