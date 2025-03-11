@@ -8,11 +8,6 @@ export interface CardState {
 
 type CardsState = Record<string, CardState>;
 
-const initCards = {
-	a: { position: [0, 3, 0], rotation: [0, 0, 0] },
-	b: { position: [2, 3, 0], rotation: [0, 0, 0] }
-};
-
 // Create the writable store
 const cards = writable<CardsState>({});
 
