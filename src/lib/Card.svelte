@@ -7,13 +7,41 @@
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore, updateCardState } from './store/objectStore.svelte';
 	import { spring } from 'svelte/motion';
+	import { TextureLoader, type Texture } from 'three';
+	import { onDestroy } from 'svelte';
 
 	let { id } = $props();
 
 	const isDragging = $derived($dragStore.isDragging === id);
+	const faceImageUrl = $derived($objectStore[id]?.faceImageUrl);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 	let rigidBody = $state<RapierRigidBody | undefined>(undefined);
+	let texture = $state<Texture | null>(null);
+
+	// Load texture when URL changes
+	$effect(() => {
+		if (!faceImageUrl) return;
+		const loader = new TextureLoader();
+		const oldTexture = texture;
+		
+		loader.loadAsync(faceImageUrl)
+			.then(tex => {
+				texture = tex;
+				// Dispose of old texture after new one is loaded
+				if (oldTexture) {
+					oldTexture.dispose();
+				}
+			})
+			.catch(err => console.error('Failed to load texture:', err));
+	});
+
+	// Cleanup texture on component destroy
+	onDestroy(() => {
+		if (texture) {
+			texture.dispose();
+		}
+	});
 
 	// Spring store for height animation
 	const height = spring(0.26, {
@@ -118,7 +146,12 @@
 			onpointerenter={handlePointerEnter}
 		>
 			<T.PlaneGeometry args={[1.4, 2]} />
-			<T.MeshStandardMaterial color="white" emissive="#4444ff" {emissiveIntensity} />
+			<T.MeshStandardMaterial 
+				map={texture}
+				color="white"
+				emissive="#4444ff" 
+				{emissiveIntensity}
+			/>
 		</T.Mesh>
 	</RigidBody>
 </T.Group>
