@@ -2,11 +2,11 @@
 	//TODO: figure out how to have the original position before rigid body is applied?
 
 	import { T } from '@threlte/core';
-import { Collider, RigidBody } from '@threlte/rapier';
-import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
-import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
-import { objectStore, updateCardState } from './store/objectStore.svelte';
-import { spring } from 'svelte/motion';
+	import { Collider, RigidBody } from '@threlte/rapier';
+	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
+	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
+	import { objectStore, updateCardState } from './store/objectStore.svelte';
+	import { spring } from 'svelte/motion';
 
 	let { id } = $props();
 
@@ -18,7 +18,7 @@ import { spring } from 'svelte/motion';
 	// Spring store for height animation
 	const height = spring(0.26, {
 		stiffness: 0.15, // Slightly stiffer for faster initial movement
-		damping: 0.7,   // More damping for smoother settling
+		damping: 0.7, // More damping for smoother settling
 		precision: 0.0001 // Higher precision for smoother animation
 	});
 
@@ -56,7 +56,7 @@ import { spring } from 'svelte/motion';
 			// When not dragging, smoothly transition to physics control
 			const currentPos = rigidBody.translation();
 			const targetY = position[1];
-			
+
 			// Only update if there's a significant difference
 			if (Math.abs(currentPos.y - targetY) > 0.001) {
 				rigidBody.setTranslation({ x: position[0], y: targetY, z: position[2] }, true);
@@ -98,7 +98,7 @@ import { spring } from 'svelte/motion';
 
 	function handlePointerLeave() {
 		isHovered = false;
-		handleDragEnd();
+		if (isDragging) handleDragEnd();
 	}
 </script>
 
@@ -108,7 +108,7 @@ import { spring } from 'svelte/motion';
 		type={isDragging ? 'kinematicPosition' : 'dynamic'}
 		lockRotations={true}
 	>
-		<Collider restitution={0.4} shape={'cuboid'} args={[0.5, 0.03, 0.5]} />
+		<Collider restitution={0.4} shape={'cuboid'} args={[2, 0.1, 1.5]} />
 		<T.Mesh
 			rotation.x={-Math.PI / 2}
 			onpointerdown={handleDragStart}
