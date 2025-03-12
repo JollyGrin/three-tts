@@ -8,6 +8,7 @@
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
 	import type { CardState } from '$lib/store/objectStore.svelte';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -81,7 +82,11 @@
 		<T.Mesh position={[intersectionPoint.x, intersectionPoint.y, intersectionPoint.z]}>
 			{#if $dragStore.isDragging}
 				{@const card = $objectStore[$dragStore.isDragging]}
-				<T.Mesh position.y={0.01} rotation.x={-Math.PI / 2}>
+				<T.Mesh
+					position.y={0.01}
+					rotation.x={-Math.PI / 2}
+					rotation.z={-card.rotation[2] * DEG2RAD}
+				>
 					<T.PlaneGeometry args={[1.4, 2]} />
 					<ImageMaterial
 						url={card?.faceImageUrl}
