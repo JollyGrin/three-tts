@@ -3,16 +3,7 @@
 	import TableScene from '$lib/TableScene.svelte';
 	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
-
-	function flipCard() {
-		const id = $dragStore.isHovered || $dragStore.isDragging;
-		if (!id) return;
-
-		const card = $objectStore[id as string];
-		const [_x, y, z] = card.rotation;
-		const isFlipped = card.rotation[0] === 180;
-		updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, y, z]);
-	}
+	import { flipCard } from '$lib/utils/transforms/card';
 
 	function tapCard() {
 		const id = $dragStore.isHovered || $dragStore.isDragging;
