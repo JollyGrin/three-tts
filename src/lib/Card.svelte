@@ -69,6 +69,12 @@
 
 	$effect(() => {
 		rotation.target = baseRotation[0];
+
+		if (!isDragging) {
+			// elevate the card if on the table to prevent clipping through
+			height.target = 1.5;
+			setTimeout(() => (height.target = 0.26), 350);
+		}
 	});
 
 	$effect(() => {
