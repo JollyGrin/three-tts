@@ -12,11 +12,22 @@
 		const isFlipped = card.rotation[0] === 180;
 		updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, 0, 0]);
 	}
+
+	function tapCard() {
+		const id = $dragStore.isHovered || $dragStore.isDragging;
+		if (!id) return;
+
+		const card = $objectStore[id as string];
+		const isTapped = card.rotation[2] === 90;
+		updateCardState(id as string, card.position, card.faceImageUrl, [0, 0, isTapped ? 0 : 180]);
+	}
+
 	function handleKeyDown(event: KeyboardEvent) {
 		const id = $dragStore.isHovered || $dragStore.isDragging;
-		if (!id) return event.preventDefault();
+		if (id) event.preventDefault();
 
 		if (event.code === 'KeyF') flipCard();
+		if (event.code === 'KeyT') tapCard();
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
