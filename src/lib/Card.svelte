@@ -75,6 +75,7 @@
 
 	$effect(() => {
 		rotation.target = baseRotation[0];
+		rotationTap.target = baseRotation[2];
 
 		if (!isDragging) {
 			// elevate the card if on the table to prevent clipping through
@@ -88,9 +89,20 @@
 		rigidBody.wakeUp();
 
 		// Always update rotation, whether dragging or not
-		const quaternion = new THREE.Quaternion();
-		quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), DEG2RAD * rotation.current);
-		rigidBody.setRotation(quaternion, true);
+		// Create quaternions for each rotation axis
+		const flipQuaternion = new THREE.Quaternion().setFromAxisAngle(
+			new THREE.Vector3(0, 0, 1), // Z-axis for flip
+			DEG2RAD * rotation.current
+		);
+
+		const tapQuaternion = new THREE.Quaternion().setFromAxisAngle(
+			new THREE.Vector3(0, -1, 0), // X-axis for tap
+			DEG2RAD * rotationTap.current
+		);
+
+		// Combine quaternions (order matters in quaternion multiplication)
+		const combinedQuaternion = flipQuaternion.multiply(tapQuaternion);
+		rigidBody.setRotation(combinedQuaternion, true);
 	});
 
 	function handleDragStart() {

@@ -9,8 +9,9 @@
 		if (!id) return;
 
 		const card = $objectStore[id as string];
+		const [x, y, z] = card.rotation;
 		const isFlipped = card.rotation[0] === 180;
-		updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, 0, 0]);
+		updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, y, z]);
 	}
 
 	function tapCard() {
@@ -18,8 +19,9 @@
 		if (!id) return;
 
 		const card = $objectStore[id as string];
+		const [x, y, z] = card.rotation;
 		const isTapped = card.rotation[2] === 90;
-		updateCardState(id as string, card.position, card.faceImageUrl, [0, 0, isTapped ? 0 : 180]);
+		updateCardState(id as string, card.position, card.faceImageUrl, [x, y, isTapped ? 0 : 90]);
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
