@@ -42,10 +42,11 @@ export function getCardState(id: string): CardState | undefined {
 }
 
 // Export the store
-export const objectStore = {
-	subscribe: cards.subscribe,
-	update: updateCardState,
-	remove: removeCard,
-	get: getCardState,
-	reset: () => cards.set({})
-};
+// export const objectStore = {
+// 	subscribe: cards.subscribe,
+// 	update: updateCardState,
+// 	remove: removeCard,
+// 	get: getCardState,
+// 	reset: () => cards.set({})
+// };
+export const objectStore = cards;
