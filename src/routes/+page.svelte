@@ -42,11 +42,16 @@
 <svelte:window on:keydown|preventDefault={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
 <div
-	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-1 rounded bg-gray-50/10 px-2 py-[2px] opacity-30 md:top-4 md:right-4 md:scale-100"
+	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"
 >
 	<button onclick={flipCard}>
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> f </span>
 		<span class="text-white"> Flip card </span>
+	</button>
+
+	<button onclick={tapCard}>
+		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> t </span>
+		<span class="text-white"> Tap card </span>
 	</button>
 </div>
 
