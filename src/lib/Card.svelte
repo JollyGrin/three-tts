@@ -137,7 +137,7 @@
 				monochromeStrength={emissiveIntensity}
 			/>
 		</T.Mesh>
-		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={2}>
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<T.MeshBasicMaterial color="white" />
 		</T.Mesh>
