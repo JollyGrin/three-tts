@@ -74,8 +74,6 @@
 	{#each cards as [id]}
 		<Card {id} />
 	{/each}
-
-	<Debug />
 </World>
 
 {#snippet intersectionDot()}
