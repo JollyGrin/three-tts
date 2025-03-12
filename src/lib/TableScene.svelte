@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
-	import { World, Debug } from '@threlte/rapier';
-	import { Grid, ImageMaterial, interactivity, OrbitControls } from '@threlte/extras';
+	import { World } from '@threlte/rapier';
+	import { interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
 	import type { CardState } from '$lib/store/objectStore.svelte';
-	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import TableCamera from './TableCamera.svelte';
+	import Intersection from './Intersection.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -48,57 +49,14 @@
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
 
-<T.PerspectiveCamera makeDefault position={[0, 30, 0]} rotation.x={-Math.PI / 2} fov={35}>
-	<OrbitControls
-		enableRotate={!isDragging}
-		enableDamping
-		maxPolarAngle={Math.PI / 2 - 0.1}
-		target={[0, 0, 0]}
-		minDistance={1}
-		maxDistance={40}
-	/>
-</T.PerspectiveCamera>
-
+<TableCamera />
 <T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
 
 <World>
-	{@render intersectionDot()}
-	<Grid
-		position.y={0.255}
-		cellColor="#fff"
-		sectionColor="#fff"
-		sectionThickness={0}
-		cellThickness={0.5}
-		infiniteGrid
-	/>
+	<Intersection />
 	<Table bind:mesh />
+
 	{#each cards as [id]}
 		<Card {id} />
 	{/each}
 </World>
-
-{#snippet intersectionDot()}
-	{#if !!intersectionPoint}
-		<T.Mesh position={[intersectionPoint.x, intersectionPoint.y, intersectionPoint.z]}>
-			{#if $dragStore.isDragging}
-				{@const card = $objectStore[$dragStore.isDragging]}
-				<T.Mesh
-					position.y={0.01}
-					rotation.x={-Math.PI / 2}
-					rotation.z={-card.rotation[2] * DEG2RAD}
-				>
-					<T.PlaneGeometry args={[1.4, 2]} />
-					<ImageMaterial
-						url={card?.faceImageUrl}
-						side={0}
-						radius={0.1}
-						transparent={true}
-						opacity={0.2}
-					/>
-				</T.Mesh>
-			{/if}
-			<T.SphereGeometry args={[0.1, 32, 16]} />
-			<T.MeshBasicMaterial color="#ff0000" depthTest={false} />
-		</T.Mesh>
-	{/if}
-{/snippet}
