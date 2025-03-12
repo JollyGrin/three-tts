@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Canvas } from '@threlte/core';
 	import TableScene from '$lib/TableScene.svelte';
-	import { objectStore } from '$lib/store/objectStore.svelte';
+	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -11,7 +11,7 @@
 		const card = $objectStore[id as string];
 		if (event.code === 'KeyF') {
 			const isFlipped = card.rotation[0] === 180;
-			card.rotation = [isFlipped ? 0 : 180, 0, 0];
+			updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, 0, 0]);
 		}
 	}
 

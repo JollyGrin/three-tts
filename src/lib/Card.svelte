@@ -45,10 +45,6 @@
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
 
 	$effect(() => {
-		rotation.target = baseRotation[0];
-	});
-
-	$effect(() => {
 		emissiveIntensity = isHovered ? 0.2 : 0;
 	});
 
@@ -71,11 +67,12 @@
 		}
 	});
 
-	// Separate effect for rotation updates
+	$effect(() => {
+		rotation.target = baseRotation[0];
+	});
+
 	$effect(() => {
 		if (!rigidBody) return;
-		if (rotation.current === rotation.target) return;
-		console.log('hit');
 		rigidBody.wakeUp();
 
 		// Always update rotation, whether dragging or not
@@ -113,7 +110,7 @@
 </script>
 
 <T.Group {position}>
-	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={true}>
+	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={false}>
 		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
 		<T.Mesh
 			castShadow
