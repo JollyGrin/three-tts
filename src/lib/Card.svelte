@@ -32,6 +32,12 @@
 		precision: 0.001 // Lower precision is fine for rotation
 	});
 
+	const rotationTap = new Spring(0, {
+		stiffness: 0.1, // Softer for smoother rotation
+		damping: 0.8, // More damping to prevent oscillation
+		precision: 0.001 // Lower precision is fine for rotation
+	});
+
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
 	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
