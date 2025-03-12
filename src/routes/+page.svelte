@@ -9,14 +9,27 @@
 		if (!id) return;
 
 		const card = $objectStore[id as string];
+		const [x, y, z] = card.rotation;
 		const isFlipped = card.rotation[0] === 180;
-		updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, 0, 0]);
+		updateCardState(id as string, card.position, card.faceImageUrl, [isFlipped ? 0 : 180, y, z]);
 	}
+
+	function tapCard() {
+		const id = $dragStore.isHovered || $dragStore.isDragging;
+		if (!id) return;
+
+		const card = $objectStore[id as string];
+		const [x, y, z] = card.rotation;
+		const isTapped = card.rotation[2] === 90;
+		updateCardState(id as string, card.position, card.faceImageUrl, [x, y, isTapped ? 0 : 90]);
+	}
+
 	function handleKeyDown(event: KeyboardEvent) {
 		const id = $dragStore.isHovered || $dragStore.isDragging;
-		if (!id) return event.preventDefault();
+		if (id) event.preventDefault();
 
 		if (event.code === 'KeyF') flipCard();
+		if (event.code === 'KeyT') tapCard();
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -29,11 +42,16 @@
 <svelte:window on:keydown|preventDefault={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
 <div
-	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-1 rounded bg-gray-50/10 px-2 py-[2px] opacity-30 md:top-4 md:right-4 md:scale-100"
+	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"
 >
 	<button onclick={flipCard}>
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> f </span>
 		<span class="text-white"> Flip card </span>
+	</button>
+
+	<button onclick={tapCard}>
+		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> t </span>
+		<span class="text-white"> Tap card </span>
 	</button>
 </div>
 
