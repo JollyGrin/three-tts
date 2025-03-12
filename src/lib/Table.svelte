@@ -4,6 +4,7 @@
 	import * as THREE from 'three';
 	import { dragEnd } from './store/dragStore.svelte';
 	import { onDestroy } from 'svelte';
+	import { Grid } from '@threlte/extras';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
@@ -12,7 +13,7 @@
 	$effect(() => {
 		// Create canvas for procedural texture
 		const canvas = document.createElement('canvas');
-		canvas.width = 512;  
+		canvas.width = 512;
 		canvas.height = 512;
 		const ctx = canvas.getContext('2d')!;
 
@@ -23,7 +24,7 @@
 		// Add cross-hatch pattern
 		ctx.strokeStyle = '#35654d';
 		ctx.lineWidth = 1;
-		
+
 		// Horizontal lines
 		for (let y = 0; y < 512; y += 4) {
 			ctx.beginPath();
@@ -31,7 +32,7 @@
 			ctx.lineTo(512, y);
 			ctx.stroke();
 		}
-		
+
 		// Vertical lines
 		for (let x = 0; x < 512; x += 4) {
 			ctx.beginPath();
@@ -44,23 +45,23 @@
 		for (let i = 0; i < 100000; i++) {
 			const x = Math.random() * 512;
 			const y = Math.random() * 512;
-			const brightness = Math.random() < 0.5 ? 0.7 : 1.0;  
+			const brightness = Math.random() < 0.5 ? 0.7 : 1.0;
 			ctx.fillStyle = `rgba(53, 101, 77, ${brightness})`;
-			ctx.fillRect(x, y, 2, 2);  
+			ctx.fillRect(x, y, 2, 2);
 		}
 
 		// Create texture from canvas
 		const texture = new THREE.CanvasTexture(canvas);
 		texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-		texture.repeat.set(4, 2);  
+		texture.repeat.set(4, 2);
 
 		// Create material with felt-like properties
 		feltMaterial = new THREE.MeshStandardMaterial({
 			map: texture,
-			roughness: 0.9,  
-			metalness: 0.0,  
+			roughness: 0.9,
+			metalness: 0.0,
 			bumpMap: texture,
-			bumpScale: 0.02,  
+			bumpScale: 0.02,
 			side: THREE.DoubleSide
 		});
 	});
@@ -74,6 +75,14 @@
 	});
 </script>
 
+<Grid
+	position.y={0.255}
+	cellColor="#fff"
+	sectionColor="#fff"
+	sectionThickness={0}
+	cellThickness={0.5}
+	infiniteGrid
+/>
 <T.Group position={[0, 0, 0]}>
 	<RigidBody type="fixed">
 		<Collider shape="cuboid" args={[30, 0.256, 15]} friction={1} restitution={1}>
