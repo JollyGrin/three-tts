@@ -1,3 +1,11 @@
+# Browser TTS
+Recreating table top simulator in the browser using threejs (threlte)
+
+## TODO
+- create a hand HUD, so that you can have cards visible at bottom of screen that are in your hand
+
+--- 
+
 # sv
 
 Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
