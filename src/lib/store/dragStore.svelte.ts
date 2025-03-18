@@ -4,6 +4,7 @@ import type { Vector3 } from 'three';
 interface DragState {
 	isDragging: string | null;
 	isHovered: string | null;
+	isTrayHovered: boolean;
 	dragHeight?: number;
 	intersectionPoint?: Vector3;
 }
@@ -11,6 +12,7 @@ interface DragState {
 const initialState: DragState = {
 	isDragging: null,
 	isHovered: null,
+	isTrayHovered: false,
 	dragHeight: undefined,
 	intersectionPoint: undefined
 };
@@ -32,7 +34,7 @@ function updateIntersection(point: Vector3) {
 	dragStore.update((state) => {
 		// Only update if we're actually dragging
 		if (!state.isDragging) return state;
-		
+
 		return {
 			...state,
 			intersectionPoint: point

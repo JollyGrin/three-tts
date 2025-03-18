@@ -4,6 +4,7 @@
 	import { useViewport, ImageMaterial, interactivity } from '@threlte/extras';
 	import { updateCardState } from './store/objectStore.svelte';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
+	import { Spring } from 'svelte/motion';
 
 	interactivity();
 	let {}: {} = $props();
@@ -34,11 +35,27 @@
 		emissiveIntensity = isCardHovered ? 0.2 : 0;
 	});
 
+	const cardSize = [1.4 * 1.4, 2 * 1.4];
+	const cardY = new Spring(0, {
+		stiffness: 0.15, // Slightly stiffer for faster initial movement
+		damping: 0.7, // More damping for smoother settling
+		precision: 0.0001 // Higher precision for smoother animation
+	});
+	const cardScale = new Spring(0.55, {
+		stiffness: 0.15, // Slightly stiffer for faster initial movement
+		damping: 0.7, // More damping for smoother settling
+		precision: 0.0001 // Higher precision for smoother animation
+	});
+
 	function handlePointerEnter() {
 		isCardHovered = true;
+		cardScale.target = 1;
+		cardY.target = 1;
 	}
 	function handlePointerLeave() {
 		isCardHovered = false;
+		cardScale.target = 0.55;
+		cardY.target = 0;
 	}
 
 	function handleDragStart() {
@@ -50,8 +67,6 @@
 	function handleDragEnd() {
 		dragEnd();
 	}
-
-	const cardSize = [1.4 * 1.4, 2 * 1.4];
 </script>
 
 <T.OrthographicCamera makeDefault zoom={80} position={[0, 0, 10]} />
@@ -70,8 +85,8 @@
 	</T.Mesh>
 
 	<T.Mesh
-		scale={isCardHovered ? 1 : 0.55}
-		position.y={isCardHovered ? 1 : 0}
+		scale={cardScale.current}
+		position.y={cardY.current}
 		onpointerenter={handlePointerEnter}
 		onpointerleave={handlePointerLeave}
 		onpointerdown={handleDragStart}
