@@ -49,4 +49,9 @@ export function getCardState(id: string): CardState | undefined {
 // 	get: getCardState,
 // 	reset: () => cards.set({})
 // };
-export const objectStore = cards;
+export const objectStore = {
+	updateCardState,
+	removeCard,
+	getCardState,
+	...cards
+};

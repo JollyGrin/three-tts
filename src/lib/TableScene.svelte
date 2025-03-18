@@ -28,7 +28,7 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
+				objectStore.updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
 			}
 
 			state.pointer.update((p) => {
@@ -42,10 +42,19 @@
 		}
 	});
 
-	// Add some test cards
-	updateCardState('card1', [-2, 2.5, 0], 'https://card.cards.army/cards//beast_of_burden.webp');
-	updateCardState('card2', [0, 4.5, 0], 'https://card.cards.army/cards//bosk_troll.webp');
-	updateCardState('card3', [2, 6.5, 0], ' https://card.cards.army/cards//border_militia.webp');
+	const initCards = [
+		['card1', [-2, 2.5, 0], 'https://card.cards.army/cards//beast_of_burden.webp'],
+		['card2', [0, 4.5, 0], 'https://card.cards.army/cards//bosk_troll.webp'],
+		['card3', [2, 6.5, 0], 'https://card.cards.army/cards//border_militia.webp']
+	];
+
+	initCards.forEach(([id, position, faceImageUrl]) => {
+		objectStore.updateCardState(
+			id as string,
+			position as [number, number, number],
+			faceImageUrl as string
+		);
+	});
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>

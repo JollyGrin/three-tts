@@ -2,7 +2,7 @@
 	import { T, useTask } from '@threlte/core';
 	import * as THREE from 'three';
 	import { useViewport, ImageMaterial, interactivity } from '@threlte/extras';
-	import { updateCardState } from './store/objectStore.svelte';
+	import { objectStore } from './store/objectStore.svelte';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
 
@@ -32,7 +32,7 @@
 	let emissiveIntensity = $state(0);
 
 	$effect(() => {
-		emissiveIntensity = isCardHovered ? 0.2 : 0;
+		emissiveIntensity = isCardHovered ? 0.05 : 0;
 	});
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
@@ -49,7 +49,7 @@
 
 	function handlePointerEnter() {
 		isCardHovered = true;
-		cardScale.target = 1;
+		cardScale.target = 1.25;
 		cardY.target = 1;
 	}
 	function handlePointerLeave() {
@@ -60,7 +60,7 @@
 
 	function handleDragStart() {
 		const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
-		updateCardState('cardx', [x, 2.5, z], cardImageUrl);
+		objectStore.updateCardState('cardx', [x, 2.5, z], cardImageUrl);
 		dragStart('cardx', 2.5);
 	}
 </script>
@@ -89,15 +89,7 @@
 		onpointerup={dragEnd}
 	>
 		<T.PlaneGeometry args={cardSize} />
-		<ImageMaterial
-			url={cardImageUrl}
-			side={2}
-			radius={0.1}
-			monochromeColor={'#fff'}
-			monochromeStrength={emissiveIntensity}
-			transparent={true}
-			opacity={0.9}
-		/>
+		<ImageMaterial url={cardImageUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
 	</T.Mesh>
 </T.Group>
 
