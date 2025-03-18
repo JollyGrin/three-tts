@@ -2,6 +2,8 @@
 	import { T, useTask } from '@threlte/core';
 	import * as THREE from 'three';
 	import { useViewport, ImageMaterial, interactivity } from '@threlte/extras';
+	import { updateCardState } from './store/objectStore.svelte';
+	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 
 	interactivity();
 	let {}: {} = $props();
@@ -24,6 +26,7 @@
 
 	const cardImageUrl = 'https://card.cards.army/cards//beast_of_burden.webp';
 	let isCardHovered = $state(false);
+	let isDragging = $state(false);
 	let isTrayHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
@@ -36,6 +39,16 @@
 	}
 	function handlePointerLeave() {
 		isCardHovered = false;
+	}
+
+	function handleDragStart() {
+		const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+		updateCardState('cardx', [x, 2.5, z], cardImageUrl);
+		dragStart('cardx', 2.5);
+	}
+
+	function handleDragEnd() {
+		dragEnd();
 	}
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
@@ -61,6 +74,8 @@
 		position.y={isCardHovered ? 1 : 0}
 		onpointerenter={handlePointerEnter}
 		onpointerleave={handlePointerLeave}
+		onpointerdown={handleDragStart}
+		onpointerup={dragEnd}
 	>
 		<T.PlaneGeometry args={cardSize} />
 		<ImageMaterial
