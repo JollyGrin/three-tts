@@ -24,6 +24,7 @@
 
 	const cardImageUrl = 'https://card.cards.army/cards//beast_of_burden.webp';
 	let isCardHovered = $state(false);
+	let isTrayHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
 	$effect(() => {
@@ -33,7 +34,6 @@
 	function handlePointerEnter() {
 		isCardHovered = true;
 	}
-
 	function handlePointerLeave() {
 		isCardHovered = false;
 	}
@@ -47,9 +47,13 @@
 
 <!-- Hand tray at bottom left -->
 <T.Group position={[trayX, trayY, 0] as [number, number, number]}>
-	<T.Mesh bind:ref={trayMesh}>
+	<T.Mesh
+		bind:ref={trayMesh}
+		onpointerenter={() => (isTrayHovered = true)}
+		onpointerleave={() => (isTrayHovered = false)}
+	>
 		<T.PlaneGeometry args={[trayWidth, trayHeight]} />
-		<T.MeshBasicMaterial color="white" transparent opacity={0.1} side={2} />
+		<T.MeshBasicMaterial color="white" transparent opacity={isTrayHovered ? 0.3 : 0.1} side={2} />
 	</T.Mesh>
 
 	<T.Mesh
