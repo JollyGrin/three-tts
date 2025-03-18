@@ -63,10 +63,6 @@
 		updateCardState('cardx', [x, 2.5, z], cardImageUrl);
 		dragStart('cardx', 2.5);
 	}
-
-	function handleDragEnd() {
-		dragEnd();
-	}
 </script>
 
 <T.OrthographicCamera makeDefault zoom={80} position={[0, 0, 10]} />
