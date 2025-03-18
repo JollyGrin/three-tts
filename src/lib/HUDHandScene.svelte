@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { T, useTask } from '@threlte/core';
+	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { useViewport, ImageMaterial, interactivity } from '@threlte/extras';
 	import { objectStore } from './store/objectStore.svelte';
@@ -23,11 +23,11 @@
 
 	let trayMesh: THREE.Mesh | undefined = $state(undefined);
 	let redSquareMesh: THREE.Mesh | undefined = $state(undefined);
-	let cardMesh: THREE.Mesh | undefined = $state(undefined);
 
 	const cardImageUrl = 'https://card.cards.army/cards//beast_of_burden.webp';
 	let isCardHovered = $state(false);
 	let isDragging = $state(false);
+
 	let isTrayHovered = $state(false);
 	let emissiveIntensity = $state(0);
 

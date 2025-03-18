@@ -1,10 +1,5 @@
 import { writable, get } from 'svelte/store';
-
-export interface CardState {
-	position: [number, number, number];
-	rotation: [number, number, number];
-	faceImageUrl: string;
-}
+import type { CardState } from './objectStore.svelte';
 
 type CardsState = Record<string, CardState>;
 
@@ -41,15 +36,7 @@ function getCardState(id: string): CardState | undefined {
 	return get(cards)[id];
 }
 
-// Export the store
-// export const objectStore = {
-// 	subscribe: cards.subscribe,
-// 	update: updateCardState,
-// 	remove: removeCard,
-// 	get: getCardState,
-// 	reset: () => cards.set({})
-// };
-export const objectStore = {
+export const trayStore = {
 	updateCardState,
 	removeCard,
 	getCardState,

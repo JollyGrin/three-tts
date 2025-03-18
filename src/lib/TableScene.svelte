@@ -6,7 +6,7 @@
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
+	import { objectStore } from '$lib/store/objectStore.svelte';
 	import type { CardState } from '$lib/store/objectStore.svelte';
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
