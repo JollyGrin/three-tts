@@ -1,5 +1,4 @@
 <script lang="ts">
-	//TODO: figure out how to makme it flip on its own
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { Collider, RigidBody } from '@threlte/rapier';
