@@ -6,6 +6,8 @@
 	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { trayStore } from '$lib/store/trayStore.svelte';
+	import { degrees, seatStore } from '$lib/store/seatStore.svelte';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	interactivity();
 	let {
@@ -49,7 +51,11 @@
 	}
 	function handleDragStart() {
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
-		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl);
+		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl, [
+			0,
+			0,
+			-degrees[$seatStore.seat] / DEG2RAD
+		]);
 		trayStore.removeCard(id);
 		dragStart(id, 2.5);
 	}

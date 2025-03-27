@@ -9,6 +9,7 @@
 	import { ImageMaterial } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { trayStore } from './store/trayStore.svelte';
+	import { degrees, seatStore } from './store/seatStore.svelte';
 
 	let { id } = $props();
 
@@ -41,6 +42,7 @@
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
 	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
+	$inspect(baseRotation);
 
 	// Create derived values for each component
 	const posX = $derived(basePosition[0]);
@@ -55,26 +57,6 @@
 		emissiveIntensity = isHovered ? 0.2 : 0;
 	});
 
-	// Move card
-	$effect(() => {
-		if (!rigidBody) return;
-		rigidBody.wakeUp();
-
-		if (isDragging) {
-			const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
-			rigidBody.setTranslation({ x, y: position[1], z }, true);
-			rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true); // Clear velocity
-		} else {
-			const currentPos = rigidBody.translation();
-			const targetY = position[1];
-
-			// Only update if there's a significant difference
-			if (Math.abs(currentPos.y - targetY) > 0.001) {
-				rigidBody.setTranslation({ x: position[0], y: targetY, z: position[2] }, true);
-			}
-		}
-	});
-
 	// Tap card
 	$effect(() => {
 		rotation.target = baseRotation[0];
@@ -87,30 +69,9 @@
 		}
 	});
 
-	// Flip effect
-	$effect(() => {
-		if (!rigidBody) return;
-		rigidBody.wakeUp();
-
-		// Always update rotation, whether dragging or not
-		// Create quaternions for each rotation axis
-		const flipQuaternion = new THREE.Quaternion().setFromAxisAngle(
-			new THREE.Vector3(0, 0, 1), // Z-axis for flip
-			DEG2RAD * rotation.current
-		);
-
-		const tapQuaternion = new THREE.Quaternion().setFromAxisAngle(
-			new THREE.Vector3(0, -1, 0), // X-axis for tap
-			DEG2RAD * rotationTap.current
-		);
-
-		// Combine quaternions (order matters in quaternion multiplication)
-		const combinedQuaternion = flipQuaternion.multiply(tapQuaternion);
-		rigidBody.setRotation(combinedQuaternion, true);
-	});
-
 	function handleDragStart() {
 		dragStart(id, position[1]); // Pass current height
+
 		// Animate to raised height with some extra bounce
 		height.target = 2.2;
 		setTimeout(() => (height.target = 2), 150);
@@ -124,13 +85,6 @@
 		}
 		dragEnd();
 	};
-	$effect(() => {
-		if (!isDragging) {
-			// Animate back to table height with a subtle bounce
-			height.target = 0.22;
-			setTimeout(() => (height.target = 0.26), 150);
-		}
-	});
 
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
@@ -144,31 +98,32 @@
 	}
 </script>
 
-<T.Group {position}>
-	<RigidBody bind:rigidBody type={'kinematicVelocity'} lockRotations={false}>
-		<Collider shape={'cuboid'} args={[0.7, 0.02, 1]} friction={0.7} restitution={0.3} density={1} />
-		<T.Mesh
-			castShadow
-			receiveShadow
-			bind:ref={card}
-			rotation.x={-Math.PI / 2}
-			onpointerdown={handleDragStart}
-			onpointerup={handleDragEnd}
-			onpointerleave={handlePointerLeave}
-			onpointerenter={handlePointerEnter}
-		>
-			<T.PlaneGeometry args={[1.4, 2]} />
-			<ImageMaterial
-				url={faceImageUrl}
-				side={2}
-				radius={0.1}
-				monochromeColor={'#fff'}
-				monochromeStrength={emissiveIntensity}
-			/>
-		</T.Mesh>
-		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
-			<T.PlaneGeometry args={[1.4, 2]} />
-			<T.MeshBasicMaterial color="white" />
-		</T.Mesh>
-	</RigidBody>
+<T.Group
+	{position}
+	rotation.x={rotation.current * DEG2RAD}
+	rotation.y={rotationTap.current * -DEG2RAD}
+>
+	<T.Mesh
+		castShadow
+		receiveShadow
+		bind:ref={card}
+		rotation.x={-Math.PI / 2}
+		onpointerdown={handleDragStart}
+		onpointerup={handleDragEnd}
+		onpointerleave={handlePointerLeave}
+		onpointerenter={handlePointerEnter}
+	>
+		<T.PlaneGeometry args={[1.4, 2]} />
+		<ImageMaterial
+			url={faceImageUrl}
+			side={2}
+			radius={0.1}
+			monochromeColor={'#fff'}
+			monochromeStrength={emissiveIntensity}
+		/>
+	</T.Mesh>
+	<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
+		<T.PlaneGeometry args={[1.4, 2]} />
+		<T.MeshBasicMaterial color="white" />
+	</T.Mesh>
 </T.Group>

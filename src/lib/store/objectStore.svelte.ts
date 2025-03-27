@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { writable, get } from 'svelte/store';
 
 export interface CardState {
@@ -26,6 +27,19 @@ function updateCardState(
 	});
 }
 
+function updateCardRotation(id: string, quaternion: THREE.Quaternion) {
+	cards.update((state) => {
+		const card = state[id];
+		return {
+			...state,
+			[id]: {
+				...card,
+				rotation: [quaternion.x, quaternion.y, quaternion.z]
+			}
+		};
+	});
+}
+
 function removeCard(id: string) {
 	cards.update((state) => {
 		const { [id]: _, ...rest } = state;
@@ -39,6 +53,7 @@ function getCardState(id: string): CardState | undefined {
 
 export const objectStore = {
 	updateCardState,
+	updateCardRotation,
 	removeCard,
 	getCardState,
 	...cards
