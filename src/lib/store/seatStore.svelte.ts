@@ -18,7 +18,7 @@ const initialState: SeatState = {
 const seatStore = writable<SeatState>(initialState);
 
 function setSeat(seat?: 0 | 1 | 2 | 3) {
-	if (!seat)
+	if (seat === undefined)
 		return seatStore.update((state) => ({
 			seat: ((state.seat + 1) % 4) as SeatState['seat']
 		}));
