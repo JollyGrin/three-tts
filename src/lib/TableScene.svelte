@@ -56,8 +56,6 @@
 		);
 	});
 
-	$inspect('objectStore', $objectStore);
-
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
 

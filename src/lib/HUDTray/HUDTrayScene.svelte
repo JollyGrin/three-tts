@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import { dragStore, setTrayHover } from '$lib/store/dragStore.svelte';
+	import { trayStore } from '$lib/store/trayStore.svelte';
 	import * as THREE from 'three';
 	import { useViewport, interactivity } from '@threlte/extras';
 	import TrayCard from './TrayCard.svelte';
+	import type { CardState } from '$lib/store/objectStore.svelte';
 
 	interactivity();
 	let {}: {} = $props();
@@ -16,6 +18,9 @@
 	const trayY = $derived(-$viewport.height / 2 + trayHeight / 2);
 
 	let trayMesh: THREE.Mesh | undefined = $state(undefined);
+
+	const cards = $derived(Object.entries($trayStore) as [string, CardState][]);
+	$inspect({ cards });
 </script>
 
 <T.OrthographicCamera makeDefault zoom={80} position={[0, 0, 10]} />
@@ -37,5 +42,7 @@
 		/>
 	</T.Mesh>
 
-	<TrayCard />
+	{#each cards as [id] (id)}
+		<TrayCard {id} />
+	{/each}
 </T.Group>

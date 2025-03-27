@@ -9,6 +9,7 @@
 	import { Spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { trayStore } from './store/trayStore.svelte';
 
 	let { id } = $props();
 
@@ -117,8 +118,11 @@
 	}
 
 	const handleDragEnd = () => {
-		console.log('ID', id);
-		if ($dragStore.isTrayHovered) objectStore.removeCard(id);
+		if ($dragStore.isTrayHovered) {
+			console.log('Storing in hand:', id, faceImageUrl);
+			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
+			objectStore.removeCard(id);
+		}
 		dragEnd();
 	};
 	$effect(() => {

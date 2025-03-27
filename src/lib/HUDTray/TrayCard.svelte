@@ -5,11 +5,12 @@
 	import { objectStore } from '$lib/store/objectStore.svelte';
 	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
+	import { trayStore } from '$lib/store/trayStore.svelte';
 
 	interactivity();
-	let {}: {} = $props();
+	let { id }: { id: string } = $props();
+	const card = $derived($trayStore[id]);
 
-	const cardImageUrl = 'https://card.cards.army/cards//beast_of_burden.webp';
 	let isCardHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
@@ -41,8 +42,9 @@
 	}
 	function handleDragStart() {
 		const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
-		objectStore.updateCardState('cardx', [x, 2.5, z], cardImageUrl);
-		dragStart('cardx', 2.5);
+		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl);
+		trayStore.removeCard(id);
+		dragStart(id, 2.5);
 	}
 	function handleDragEnd() {
 		dragEnd();
@@ -59,5 +61,5 @@
 	onpointerup={handleDragEnd}
 >
 	<T.PlaneGeometry args={cardSize} />
-	<ImageMaterial url={cardImageUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
+	<ImageMaterial url={card.faceImageUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
 </T.Mesh>
