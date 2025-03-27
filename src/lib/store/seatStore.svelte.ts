@@ -1,8 +1,15 @@
 import { writable } from 'svelte/store';
+import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 interface SeatState {
-	seat: 0 | 1 | 2 | 3;
+	seat:
+		| 0 // 0deg
+		| 1 // 180deg
+		| 2 // 90deg
+		| 3; // 270deg
 }
+
+const degrees = [0, DEG2RAD * 180, DEG2RAD * 90, DEG2RAD * 270];
 
 const initialState: SeatState = {
 	seat: 0
@@ -19,4 +26,4 @@ function setSeat(seat?: 0 | 1 | 2 | 3) {
 	seatStore.set({ seat });
 }
 
-export { seatStore, setSeat };
+export { seatStore, setSeat, degrees };
