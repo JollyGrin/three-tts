@@ -3,8 +3,10 @@
 	import TableScene from '$lib/TableScene.svelte';
 	import { cardTransforms } from '$lib/utils/transforms/card';
 	import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
+	import { cameraTransforms } from '$lib/utils/transforms/camera';
 
 	function handleKeyDown(event: KeyboardEvent) {
+		if (event.code === 'Space') cameraTransforms.resetView();
 		if (event.code === 'KeyF') cardTransforms.flip();
 		if (event.code === 'KeyT') cardTransforms.tap();
 		if (event.code === 'KeyR') cardTransforms.tap(true);
@@ -21,6 +23,13 @@
 	<button onclick={() => setSeat()}>
 		<span class="bg-gray-400 px-2">{$seatStore.seat}</span>
 		<span class="text-white"> Next Seat </span>
+	</button>
+
+	<button onclick={cameraTransforms.resetView}>
+		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2 text-gray-400">
+			spacebar
+		</span>
+		<span class="text-white"> Topdown View </span>
 	</button>
 
 	<button onclick={cardTransforms.flip}>
