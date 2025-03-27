@@ -8,10 +8,8 @@ export interface CardState {
 
 type CardsState = Record<string, CardState>;
 
-// Create the writable store
 const cards = writable<CardsState>({});
 
-// Add or update a card's state
 function updateCardState(
 	id: string,
 	position: [number, number, number],
@@ -28,7 +26,6 @@ function updateCardState(
 	});
 }
 
-// Remove a card
 function removeCard(id: string) {
 	cards.update((state) => {
 		const { [id]: _, ...rest } = state;
@@ -36,19 +33,10 @@ function removeCard(id: string) {
 	});
 }
 
-// Get a card's state
 function getCardState(id: string): CardState | undefined {
 	return get(cards)[id];
 }
 
-// Export the store
-// export const objectStore = {
-// 	subscribe: cards.subscribe,
-// 	update: updateCardState,
-// 	remove: removeCard,
-// 	get: getCardState,
-// 	reset: () => cards.set({})
-// };
 export const objectStore = {
 	updateCardState,
 	removeCard,

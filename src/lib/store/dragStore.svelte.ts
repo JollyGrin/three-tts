@@ -56,12 +56,20 @@ function setHover(id: string | null) {
 	}));
 }
 
+function setTrayHover(isTrayHovered: boolean) {
+	dragStore.update((state) => ({
+		...state,
+		isTrayHovered
+	}));
+}
+
 // Create store actions object
 const dragActions = {
 	subscribe: dragStore.subscribe,
 	start: dragStart,
 	end: dragEnd,
 	hover: setHover,
+	trayHover: setTrayHover,
 	updateIntersection,
 	reset: () => dragStore.set(initialState)
 };
@@ -72,6 +80,7 @@ export {
 	dragStart,
 	dragEnd,
 	setHover,
+	setTrayHover,
 	updateIntersection,
 	dragActions,
 	type DragState

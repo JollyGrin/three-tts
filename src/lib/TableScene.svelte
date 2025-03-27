@@ -10,7 +10,7 @@
 	import type { CardState } from '$lib/store/objectStore.svelte';
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
-	import HudHandScene from './HUDHandScene.svelte';
+	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -63,7 +63,7 @@
 <T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
 
 <HUD>
-	<HudHandScene />
+	<HudTrayScene />
 </HUD>
 
 <World>
