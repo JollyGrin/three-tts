@@ -8,7 +8,11 @@
 	import { trayStore } from '$lib/store/trayStore.svelte';
 
 	interactivity();
-	let { id }: { id: string } = $props();
+	let {
+		id,
+		index = 0,
+		trayWidth = 0
+	}: { id: string; index: number; trayWidth?: number } = $props();
 	const card = $derived($trayStore[id]);
 
 	let isCardHovered = $state(false);
@@ -41,7 +45,7 @@
 		cardY.target = 0;
 	}
 	function handleDragStart() {
-		const { x, z } = $dragStore.intersectionPoint as THREE.Vector3;
+		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
 		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl);
 		trayStore.removeCard(id);
 		dragStart(id, 2.5);
@@ -54,7 +58,7 @@
 <T.Mesh
 	scale={cardScale.current}
 	position.y={cardY.current}
-	position.x={2}
+	position.x={-trayWidth / 2 + 0.75 + index * 1.2}
 	onpointerenter={handlePointerEnter}
 	onpointerleave={handlePointerLeave}
 	onpointerdown={handleDragStart}

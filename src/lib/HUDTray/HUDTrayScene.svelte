@@ -17,6 +17,8 @@
 	const trayX = $derived(-$viewport.width / 2 + trayWidth / 2);
 	const trayY = $derived(-$viewport.height / 2 + trayHeight / 2);
 
+	$inspect(trayWidth);
+
 	let trayMesh: THREE.Mesh | undefined = $state(undefined);
 
 	const cards = $derived(Object.entries($trayStore) as [string, CardState][]);
@@ -42,7 +44,7 @@
 		/>
 	</T.Mesh>
 
-	{#each cards as [id] (id)}
-		<TrayCard {id} />
+	{#each cards as [id], index (id)}
+		<TrayCard {id} {index} {trayWidth} />
 	{/each}
 </T.Group>
