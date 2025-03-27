@@ -5,6 +5,7 @@
 	import { dragEnd } from './store/dragStore.svelte';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
@@ -74,6 +75,22 @@
 		}
 	});
 </script>
+
+<T.Mesh position.y={0.259} position.x={9.5} rotation.x={-DEG2RAD * 90} side={0}>
+	<T.PlaneGeometry args={[3, 12]} />
+</T.Mesh>
+
+<Grid
+	scale={3}
+	fadeDistance={1000}
+	fadeStrength={0}
+	position.y={0.2569}
+	position.x={2}
+	cellSize={1}
+	cellThickness={3}
+	gridSize={[6, 4]}
+	sectionSize={0}
+/>
 
 <Grid
 	position.y={0.255}

@@ -23,6 +23,7 @@
 	});
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
+	let cardZ = $state(0); // z-index
 	const cardY = new Spring(0, {
 		stiffness: 0.15,
 		damping: 0.7,
@@ -36,13 +37,15 @@
 
 	function handlePointerEnter() {
 		isCardHovered = true;
-		cardScale.target = 1.25;
-		cardY.target = 1;
+		cardScale.target = 1.5;
+		cardY.target = 1.5;
+		cardZ = 1;
 	}
 	function handlePointerLeave() {
 		isCardHovered = false;
 		cardScale.target = 0.55;
 		cardY.target = 0;
+		cardZ = 0;
 	}
 	function handleDragStart() {
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
@@ -57,6 +60,7 @@
 
 <T.Mesh
 	scale={cardScale.current}
+	position.z={cardZ}
 	position.y={cardY.current}
 	position.x={-trayWidth / 2 + 0.75 + index * 1.2}
 	onpointerenter={handlePointerEnter}
