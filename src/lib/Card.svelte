@@ -33,11 +33,13 @@
 		precision: 0.001
 	});
 
-	const rotationTap = new Spring(0, {
+	const seatRotation = $derived(degrees[$seatStore.seat] / DEG2RAD);
+	const rotationTap = new Spring(-seatRotation, {
 		stiffness: 0.1,
 		damping: 0.8,
 		precision: 0.001
 	});
+	$inspect('tap', rotationTap.current);
 
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);

@@ -7,6 +7,7 @@
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'KeyF') cardTransforms.flip();
 		if (event.code === 'KeyT') cardTransforms.tap();
+		if (event.code === 'KeyR') cardTransforms.tap(true);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {}
@@ -27,9 +28,14 @@
 		<span class="text-white"> Flip card </span>
 	</button>
 
-	<button onclick={cardTransforms.tap}>
+	<button onclick={() => cardTransforms.tap()}>
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> t </span>
 		<span class="text-white"> Tap card </span>
+	</button>
+
+	<button onclick={() => cardTransforms.tap(true)}>
+		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> r </span>
+		<span class="text-white"> Reverse Tap card </span>
 	</button>
 </div>
 

@@ -1,6 +1,8 @@
 import { get } from 'svelte/store';
 import { dragStore } from '$lib/store/dragStore.svelte';
 import { objectStore } from '$lib/store/objectStore.svelte';
+import { seatStore, degrees } from '$lib/store/seatStore.svelte';
+import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 function flipCard() {
 	const { isHovered, isDragging } = get(dragStore);
@@ -18,7 +20,7 @@ function flipCard() {
 	]);
 }
 
-function tapCard() {
+function tapCard(isReverse?: boolean) {
 	const { isHovered, isDragging } = get(dragStore);
 	const id = isHovered || isDragging;
 	if (!id) return;
@@ -26,11 +28,10 @@ function tapCard() {
 	const object = get(objectStore);
 	const card = object[id as string];
 	const [x, y, _z] = card.rotation;
-	const isTapped = card.rotation[2] === 90;
 	objectStore.updateCardState(id as string, card.position, card.faceImageUrl, [
 		x,
 		y,
-		isTapped ? 0 : 90
+		_z + 90 * (isReverse ? -1 : 1)
 	]);
 }
 
