@@ -21,21 +21,21 @@
 	let rigidBody = $state<RapierRigidBody | undefined>(undefined);
 
 	const height = new Spring(0.26, {
-		stiffness: 0.15, // Slightly stiffer for faster initial movement
-		damping: 0.7, // More damping for smoother settling
-		precision: 0.0001 // Higher precision for smoother animation
+		stiffness: 0.15,
+		damping: 0.7,
+		precision: 0.0001
 	});
 
 	const rotation = new Spring(0, {
-		stiffness: 0.1, // Softer for smoother rotation
-		damping: 0.8, // More damping to prevent oscillation
-		precision: 0.001 // Lower precision is fine for rotation
+		stiffness: 0.1,
+		damping: 0.8,
+		precision: 0.001
 	});
 
 	const rotationTap = new Spring(0, {
-		stiffness: 0.1, // Softer for smoother rotation
-		damping: 0.8, // More damping to prevent oscillation
-		precision: 0.001 // Lower precision is fine for rotation
+		stiffness: 0.1,
+		damping: 0.8,
+		precision: 0.001
 	});
 
 	// Get base position from store
@@ -50,10 +50,12 @@
 	// Combine components into position array
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
 
+	// Make card glow when hovered
 	$effect(() => {
 		emissiveIntensity = isHovered ? 0.2 : 0;
 	});
 
+	// Move card
 	$effect(() => {
 		if (!rigidBody) return;
 		rigidBody.wakeUp();
@@ -73,6 +75,7 @@
 		}
 	});
 
+	// Tap card
 	$effect(() => {
 		rotation.target = baseRotation[0];
 		rotationTap.target = baseRotation[2];
@@ -84,6 +87,7 @@
 		}
 	});
 
+	// Flip effect
 	$effect(() => {
 		if (!rigidBody) return;
 		rigidBody.wakeUp();
@@ -112,7 +116,11 @@
 		setTimeout(() => (height.target = 2), 150);
 	}
 
-	const handleDragEnd = dragEnd;
+	const handleDragEnd = () => {
+		console.log('ID', id);
+		if ($dragStore.isTrayHovered) objectStore.removeCard(id);
+		dragEnd();
+	};
 	$effect(() => {
 		if (!isDragging) {
 			// Animate back to table height with a subtle bounce

@@ -43,9 +43,9 @@
 	});
 
 	const initCards = [
-		['card1', [-2, 2.5, 0], 'https://card.cards.army/cards//beast_of_burden.webp'],
-		['card2', [0, 4.5, 0], 'https://card.cards.army/cards//bosk_troll.webp'],
-		['card3', [2, 6.5, 0], 'https://card.cards.army/cards//border_militia.webp']
+		['card1', [-2, 2.5, 0], 'https://card.cards.army/cards/beast_of_burden.webp'],
+		['card2', [0, 4.5, 0], 'https://card.cards.army/cards/bosk_troll.webp'],
+		['card3', [2, 6.5, 0], 'https://card.cards.army/cards/border_militia.webp']
 	];
 
 	initCards.forEach(([id, position, faceImageUrl]) => {
@@ -55,6 +55,8 @@
 			faceImageUrl as string
 		);
 	});
+
+	$inspect('objectStore', $objectStore);
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
@@ -70,7 +72,7 @@
 	<Intersection />
 	<Table bind:mesh />
 
-	{#each cards as [id]}
+	{#each cards as [id] (id)}
 		<Card {id} />
 	{/each}
 </World>

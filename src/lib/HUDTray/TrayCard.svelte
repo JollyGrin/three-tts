@@ -45,11 +45,6 @@
 		dragStart('cardx', 2.5);
 	}
 	function handleDragEnd() {
-		console.log('init', $dragStore.isTrayHovered);
-		if ($dragStore.isTrayHovered) {
-			console.log('HIT');
-			objectStore.removeCard('cardx');
-		}
 		dragEnd();
 	}
 </script>
