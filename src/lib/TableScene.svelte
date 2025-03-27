@@ -2,14 +2,15 @@
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
 	import { World } from '@threlte/rapier';
-	import { interactivity } from '@threlte/extras';
+	import { HUD, interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { objectStore, updateCardState } from '$lib/store/objectStore.svelte';
+	import { objectStore } from '$lib/store/objectStore.svelte';
 	import type { CardState } from '$lib/store/objectStore.svelte';
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
+	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -27,7 +28,7 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
+				objectStore.updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
 			}
 
 			state.pointer.update((p) => {
@@ -41,10 +42,22 @@
 		}
 	});
 
-	// Add some test cards
-	updateCardState('card1', [-2, 2.5, 0], 'https://card.cards.army/cards//beast_of_burden.webp');
-	updateCardState('card2', [0, 4.5, 0], 'https://card.cards.army/cards//bosk_troll.webp');
-	updateCardState('card3', [2, 6.5, 0], ' https://card.cards.army/cards//border_militia.webp');
+	const initCards = [
+		['card1', [-2, 0, 0], 'https://card.cards.army/cards/beast_of_burden.webp'],
+		['card2', [0, 0, 0], 'https://card.cards.army/cards/bosk_troll.webp'],
+		['card3', [2, 0, 0], 'https://card.cards.army/cards/border_militia.webp'],
+		['card4', [4, 0, 0], 'https://card.cards.army/cards/border_militia.webp'],
+		['card5', [6, 0, 0], 'https://card.cards.army/cards/border_militia.webp'],
+		['card6', [8, 0, 0], 'https://card.cards.army/cards/border_militia.webp']
+	];
+
+	initCards.forEach(([id, position, faceImageUrl]) => {
+		objectStore.updateCardState(
+			id as string,
+			position as [number, number, number],
+			faceImageUrl as string
+		);
+	});
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
@@ -52,11 +65,15 @@
 <TableCamera />
 <T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
 
+<HUD>
+	<HudTrayScene />
+</HUD>
+
 <World>
 	<Intersection />
 	<Table bind:mesh />
 
-	{#each cards as [id]}
+	{#each cards as [id] (id)}
 		<Card {id} />
 	{/each}
 </World>
