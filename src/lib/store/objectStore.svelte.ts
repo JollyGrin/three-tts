@@ -5,6 +5,7 @@ export interface CardState {
 	position: [number, number, number];
 	rotation: [number, number, number];
 	faceImageUrl: string;
+	backImageUrl?: string;
 }
 
 type CardsState = Record<string, CardState>;
