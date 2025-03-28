@@ -42,14 +42,20 @@
 		}
 	});
 
-	const initCards = [
-		['card1', [-2, 0, 0], 'https://card.cards.army/cards/beast_of_burden.webp'],
-		['card2', [0, 0, 0], 'https://card.cards.army/cards/bosk_troll.webp'],
-		['card3', [2, 0, 0], 'https://card.cards.army/cards/border_militia.webp'],
-		['card4', [4, 0, 0], 'https://card.cards.army/cards/border_militia.webp'],
-		['card5', [6, 0, 0], 'https://card.cards.army/cards/border_militia.webp'],
-		['card6', [8, 0, 0], 'https://card.cards.army/cards/border_militia.webp']
-	];
+	const init = [
+		'beast_of_burden',
+		'bosk_troll',
+		'border_militia',
+		'abundance-f',
+		'vile_imp',
+		'flame_wave'
+	].map((card, index) => [
+		`card${index + 1}`,
+		[-6 + index * 2, 0, 0],
+		`https://card.cards.army/cards/${card}.webp`
+	]);
+
+	const initCards = init;
 
 	initCards.forEach(([id, position, faceImageUrl]) => {
 		objectStore.updateCardState(
