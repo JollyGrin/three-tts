@@ -15,6 +15,11 @@
 	function handleKeyUp(event: KeyboardEvent) {}
 </script>
 
+<svelte:head>
+	<title>TableTop Browser</title>
+	<meta name="description" content="Tabletop Simulator but in the browser" />
+</svelte:head>
+
 <svelte:window on:keydown|preventDefault={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
 <div

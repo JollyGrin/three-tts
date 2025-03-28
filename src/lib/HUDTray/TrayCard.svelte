@@ -54,7 +54,7 @@
 		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl, [
 			0,
 			0,
-			-degrees[$seatStore.seat] / DEG2RAD
+			-degrees[$seatStore.seat] / DEG2RAD // should be facing the player in seat
 		]);
 		trayStore.removeCard(id);
 		dragStart(id, 2.5);
@@ -68,7 +68,7 @@
 	scale={cardScale.current}
 	position.z={cardZ}
 	position.y={cardY.current}
-	position.x={-trayWidth / 2 + 0.75 + index * 1.2}
+	position.x={-trayWidth / 2 + 1.25 + index * 1.2}
 	onpointerenter={handlePointerEnter}
 	onpointerleave={handlePointerLeave}
 	onpointerdown={handleDragStart}
