@@ -16,14 +16,16 @@ function updateCardState(
 	id: string,
 	position: [number, number, number],
 	_faceImageUrl?: string,
-	_rotation?: [number, number, number]
+	_rotation?: [number, number, number],
+	_backImageUrl?: string
 ) {
 	cards.update((state) => {
 		const rotation = _rotation ?? state[id]?.rotation ?? [0, 0, 0];
 		const faceImageUrl = _faceImageUrl ?? state[id]?.faceImageUrl ?? '';
+		const backImageUrl = _backImageUrl ?? state[id]?.backImageUrl ?? '';
 		return {
 			...state,
-			[id]: { position, rotation, faceImageUrl }
+			[id]: { position, rotation, faceImageUrl, backImageUrl }
 		};
 	});
 }

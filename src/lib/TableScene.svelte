@@ -61,7 +61,9 @@
 		objectStore.updateCardState(
 			id as string,
 			position as [number, number, number],
-			faceImageUrl as string
+			faceImageUrl as string,
+			undefined,
+			'/s-back.jpg'
 		);
 	});
 

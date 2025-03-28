@@ -17,6 +17,7 @@
 
 	const isDragging = $derived($dragStore.isDragging === id);
 	const faceImageUrl = $derived($objectStore[id]?.faceImageUrl);
+	const backImageUrl = $derived($objectStore[id]?.backImageUrl);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 	let rigidBody = $state<RapierRigidBody | undefined>(undefined);
@@ -124,8 +125,34 @@
 			monochromeStrength={emissiveIntensity}
 		/>
 	</T.Mesh>
-	<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
-		<T.PlaneGeometry args={[1.4, 2]} />
-		<T.MeshBasicMaterial color="white" />
-	</T.Mesh>
+
+	{#if backImageUrl}
+		<T.Mesh
+			castShadow
+			receiveShadow
+			rotation.x={-Math.PI / 2}
+			position.y={-0.002}
+			<!--
+			onpointerdown={handleDragStart}
+			--
+		>
+			<!-- onpointerup={handleDragEnd} -->
+			<!-- onpointerleave={handlePointerLeave} -->
+			<!-- onpointerenter={handlePointerEnter} -->
+			>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<ImageMaterial
+				url={backImageUrl}
+				side={2}
+				radius={0.1}
+				monochromeColor={'#fff'}
+				monochromeStrength={emissiveIntensity}
+			/>
+		</T.Mesh>
+	{:else}
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<T.MeshBasicMaterial color="white" />
+		</T.Mesh>
+	{/if}
 </T.Group>
