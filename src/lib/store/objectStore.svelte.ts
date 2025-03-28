@@ -1,3 +1,9 @@
+/**
+ * Track cards on the table via their 3d state (loc/rot) and images (face/back)
+ *
+ * Might rename this to cardStore and do 3d objects differently
+ * */
+
 import * as THREE from 'three';
 import { writable, get } from 'svelte/store';
 
