@@ -130,6 +130,7 @@
 		<T.Mesh
 			castShadow
 			receiveShadow
+			rotation.z={DEG2RAD * 180}
 			rotation.x={-Math.PI / 2}
 			position.y={-0.002}
 			<!--
