@@ -11,6 +11,7 @@
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
+	import Deck from './Deck.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -50,7 +51,7 @@
 		'vile_imp',
 		'flame_wave'
 	].map((card, index) => [
-		`card${index + 1}`,
+		`card:playername:${index + 1}`,
 		[-6 + index * 2, 0, 0],
 		`https://card.cards.army/cards/${card}.webp`
 	]);
@@ -80,6 +81,8 @@
 <World>
 	<Intersection />
 	<Table bind:mesh />
+
+	<Deck id="deck:playername:1" position={[8.25, 0.5, 3]} />
 
 	{#each cards as [id] (id)}
 		<Card {id} />
