@@ -12,6 +12,7 @@
 	import Intersection from './Intersection.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
+	import Hdr from './HDR.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -79,6 +80,7 @@
 </HUD>
 
 <World>
+	<Hdr />
 	<Intersection />
 	<Table bind:mesh />
 
