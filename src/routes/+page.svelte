@@ -6,13 +6,15 @@
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 
 	function handleKeyDown(event: KeyboardEvent) {
-		if (event.code === 'Space') cameraTransforms.resetView();
+		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
 		if (event.code === 'KeyF') cardTransforms.flip();
 		if (event.code === 'KeyT') cardTransforms.tap();
 		if (event.code === 'KeyR') cardTransforms.tap(true);
 	}
 
-	function handleKeyUp(event: KeyboardEvent) {}
+	function handleKeyUp(event: KeyboardEvent) {
+		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
+	}
 </script>
 
 <svelte:head>
@@ -34,7 +36,7 @@
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2 text-gray-400">
 			spacebar
 		</span>
-		<span class="text-white"> Topdown View </span>
+		<span class="text-white"> Preview hovered card </span>
 	</button>
 
 	<button onclick={cardTransforms.flip}>

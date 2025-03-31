@@ -13,6 +13,7 @@
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
 	import Hdr from './HDR.svelte';
+	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -77,6 +78,10 @@
 
 <HUD>
 	<HudTrayScene />
+</HUD>
+
+<HUD>
+	<HudPreviewScene />
 </HUD>
 
 <World>
