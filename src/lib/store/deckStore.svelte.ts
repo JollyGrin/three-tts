@@ -8,11 +8,9 @@ export type DeckDTO = {
 	 * */
 	id: string;
 	/**
-	 * default value = true
-	 * isFaceDown = true: deck is hidden, back of card is visible on top
-	 * isFaceDown = false: deck is visible, bottom card face is visible (eg: discard pile)
+	 * true if the deck is face up (like discard pile)
 	 * */
-	isFaceDown?: boolean;
+	isFaceUp?: boolean;
 	cards: Omit<CardState, 'position' | 'rotation'>[];
 };
 
@@ -20,6 +18,25 @@ type DecksState = Record<string, DeckDTO>;
 
 const decks = writable<DecksState>({});
 
+function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
+	decks.update((state) => {
+		const selectedDeck = state[id];
+		return {
+			...state,
+			[id]: { ...selectedDeck, ...updatedState }
+		};
+	});
+}
+
+/**
+ * How many cards are in the deck
+ * */
+function getDeckLength(id: string) {
+	return get(decks)[id].cards.length;
+}
+
 export const deckStore = {
-	...decks
+	...decks,
+	updateDeck,
+	getDeckLength
 };

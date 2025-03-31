@@ -85,6 +85,7 @@
 	<Table bind:mesh />
 
 	<Deck id="deck:playername:1" position={[8.25, 0.5, 3]} />
+	<Deck id="deck:playername:2" position={[10, 0.5, 3]} />
 
 	{#each cards as [id] (id)}
 		<Card {id} />

@@ -5,11 +5,13 @@
 	let {
 		id = '',
 		position = [0, 0, 0],
-		rotation = [0, 0, 0]
+		rotation = [0, 0, 0],
+		isFaceUp = false
 	}: {
 		id: string;
 		position?: [number, number, number];
 		rotation?: [number, number, number];
+		isFaceUp?: boolean;
 	} = $props();
 </script>
 
