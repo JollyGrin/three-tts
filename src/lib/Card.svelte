@@ -55,7 +55,7 @@
 
 	// Make card glow when hovered
 	$effect(() => {
-		emissiveIntensity = isHovered ? 0.2 : 0;
+		emissiveIntensity = isHovered ? 0.1 : 0;
 	});
 
 	// Tap card
@@ -131,14 +131,7 @@
 			rotation.z={DEG2RAD * 180}
 			rotation.x={-Math.PI / 2}
 			position.y={-0.002}
-			<!--
-			onpointerdown={handleDragStart}
-			--
 		>
-			<!-- onpointerup={handleDragEnd} -->
-			<!-- onpointerleave={handlePointerLeave} -->
-			<!-- onpointerenter={handlePointerEnter} -->
-			>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<ImageMaterial
 				url={backImageUrl}
