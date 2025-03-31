@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore } from './store/objectStore.svelte';
@@ -20,7 +19,6 @@
 	const backImageUrl = $derived($objectStore[id]?.backImageUrl);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
-	let rigidBody = $state<RapierRigidBody | undefined>(undefined);
 
 	const height = new Spring(0.26, {
 		stiffness: 0.15,
