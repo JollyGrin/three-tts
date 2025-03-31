@@ -2,7 +2,7 @@
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
 	import { World } from '@threlte/rapier';
-	import { HUD, interactivity } from '@threlte/extras';
+	import { Billboard, HUD, interactivity, Text } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
