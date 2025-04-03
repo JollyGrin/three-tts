@@ -38,12 +38,10 @@
 		damping: 0.8,
 		precision: 0.001
 	});
-	$inspect('tap', rotationTap.current);
 
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
 	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
-	$inspect(baseRotation);
 
 	// Create derived values for each component
 	const posX = $derived(basePosition[0]);

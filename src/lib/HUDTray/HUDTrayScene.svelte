@@ -17,12 +17,9 @@
 	const trayX = $derived(-$viewport.width / 2 + trayWidth / 2);
 	const trayY = $derived(-$viewport.height / 2 + trayHeight / 2);
 
-	$inspect(trayWidth);
-
 	let trayMesh: THREE.Mesh | undefined = $state(undefined);
 
 	const cards = $derived(Object.entries($trayStore) as [string, CardState][]);
-	$inspect({ cards });
 </script>
 
 <T.OrthographicCamera makeDefault zoom={80} position={[0, 0, 10]} />
