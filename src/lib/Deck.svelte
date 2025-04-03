@@ -42,7 +42,7 @@
 				0,
 				-degrees[$seatStore.seat] / DEG2RAD // should be facing the player in seat
 			],
-			deckBackImage
+			card?.backImageUrl ?? deckBackImage
 		);
 
 		dragStart(card.id, 2.5);
