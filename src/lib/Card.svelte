@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import { Collider, RigidBody } from '@threlte/rapier';
 	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
 	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore } from './store/objectStore.svelte';
@@ -17,9 +16,9 @@
 
 	const isDragging = $derived($dragStore.isDragging === id);
 	const faceImageUrl = $derived($objectStore[id]?.faceImageUrl);
+	const backImageUrl = $derived($objectStore[id]?.backImageUrl);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
-	let rigidBody = $state<RapierRigidBody | undefined>(undefined);
 
 	const height = new Spring(0.26, {
 		stiffness: 0.15,
@@ -39,12 +38,10 @@
 		damping: 0.8,
 		precision: 0.001
 	});
-	$inspect('tap', rotationTap.current);
 
 	// Get base position from store
 	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
 	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
-	$inspect(baseRotation);
 
 	// Create derived values for each component
 	const posX = $derived(basePosition[0]);
@@ -56,7 +53,7 @@
 
 	// Make card glow when hovered
 	$effect(() => {
-		emissiveIntensity = isHovered ? 0.2 : 0;
+		emissiveIntensity = isHovered ? 0.1 : 0;
 	});
 
 	// Tap card
@@ -124,8 +121,28 @@
 			monochromeStrength={emissiveIntensity}
 		/>
 	</T.Mesh>
-	<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
-		<T.PlaneGeometry args={[1.4, 2]} />
-		<T.MeshBasicMaterial color="white" />
-	</T.Mesh>
+
+	{#if backImageUrl}
+		<T.Mesh
+			castShadow
+			receiveShadow
+			rotation.z={DEG2RAD * 180}
+			rotation.x={-Math.PI / 2}
+			position.y={-0.002}
+		>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<ImageMaterial
+				url={backImageUrl}
+				side={2}
+				radius={0.1}
+				monochromeColor={'#fff'}
+				monochromeStrength={emissiveIntensity}
+			/>
+		</T.Mesh>
+	{:else}
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
+			<T.PlaneGeometry args={[1.4, 2]} />
+			<T.MeshBasicMaterial color="white" />
+		</T.Mesh>
+	{/if}
 </T.Group>

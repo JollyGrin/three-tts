@@ -5,6 +5,7 @@ interface DragState {
 	isDragging: string | null;
 	isHovered: string | null;
 	isTrayHovered: boolean;
+	isPreview?: boolean;
 	dragHeight?: number;
 	intersectionPoint?: Vector3;
 }
@@ -13,6 +14,7 @@ const initialState: DragState = {
 	isDragging: null,
 	isHovered: null,
 	isTrayHovered: false,
+	isPreview: false,
 	dragHeight: undefined,
 	intersectionPoint: undefined
 };

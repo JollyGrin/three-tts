@@ -2,7 +2,7 @@
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
 	import { World } from '@threlte/rapier';
-	import { HUD, interactivity } from '@threlte/extras';
+	import { Billboard, HUD, interactivity, Text } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
@@ -11,6 +11,11 @@
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
+	import Deck from './Deck.svelte';
+	import Hdr from './HDR.svelte';
+	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
+	import { deckStore } from './store/deckStore.svelte';
+	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -50,7 +55,7 @@
 		'vile_imp',
 		'flame_wave'
 	].map((card, index) => [
-		`card${index + 1}`,
+		`card:playername:${index + 1}`,
 		[-6 + index * 2, 0, 0],
 		`https://card.cards.army/cards/${card}.webp`
 	]);
@@ -61,8 +66,27 @@
 		objectStore.updateCardState(
 			id as string,
 			position as [number, number, number],
-			faceImageUrl as string
+			faceImageUrl as string,
+			undefined,
+			'/s-back.jpg'
 		);
+	});
+
+	deckStore.updateDeck(`deck:playername:1`, {
+		position: [8.25, 0.4, 3],
+		cards: generateCardImages(30).map((slug, index) => ({
+			id: `card:playername:${slug}-${index}`,
+			faceImageUrl: getSorceryCardImage(slug)
+		}))
+	});
+
+	deckStore.updateDeck(`deck:playername:2`, {
+		isFaceUp: true,
+		position: [10, 0.4, 3],
+		cards: generateCardImages(30).map((slug, index) => ({
+			id: `card:playername:${slug}-${index}`,
+			faceImageUrl: getSorceryCardImage(slug)
+		}))
 	});
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
@@ -75,9 +99,18 @@
 	<HudTrayScene />
 </HUD>
 
+<HUD>
+	<HudPreviewScene />
+</HUD>
+
 <World>
+	<Hdr />
 	<Intersection />
 	<Table bind:mesh />
+
+	{#each Object.entries($deckStore) as [id] (id)}
+		<Deck {id} />
+	{/each}
 
 	{#each cards as [id] (id)}
 		<Card {id} />
