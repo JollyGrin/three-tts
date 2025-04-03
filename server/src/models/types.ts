@@ -78,6 +78,7 @@ export interface Message {
   type: MessageType;
   playerId: string;
   timestamp: number;
+  messageId?: string; // Added for message tracking to prevent loops
   payload?: any;
   // For update messages:
   path?: string[];
@@ -96,6 +97,7 @@ export interface UpdateMessage extends Message {
   type: 'update';
   path: string[];
   value: any;
+  messageId?: string; // Explicit inclusion in the UpdateMessage type
 }
 
 // Lobby data

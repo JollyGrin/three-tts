@@ -17,6 +17,8 @@
 	import { deckStore } from './store/deckStore.svelte';
 	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
 	import { getStaticResourceUrl } from './utils/image';
+	import { playerId } from './websocket';
+	import { get } from 'svelte/store';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -48,6 +50,9 @@
 		}
 	});
 
+	// Get the current player's ID for card and deck naming
+	const currentPlayerId = get(playerId);
+
 	const init = [
 		'beast_of_burden',
 		'bosk_troll',
@@ -56,7 +61,7 @@
 		'vile_imp',
 		'flame_wave'
 	].map((card, index) => [
-		`card:playername:${index + 1}`,
+		`card:${currentPlayerId}:${index + 1}`,
 		[-6 + index * 2, 0, 0],
 		`https://card.cards.army/cards/${card}.webp`
 	]);
@@ -73,20 +78,20 @@
 		);
 	});
 
-	deckStore.updateDeck(`deck:playername:1`, {
+	deckStore.updateDeck(`deck:${currentPlayerId}:1`, {
 		position: [8.25, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:playername:${slug}-${index}`,
+			id: `card:${currentPlayerId}:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
 			backImageUrl: getStaticResourceUrl('/s-back.jpg')
 		}))
 	});
 
-	deckStore.updateDeck(`deck:playername:2`, {
+	deckStore.updateDeck(`deck:${currentPlayerId}:2`, {
 		isFaceUp: true,
 		position: [10, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:playername:${slug}-${index}`,
+			id: `card:${currentPlayerId}:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
 			backImageUrl: getStaticResourceUrl('/s-back.jpg')
 		}))

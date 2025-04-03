@@ -5,7 +5,6 @@
 import { writable, get } from 'svelte/store';
 import { nanoid } from 'nanoid';
 import { browser } from '$app/environment';
-import { processWebsocketMessage } from './messageProcessor';
 
 // Websocket connection states
 export const enum ConnectionState {
@@ -23,6 +22,9 @@ const playerId = writable<string>(browser ? localStorage.getItem('playerId') || 
 export const lobbyId = writable<string>('default'); // Default lobby ID
 export const playerList = writable<string[]>([]);
 
+// Store of sent message IDs to prevent feedback loops
+const sentMessageIds = new Set<string>();
+
 // Save player ID to localStorage in browser environment
 if (browser) {
   playerId.subscribe(id => {
@@ -36,6 +38,17 @@ let reconnectTimer: number | null = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 1000; // 1 second
+
+// Message processor function - will be set by the messageProcessor module
+let processMessage: ((message: any) => void) | null = null;
+
+/**
+ * Set the message processor function
+ * This breaks the circular dependency between modules
+ */
+export function setMessageProcessor(processor: (message: any) => void): void {
+  processMessage = processor;
+}
 
 /**
  * Connect to websocket server
@@ -119,13 +132,20 @@ function handleMessage(event: MessageEvent): void {
   try {
     const message = JSON.parse(event.data);
     
+    // Check if this is our own message that we already processed
+    if (message.messageId && sentMessageIds.has(message.messageId)) {
+      // This is our own message coming back, ignore it
+      sentMessageIds.delete(message.messageId); // Clean up after a delay
+      return;
+    }
+    
     // Update player list if it's a player list message
     if (message.type === 'playerList') {
       playerList.set(message.payload);
     } 
     // Process other messages
-    else {
-      processWebsocketMessage(message);
+    else if (processMessage) {
+      processMessage(message);
     }
   } catch (error) {
     console.error('Error processing message:', error);
@@ -177,7 +197,22 @@ export function sendMessage(message: any): boolean {
   }
   
   try {
-    socket.send(JSON.stringify(message));
+    // Add a unique message ID to track our own messages
+    const messageId = nanoid(12);
+    const messageWithId = {
+      ...message,
+      messageId
+    };
+    
+    // Store the ID to recognize our own messages
+    sentMessageIds.add(messageId);
+    
+    // Clean up old message IDs after a delay to prevent memory leaks
+    setTimeout(() => {
+      sentMessageIds.delete(messageId);
+    }, 10000); // 10 seconds
+    
+    socket.send(JSON.stringify(messageWithId));
     return true;
   } catch (error) {
     console.error('Error sending message:', error);

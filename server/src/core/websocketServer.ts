@@ -2,23 +2,28 @@
  * Websocket Server
  * Handles websocket connections and message routing
  */
-import { Server, WebSocket } from "bun";
+import { type ServerWebSocket } from "bun";
 import { LobbyManager } from "./lobbyManager";
 import { Message, ConnectPayload, UpdateMessage } from "../models/types";
+import * as logger from "../utils/logger";
+
+// Define a type alias for ServerWebSocket with unknown data
+type WebSocket = ServerWebSocket<unknown>;
 
 export class WebSocketServer {
-  private server: Server;
   private lobbyManager: LobbyManager;
+  private socketCounter = 0;
+  private socketIds = new WeakMap<WebSocket, string>();
 
   constructor(port: number) {
     this.lobbyManager = new LobbyManager();
     
-    this.server = Bun.serve({
+    logger.info(`Starting websocket server on port ${port}`);
+    
+    Bun.serve({
       port,
       fetch: (req, server) => {
         // Upgrade the request to a WebSocket connection if it's a WebSocket request
-        const url = new URL(req.url);
-        
         if (server.upgrade(req)) {
           return; // Return if upgrade was successful
         }
@@ -33,14 +38,25 @@ export class WebSocketServer {
       }
     });
     
-    console.log(`WebSocket server started on port ${port}`);
+    logger.info(`WebSocket server started on port ${port}`);
+  }
+
+  /**
+   * Get or create a unique ID for a socket
+   */
+  private getSocketId(ws: WebSocket): string {
+    if (!this.socketIds.has(ws)) {
+      this.socketIds.set(ws, `socket-${++this.socketCounter}`);
+    }
+    return this.socketIds.get(ws)!;
   }
 
   /**
    * Handle new WebSocket connection
    */
   private handleConnection(ws: WebSocket): void {
-    console.log("New client connected");
+    const socketId = this.getSocketId(ws);
+    logger.info(`New client connected [Socket: ${socketId}]`);
     // Actual connection handling is done when connect message is received
   }
 
@@ -48,8 +64,13 @@ export class WebSocketServer {
    * Handle incoming WebSocket messages
    */
   private handleMessage(ws: WebSocket, message: string): void {
+    const socketId = this.getSocketId(ws);
+    
     try {
       const data = JSON.parse(message) as Message;
+      
+      // Log the received message
+      logger.logWebsocketMessage('RECEIVED', data, data.playerId || 'unknown', socketId);
       
       switch (data.type) {
         case "connect":
@@ -65,10 +86,10 @@ export class WebSocketServer {
           break;
           
         default:
-          console.warn(`Unknown message type: ${data.type}`);
+          logger.warn(`Unknown message type: ${data.type}`, { socketId });
       }
     } catch (error) {
-      console.error("Error processing message:", error);
+      logger.error(`Error processing message from socket ${socketId}:`, error);
       
       const errorMessage: Message = {
         type: "error",
@@ -85,7 +106,9 @@ export class WebSocketServer {
    * Handle client disconnection
    */
   private handleDisconnection(ws: WebSocket): void {
-    console.log("Client disconnected");
+    const socketId = this.getSocketId(ws);
+    const playerId = this.lobbyManager.getPlayerIdForSocket(ws);
+    logger.info(`Client disconnected [Socket: ${socketId}] [Player: ${playerId || 'unknown'}]`);
     this.lobbyManager.removePlayerFromLobby(ws);
   }
 
@@ -93,9 +116,12 @@ export class WebSocketServer {
    * Handle connect message
    */
   private handleConnectMessage(ws: WebSocket, message: Message): void {
+    const socketId = this.getSocketId(ws);
     const payload = message.payload as ConnectPayload;
     
     if (!payload || !payload.lobbyId || !payload.playerId) {
+      logger.warn(`Invalid connect message from socket ${socketId}`, message);
+      
       const errorMessage: Message = {
         type: "error",
         playerId: "server",
@@ -114,14 +140,19 @@ export class WebSocketServer {
       payload.secret
     );
     
-    console.log(`Player ${payload.playerId} joined lobby ${payload.lobbyId}`);
+    logger.info(`Player ${payload.playerId} joined lobby ${payload.lobbyId} [Socket: ${socketId}]`);
   }
 
   /**
    * Handle update message
    */
   private handleUpdateMessage(ws: WebSocket, message: UpdateMessage): void {
+    const socketId = this.getSocketId(ws);
+    const playerId = this.lobbyManager.getPlayerIdForSocket(ws);
+    
     if (!message.path || message.value === undefined) {
+      logger.warn(`Invalid update message from player ${playerId} [Socket: ${socketId}]`, message);
+      
       const errorMessage: Message = {
         type: "error",
         playerId: "server",
@@ -133,6 +164,11 @@ export class WebSocketServer {
       return;
     }
     
+    logger.debug(`Processing update from player ${playerId} [Socket: ${socketId}]`, { 
+      path: message.path,
+      messageId: message.messageId
+    });
+    
     this.lobbyManager.processUpdate(ws, message);
   }
 
@@ -140,7 +176,10 @@ export class WebSocketServer {
    * Handle action message
    */
   private handleActionMessage(ws: WebSocket, message: Message): void {
+    const socketId = this.getSocketId(ws);
+    const playerId = this.lobbyManager.getPlayerIdForSocket(ws);
+    
     // TODO: Implement action handling (card drawing, shuffling, etc.)
-    console.log("Action message received:", message);
+    logger.info(`Action message received from player ${playerId} [Socket: ${socketId}]:`, message);
   }
 }

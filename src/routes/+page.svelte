@@ -5,11 +5,11 @@
 	import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 
-	// In your +layout.svelte or main app initialization
-	import { initializeWebsocket } from '$lib/websocket';
+	//// In your +layout.svelte or main app initialization
+	// import { initializeWebsocket } from '$lib/websocket';
 
-	// Initialize with default lobby or specify one
-	initializeWebsocket('your-lobby-id');
+	// // Initialize with default lobby or specify one
+	// initializeWebsocket('your-lobby-id');
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
