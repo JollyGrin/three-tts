@@ -12,6 +12,67 @@ server/
 │   │   └── types.ts            # Type definitions
 │   └── utils/
 │       └── stateUtils.ts       # State update utilities
+│       └── logger.ts           # Logging utilities
+
+## Implementation Details
+
+The server is built on [Bun](https://bun.sh/) for high-performance WebSocket handling with TypeScript support. The architecture focuses on real-time synchronized game state with minimal latency.
+
+### Key Components
+
+#### `WebSocketServer`
+Handles raw WebSocket connections, authentication, and message routing to appropriate lobbies.
+
+#### `LobbyManager`
+Core of the server's functionality:
+- Manages multiple isolated game lobbies
+- Maintains game state for each lobby
+- Processes updates from clients
+- Broadcasts changes to other clients in the same lobby
+
+### Message Flow
+
+1. **Client connects** → Authentication → Assigned to lobby
+2. **Client sends update** → LobbyManager validates → State updated → Broadcast to other clients
+3. **Client disconnects** → Cleanup resources → Notify other players
+
+### State Management
+
+The server implements a simple but effective approach to state synchronization:
+
+```
+Client A → Update → Server → Apply update → Broadcast → Client B
+```
+
+- Updates are processed using the `setValueAtPath` function that applies surgical changes
+- Each update includes a path (e.g., `['boardState', 'card:123']`) and a value object
+- Null values trigger object deletion
+
+### Synchronization Strategies
+
+We tested several approaches to handle high-frequency updates (like card dragging):
+
+| Strategy | Implementation | Result |
+|----------|---------------|--------|
+| Server Ownership Tracking | Track which player "owns" an object | Added complexity with minimal benefit |
+| Update Throttling | Limit update frequency on server | Helps but doesn't prevent feedback loops |
+| Client-side Ownership | Let clients determine ownership | Best solution with minimal server complexity |
+| Last-Writer-Wins | Latest update overwrites | Created jittering |
+
+### Lessons Learned
+
+1. **Client-Side Ownership Works Best**: Having clients track "lastTouchedBy" with timestamps proved more effective than complex server-side tracking
+2. **Minimal Server Logic**: The server primarily forwards updates after validation, keeping complexity low
+3. **State Path Structure**: The `path` approach for updates makes it easy to apply targeted changes
+
+### Adding New Features
+
+When extending the server:
+
+1. **Update Types**: Add new types to `models/types.ts`
+2. **Permission Logic**: Extend the permission checks in `LobbyManager` if needed
+3. **Testing**: Test with multiple clients for feedback loops before committing
+4. **Logging**: Use the logger for detailed message tracking when debugging
 
 ## Goal
 
