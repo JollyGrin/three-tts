@@ -97,12 +97,32 @@ export function applyWebsocketToObjectStore(): void {
   
   // Wrap removeCard with websocket sync - ensure removals are never filtered
   const originalRemoveCard = objectStore.removeCard;
+  
+  // Keep track of removals in progress to prevent feedback loops
+  const removalsInProgress = new Set<string>();
+  
   objectStore.removeCard = function(id: string) {
-    // Directly pass a null value to ensure it's processed as a removal
-    sendUpdate(['boardState', id], null);
+    // Check if we're already processing this removal
+    if (removalsInProgress.has(id)) {
+      console.log(`[storeIntegration] Already removing ${id}, preventing feedback loop`);
+      return;
+    }
     
-    // Call the original function to update the local state
-    originalRemoveCard(id);
+    try {
+      // Mark this removal as in progress
+      removalsInProgress.add(id);
+      
+      // Directly pass a null value to ensure it's processed as a removal
+      sendUpdate(['boardState', id], null);
+      
+      // Call the original function to update the local state
+      originalRemoveCard(id);
+    } finally {
+      // Always clean up, even if there's an error
+      setTimeout(() => {
+        removalsInProgress.delete(id);
+      }, 1000); // Cleanup after 1 second
+    }
   };
 }
 

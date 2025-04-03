@@ -197,6 +197,13 @@ function applyBoardUpdate(objectId: string, value: any, propertyPath: string[]):
     if (value === null) {
       // Object was deleted
       logDebug(`Removing card: ${objectId}`);
+      
+      // Check if this card is already removed to prevent feedback loops
+      if (!objectStore.getCardState(objectId)) {
+        logDebug(`Card ${objectId} already removed, skipping redundant removal`);
+        return;
+      }
+      
       objectStore.removeCard(objectId);
       return;
     }
