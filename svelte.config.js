@@ -8,7 +8,12 @@ const config = {
 	preprocess: vitePreprocess(),
 
 	kit: {
-		adapter: adapter()
+		adapter: adapter(),
+		paths: {
+			// Set the base path for GitHub Pages
+			// base: '/tts'
+			base: process.argv.includes('dev') ? '' : '/three-tts'
+		}
 	}
 };
 

@@ -4,6 +4,7 @@ import type { Vector3 } from 'three';
 interface DragState {
 	isDragging: string | null;
 	isHovered: string | null;
+	isDeckHovered: string | null;
 	isTrayHovered: boolean;
 	isPreview?: boolean;
 	dragHeight?: number;
@@ -13,6 +14,7 @@ interface DragState {
 const initialState: DragState = {
 	isDragging: null,
 	isHovered: null,
+	isDeckHovered: null,
 	isTrayHovered: false,
 	isPreview: false,
 	dragHeight: undefined,
@@ -46,7 +48,7 @@ function updateIntersection(point: Vector3) {
 
 // End dragging and reset state
 function dragEnd() {
-	dragStore.set(initialState);
+	dragStore.update((state) => ({ ...state, isDragging: null }));
 }
 
 // Set hover state
@@ -62,6 +64,13 @@ function setTrayHover(isTrayHovered: boolean) {
 	dragStore.update((state) => ({
 		...state,
 		isTrayHovered
+	}));
+}
+
+function setDeckHover(deckId: string | null) {
+	dragStore.update((state) => ({
+		...state,
+		isDeckHovered: deckId
 	}));
 }
 
@@ -82,6 +91,7 @@ export {
 	dragStart,
 	dragEnd,
 	setHover,
+	setDeckHover,
 	setTrayHover,
 	updateIntersection,
 	dragActions,

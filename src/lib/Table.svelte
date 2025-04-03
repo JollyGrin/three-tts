@@ -2,13 +2,38 @@
 	import { T } from '@threlte/core';
 	import { RigidBody, Collider } from '@threlte/rapier';
 	import * as THREE from 'three';
-	import { dragEnd } from './store/dragStore.svelte';
+	import { dragEnd, dragStore } from './store/dragStore.svelte';
+	import { trayStore } from './store/trayStore.svelte';
+	import { objectStore } from './store/objectStore.svelte';
+	import { deckStore } from './store/deckStore.svelte';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
+
+	// Handle the tray & deck drop actions here
+	function handleDragEnd() {
+		if (!$dragStore.isDragging) return;
+		const id = $dragStore.isDragging;
+		const { faceImageUrl } = $objectStore[$dragStore.isDragging];
+
+		if ($dragStore.isTrayHovered) {
+			console.log('Storing in hand:', id, faceImageUrl);
+			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
+			objectStore.removeCard(id);
+		}
+
+		if (!!$dragStore.isDeckHovered) {
+			const deckIdHovered = $dragStore.isDeckHovered;
+			console.log('Storing in deck', deckIdHovered);
+			deckStore.placeOnTopOfDeck(deckIdHovered, id);
+			objectStore.removeCard(id);
+		}
+
+		dragEnd();
+	}
 
 	// Create procedural felt texture
 	$effect(() => {
@@ -106,7 +131,7 @@
 <T.Group position={[0, 0, 0]}>
 	<RigidBody type="fixed">
 		<Collider shape="cuboid" args={[30, 0.256, 15]} friction={1} restitution={1}>
-			<T.Mesh receiveShadow bind:ref={mesh} onpointerup={dragEnd}>
+			<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
 				<T.BoxGeometry args={[60, 0.5, 30]} />
 				{#if feltMaterial}
 					<T is={feltMaterial} />

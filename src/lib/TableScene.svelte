@@ -2,7 +2,7 @@
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
 	import { World } from '@threlte/rapier';
-	import { Billboard, HUD, interactivity, Text } from '@threlte/extras';
+	import { HUD, interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
@@ -16,6 +16,7 @@
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import { deckStore } from './store/deckStore.svelte';
 	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
+	import { getStaticResourceUrl } from './utils/image';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -68,7 +69,7 @@
 			position as [number, number, number],
 			faceImageUrl as string,
 			undefined,
-			'/s-back.jpg'
+			getStaticResourceUrl('/s-back.jpg')
 		);
 	});
 
@@ -76,7 +77,8 @@
 		position: [8.25, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug)
+			faceImageUrl: getSorceryCardImage(slug),
+			backImageUrl: getSorceryCardImage('/s-back.jpg')
 		}))
 	});
 
@@ -85,7 +87,8 @@
 		position: [10, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug)
+			faceImageUrl: getSorceryCardImage(slug),
+			backImageUrl: getSorceryCardImage('/s-back.jpg')
 		}))
 	});
 

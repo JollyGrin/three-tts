@@ -1,13 +1,11 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
-	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
+	import { dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore } from './store/objectStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
-	import { trayStore } from './store/trayStore.svelte';
 	import { degrees, seatStore } from './store/seatStore.svelte';
 
 	let { id } = $props();
@@ -20,13 +18,13 @@
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
-	const height = new Spring(0.26, {
+	const height = new Spring($objectStore[id]?.position[1] ?? 0.26, {
 		stiffness: 0.15,
 		damping: 0.7,
 		precision: 0.0001
 	});
 
-	const rotation = new Spring(0, {
+	const rotation = new Spring($objectStore[id]?.rotation[0] ?? 0, {
 		stiffness: 0.1,
 		damping: 0.8,
 		precision: 0.001
@@ -76,15 +74,6 @@
 		setTimeout(() => (height.target = 2), 150);
 	}
 
-	const handleDragEnd = () => {
-		if ($dragStore.isTrayHovered) {
-			console.log('Storing in hand:', id, faceImageUrl);
-			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
-			objectStore.removeCard(id);
-		}
-		dragEnd();
-	};
-
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
 		isHovered = true;
@@ -101,17 +90,11 @@
 	{position}
 	rotation.x={rotation.current * DEG2RAD}
 	rotation.y={rotationTap.current * -DEG2RAD}
+	onpointerdown={handleDragStart}
+	onpointerleave={handlePointerLeave}
+	onpointerenter={handlePointerEnter}
 >
-	<T.Mesh
-		castShadow
-		receiveShadow
-		bind:ref={card}
-		rotation.x={-Math.PI / 2}
-		onpointerdown={handleDragStart}
-		onpointerup={handleDragEnd}
-		onpointerleave={handlePointerLeave}
-		onpointerenter={handlePointerEnter}
-	>
+	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
 		<ImageMaterial
 			url={faceImageUrl}
