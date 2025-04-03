@@ -14,6 +14,8 @@
 	import Deck from './Deck.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
+	import { deckStore } from './store/deckStore.svelte';
+	import { generateCardImages } from './utils/mock/cards';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -70,6 +72,23 @@
 		);
 	});
 
+	deckStore.updateDeck(`deck:playername:1`, {
+		position: [8.25, 0.4, 3],
+		cards: generateCardImages(30).map((card, index) => ({
+			id: `card:playername:${card}-${index}`,
+			faceImageUrl: card
+		}))
+	});
+
+	deckStore.updateDeck(`deck:playername:2`, {
+		isFaceUp: true,
+		position: [10, 0.4, 3],
+		cards: generateCardImages(30).map((card, index) => ({
+			id: `card:playername:${card}-${index}`,
+			faceImageUrl: card
+		}))
+	});
+
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>
 
@@ -89,8 +108,9 @@
 	<Intersection />
 	<Table bind:mesh />
 
-	<Deck id="deck:playername:1" position={[8.25, 0.5, 3]} />
-	<Deck id="deck:playername:2" position={[10, 0.5, 3]} />
+	{#each Object.entries($deckStore) as [id] (id)}
+		<Deck {id} />
+	{/each}
 
 	{#each cards as [id] (id)}
 		<Card {id} />
