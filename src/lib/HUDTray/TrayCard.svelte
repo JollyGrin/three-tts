@@ -59,9 +59,6 @@
 		trayStore.removeCard(id);
 		dragStart(id, 2.5);
 	}
-	function handleDragEnd() {
-		dragEnd();
-	}
 </script>
 
 <T.Mesh
@@ -72,7 +69,6 @@
 	onpointerenter={handlePointerEnter}
 	onpointerleave={handlePointerLeave}
 	onpointerdown={handleDragStart}
-	onpointerup={handleDragEnd}
 >
 	<T.PlaneGeometry args={cardSize} />
 	<ImageMaterial url={card.faceImageUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
