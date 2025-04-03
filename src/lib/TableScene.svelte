@@ -25,6 +25,14 @@
 	const { camera } = useThrelte();
 
 	let intersectionPoint: THREE.Vector3 | null = $state(null);
+	
+	// Debounce variables to limit card position updates
+	let lastUpdateTime = 0;
+	const MIN_UPDATE_INTERVAL = 150; // ms between updates - aggressive debounce
+	let pendingUpdate: { id: string, position: [number, number, number] } | null = null;
+	
+	// Track which cards we're currently updating to prevent conflicts
+	const cardUpdateLock = new Set<string>();
 
 	interactivity({
 		compute: (event, state) => {
@@ -36,7 +44,50 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				objectStore.updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
+				
+				// Get the card being dragged
+				const cardId = $dragStore.isDragging as string;
+				
+				// Get the current time
+				const now = Date.now();
+				
+				// Skip update if we're not allowed to update this card yet
+				// or if another instance is already processing updates for this card
+				if (cardUpdateLock.has(cardId)) {
+					return;
+				}
+				
+				// Check if card is owned by another player
+				const cardState = objectStore.getCardState(cardId);
+				const currentPlayerId = get(playerId);
+				
+				if (cardState?.lastTouchedBy && 
+					cardState.lastTouchedBy !== currentPlayerId && 
+					(now - (cardState.lastTouchTime || 0)) < 2000) {
+					// Card is being controlled by another player - don't update position
+					console.log(`Card ${cardId} is locked by ${cardState.lastTouchedBy}, not updating position`);
+					return;
+				}
+				
+				// Apply aggressive debounce - store pending update
+				pendingUpdate = {
+					id: cardId,
+					position: [x, 2.5, z]
+				};
+				
+				// If we haven't sent an update recently, send one immediately
+				if (now - lastUpdateTime >= MIN_UPDATE_INTERVAL) {
+					applyPendingUpdate();
+				} else {
+					// Otherwise schedule an update after the debounce period
+					if (!cardUpdateLock.has(cardId)) {
+						cardUpdateLock.add(cardId);
+						setTimeout(() => {
+							applyPendingUpdate();
+							cardUpdateLock.delete(cardId);
+						}, MIN_UPDATE_INTERVAL - (now - lastUpdateTime));
+					}
+				}
 			}
 
 			state.pointer.update((p) => {
@@ -49,6 +100,21 @@
 			state.raycaster.setFromCamera(state.pointer.current, $camera);
 		}
 	});
+	
+	// Function to apply the pending update
+	function applyPendingUpdate() {
+		if (pendingUpdate) {
+			// Apply the update
+			objectStore.updateCardState(
+				pendingUpdate.id, 
+				pendingUpdate.position
+			);
+			
+			// Update the timestamp
+			lastUpdateTime = Date.now();
+			pendingUpdate = null;
+		}
+	}
 
 	// Get the current player's ID for private player objects
 	const currentPlayerId = get(playerId);

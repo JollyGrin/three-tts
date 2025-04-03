@@ -53,38 +53,43 @@ export function setMessageProcessor(processor: (message: any) => void): void {
 /**
  * Connect to websocket server
  */
-export function connect(lobby: string, secret?: string): void {
+export async function connect(wsUrl: string, lobbyIdentifier: string, secret?: string): Promise<void> {
   if (!browser) return; // Only connect in browser environment
 
-  // Update lobby ID
-  lobbyId.set(lobby);
-  
-  // If already connected or connecting, disconnect first
-  if (socket) {
-    disconnect();
-  }
+  return new Promise((resolve, reject) => {
+    try {
+      // Update lobby ID
+      lobbyId.set(lobbyIdentifier);
+      
+      // If already connected or connecting, disconnect first
+      if (socket) {
+        disconnect();
+      }
 
-  // Update connection status
-  connectionStatus.set(ConnectionState.CONNECTING);
-  connectionError.set(null);
-  
-  // Get the websocket URL - default to localhost during development
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsHost = import.meta.env.DEV ? 'localhost:3000' : window.location.host;
-  const wsUrl = `${wsProtocol}//${wsHost}`;
-  
-  // Create websocket connection
-  try {
-    socket = new WebSocket(wsUrl);
-    
-    // Set up event handlers
-    socket.onopen = handleOpen;
-    socket.onmessage = handleMessage;
-    socket.onclose = handleClose;
-    socket.onerror = handleError;
-  } catch (error) {
-    handleConnectionError(error);
-  }
+      // Update connection status
+      connectionStatus.set(ConnectionState.CONNECTING);
+      connectionError.set(null);
+      
+      // Create websocket connection
+      console.log(`[WS] Connecting to ${wsUrl}`);
+      socket = new WebSocket(wsUrl);
+      
+      // Set up event handlers
+      socket.onopen = () => {
+        handleOpen();
+        resolve();
+      };
+      socket.onmessage = handleMessage;
+      socket.onclose = handleClose;
+      socket.onerror = (err) => {
+        handleError(err);
+        reject(err);
+      };
+    } catch (error) {
+      handleConnectionError(error);
+      reject(error);
+    }
+  });
 }
 
 /**
@@ -109,12 +114,13 @@ export function disconnect(): void {
  * Handle websocket open event
  */
 function handleOpen(): void {
+  console.log('[WS] Connection established');
   connectionStatus.set(ConnectionState.CONNECTED);
   connectionError.set(null);
   reconnectAttempts = 0;
   
   // Send connect message with player ID and lobby ID
-  sendMessage({
+  const connectMessage = {
     type: 'connect',
     playerId: get(playerId),
     timestamp: Date.now(),
@@ -122,7 +128,11 @@ function handleOpen(): void {
       lobbyId: get(lobbyId),
       playerId: get(playerId)
     }
-  });
+  };
+  
+  // Send the connect message
+  const success = sendMessage(connectMessage);
+  console.log(`[WS] Sent connect message: ${success ? 'success' : 'failed'}`);
 }
 
 /**
@@ -132,23 +142,49 @@ function handleMessage(event: MessageEvent): void {
   try {
     const message = JSON.parse(event.data);
     
-    // Check if this is our own message that we already processed
-    if (message.messageId && sentMessageIds.has(message.messageId)) {
-      // This is our own message coming back, ignore it
-      sentMessageIds.delete(message.messageId); // Clean up after a delay
+    // Double check that we're not processing our own messages
+    // 1. Check the message ID for ones we've sent
+    // 2. Check if the player ID matches our own (additional fallback)
+    const currentPlayerId = get(playerId);
+    
+    if (message.playerId === currentPlayerId || 
+        (message.messageId && sentMessageIds.has(message.messageId))) {
+      console.log(`[WS] Ignoring our own message - ID: ${message.messageId || 'none'}, Player: ${message.playerId}`);
       return;
     }
     
-    // Update player list if it's a player list message
-    if (message.type === 'playerList') {
-      playerList.set(message.payload);
-    } 
-    // Process other messages
-    else if (processMessage) {
-      processMessage(message);
+    // Handle different message types
+    switch (message.type) {
+      case 'playerList':
+        // Update player list
+        if (message.payload && Array.isArray(message.payload.players)) {
+          playerList.set(message.payload.players);
+          console.log(`[WS] Updated player list: ${message.payload.players.length} players`);
+        }
+        break;
+        
+      case 'update':
+      case 'sync':
+        // Process state update with message processor
+        if (processMessage) {
+          console.log(`[WS] Received ${message.type} message:`, 
+            message.path ? { path: message.path.join('.') } : '(sync)');
+          processMessage(message);
+        } else {
+          console.warn('[WS] Received message but processMessage is not set');
+        }
+        break;
+        
+      case 'error':
+        // Handle error message
+        console.error('[WS] Server error:', message.payload?.message);
+        break;
+        
+      default:
+        console.log(`[WS] Received message of type: ${message.type}`);
     }
   } catch (error) {
-    console.error('Error processing message:', error);
+    console.error('[WS] Error processing message:', error, event.data);
   }
 }
 
@@ -156,7 +192,10 @@ function handleMessage(event: MessageEvent): void {
  * Handle websocket close event
  */
 function handleClose(event: CloseEvent): void {
-  socket = null;
+  if (socket) {
+    socket = null;
+  }
+  
   connectionStatus.set(ConnectionState.DISCONNECTED);
   
   // Only attempt to reconnect if it wasn't a clean closure
@@ -166,8 +205,16 @@ function handleClose(event: CloseEvent): void {
     // Exponential backoff for reconnect
     const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1);
     
+    // Get the websocket URL for reconnection
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = import.meta.env.DEV ? 'localhost:3000' : window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}`;
+    
+    console.log(`[WS] Scheduling reconnect attempt ${reconnectAttempts} in ${delay}ms`);
+    
     reconnectTimer = window.setTimeout(() => {
-      connect(get(lobbyId));
+      // Call connect with both the URL and lobby ID
+      connect(wsUrl, get(lobbyId));
     }, delay);
   }
 }
@@ -224,13 +271,38 @@ export function sendMessage(message: any): boolean {
  * Send state update to websocket server
  */
 export function sendUpdate(path: string[], value: any): boolean {
-  return sendMessage({
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    console.warn('[WS] Cannot send update, not connected');
+    return false;
+  }
+  
+  // Generate unique message ID
+  const messageId = nanoid(12);
+  
+  // Create update message
+  const message = {
     type: 'update',
     playerId: get(playerId),
     timestamp: Date.now(),
+    messageId,
     path,
     value
-  });
+  };
+  
+  console.log(`[WS] Sending update for path: ${path.join('.')}`);
+  
+  // Track the sent message ID BEFORE sending to prevent race conditions
+  sentMessageIds.add(messageId);
+  
+  // Send message
+  const success = sendMessage(message);
+  
+  // Clean up after delay to prevent memory leaks
+  setTimeout(() => {
+    sentMessageIds.delete(messageId);
+  }, 10000); // Longer timeout to ensure we don't get duplicates
+  
+  return success;
 }
 
 // Export player ID for use in components

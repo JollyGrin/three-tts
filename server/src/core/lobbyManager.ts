@@ -4,22 +4,36 @@
  */
 import { type ServerWebSocket } from "bun";
 import { Lobby, Message, UpdateMessage } from "../models/types";
-import { createInitialGameState, hasPermission, setValueAtPath } from "../utils/stateUtils";
 import * as logger from "../utils/logger";
+import { setValueAtPath } from "../utils/stateUtils";
 
-// Define a ServerWebSocket type with unknown data
+// Define a type alias for ServerWebSocket with unknown data
 type WebSocket = ServerWebSocket<unknown>;
 
 export class LobbyManager {
   private lobbies = new Map<string, Lobby>();
   private clientToLobby = new Map<WebSocket, string>();
   private clientToPlayer = new Map<WebSocket, string>();
+  private objectOwnership = new Map<string, { playerId: string, timestamp: number }>();
 
   /**
    * Get player ID for a socket connection
    */
   public getPlayerIdForSocket(client: WebSocket): string | undefined {
     return this.clientToPlayer.get(client);
+  }
+
+  /**
+   * Get lobby ID for a player ID
+   */
+  public getPlayerLobby(playerId: string): string | undefined {
+    // Find the socket for this player
+    for (const [socket, id] of this.clientToPlayer.entries()) {
+      if (id === playerId) {
+        return this.clientToLobby.get(socket);
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -30,7 +44,10 @@ export class LobbyManager {
       logger.info(`Creating new lobby: ${lobbyId}`);
       this.lobbies.set(lobbyId, {
         id: lobbyId,
-        state: createInitialGameState(),
+        state: {
+          boardState: {},
+          playerStates: {}
+        },
         players: new Set<string>(),
         playerSecrets: new Map<string, string>()
       });
@@ -122,24 +139,58 @@ export class LobbyManager {
   public processUpdate(client: WebSocket, message: UpdateMessage): void {
     const lobbyId = this.clientToLobby.get(client);
     const playerId = this.clientToPlayer.get(client);
-    
+
     if (!lobbyId || !playerId) {
       logger.warn(`Update from unauthorized client, no lobby or player ID`);
       return;
     }
     
     const lobby = this.lobbies.get(lobbyId);
+
     if (!lobby) {
       logger.warn(`Update for non-existent lobby: ${lobbyId}`);
       return;
     }
     
-    // Check permissions
-    if (!hasPermission(playerId, message.path)) {
+    // Check basic permissions
+    if (!this.hasUpdatePermission(playerId, message.path)) {
       logger.warn(`Permission denied for player ${playerId} to update path: ${message.path.join('.')}`);
-      this.sendError(client, "Permission denied");
       return;
     }
+
+    // ANTI-FEEDBACK LOOP: Check if this is a card being updated
+    const [stateType, objectId] = message.path;
+    if (stateType === 'boardState' && 
+        message.value && 
+        typeof message.value === 'object' &&
+        message.value.lastTouchedBy) {
+      
+      // Current timestamp
+      const now = Date.now();
+      
+      // Previous ownership data we have for this object
+      const lastOwnership = this.objectOwnership.get(`${lobbyId}:${objectId}`);
+      
+      // If this object is already being manipulated by another player
+      if (lastOwnership && 
+          lastOwnership.playerId !== playerId && 
+          lastOwnership.playerId === message.value.lastTouchedBy &&
+          now - lastOwnership.timestamp < 2000) {
+        
+        // Reject this update - object is locked by another player
+        logger.info(`Rejecting update to ${objectId} - currently owned by ${lastOwnership.playerId}`);
+        return;
+      }
+      
+      // Update our ownership tracking
+      this.objectOwnership.set(`${lobbyId}:${objectId}`, {
+        playerId: message.value.lastTouchedBy,
+        timestamp: message.value.lastTouchTime || now
+      });
+    }
+    
+    // Update timestamp
+    message.timestamp = Date.now();
     
     // Log the update before applying it
     logger.debug(`Applying update to lobby ${lobbyId} from player ${playerId}:`, {
@@ -154,7 +205,7 @@ export class LobbyManager {
     logger.debug(`Update applied, broadcasting to other clients in lobby ${lobbyId}`);
     
     // Broadcast update to all clients in lobby except sender
-    this.broadcastUpdate(lobby, message, client);
+    this.broadcastToLobby(lobbyId, message, client);
   }
 
   /**
@@ -190,26 +241,46 @@ export class LobbyManager {
   }
 
   /**
-   * Broadcast an update to all clients in a lobby except the sender
+   * Broadcast a message to all clients in a lobby, excluding the sender
    */
-  private broadcastUpdate(lobby: Lobby, message: UpdateMessage, excludeClient: WebSocket): void {
-    const senderPlayerId = this.clientToPlayer.get(excludeClient) || "unknown";
+  private broadcastToLobby(lobbyId: string, message: Message, excludeWs?: WebSocket): void {
+    const lobby = this.lobbies.get(lobbyId);
+    if (!lobby) return;
     
-    logger.debug(`Broadcasting update from player ${senderPlayerId} to all other players in lobby ${lobby.id}`, {
-      path: message.path,
-      otherPlayerCount: lobby.players.size - 1
-    });
+    const messageStr = JSON.stringify(message);
     
-    let sentCount = 0;
+    // Track excluded socket ID for logging
+    const excludeSocketId = excludeWs ? this.getSocketId(excludeWs) : null;
     
+    // Count of successful sends
+    let sendCount = 0;
+    
+    // Broadcast to all sockets in the lobby except the sender
     for (const client of this.clientToLobby.keys()) {
-      if (client !== excludeClient && this.clientToLobby.get(client) === lobby.id) {
-        client.send(JSON.stringify(message));
-        sentCount++;
+      if (client !== excludeWs && this.clientToLobby.get(client) === lobbyId) {
+        try {
+          const receiverSocketId = this.getSocketId(client);
+          
+          // Log the message being sent
+          logger.logWebsocketMessage(
+            'SENDING',
+            message,
+            this.clientToPlayer.get(client) || "unknown",
+            receiverSocketId
+          );
+          
+          // Send the message
+          client.send(messageStr);
+          sendCount++;
+        } catch (error) {
+          logger.error(`Error sending message to player ${this.clientToPlayer.get(client) || "unknown"}:`, error);
+          // Socket is probably dead, remove player from lobby
+          this.removePlayerFromLobby(client);
+        }
       }
     }
     
-    logger.debug(`Update broadcast complete. Sent to ${sentCount} clients`);
+    logger.debug(`Broadcast message to ${sendCount} players in lobby ${lobbyId} (excluding ${excludeSocketId || 'none'})`);
   }
 
   /**
@@ -219,26 +290,35 @@ export class LobbyManager {
     for (const client of this.clientToLobby.keys()) {
       if (this.clientToLobby.get(client) === lobby.id) {
         const clientPlayerId = this.clientToPlayer.get(client) || "unknown";
-        logger.logWebsocketMessage('SENDING', message, clientPlayerId, clientPlayerId);
+        logger.logWebsocketMessage('SENDING', message, clientPlayerId, this.getSocketId(client));
         client.send(JSON.stringify(message));
       }
     }
   }
 
   /**
-   * Send error message to a client
+   * Get a unique identifier for a socket
    */
-  private sendError(client: WebSocket, errorMessage: string): void {
-    const playerId = this.clientToPlayer.get(client) || "unknown";
+  private getSocketId(ws: WebSocket): string {
+    // Use the clientToPlayer map to get the player ID associated with this socket
+    const playerId = this.clientToPlayer.get(ws);
+    if (playerId) {
+      return `socket-${playerId.substring(0, 8)}`;
+    }
     
-    const message: Message = {
-      type: "error",
-      playerId: "server",
-      timestamp: Date.now(),
-      payload: { message: errorMessage }
-    };
+    // Fallback if no player ID is found
+    return 'unknown-socket';
+  }
+
+  /**
+   * Basic permission check for updates
+   */
+  private hasUpdatePermission(playerId: string, path: string[]): boolean {
+    // Only allow players to update their own player state
+    if (path[0] === 'playerStates' && path[1] !== playerId) {
+      return false;
+    }
     
-    logger.warn(`Sending error to player ${playerId}: ${errorMessage}`);
-    client.send(JSON.stringify(message));
+    return true;
   }
 }

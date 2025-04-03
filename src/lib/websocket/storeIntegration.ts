@@ -3,11 +3,11 @@
  * Connects existing stores with websocket functionality
  */
 import { get } from 'svelte/store';
-import { sendUpdate } from './websocketService';
+import { sendUpdate, playerId } from './websocketService';
 import { objectStore } from '../store/objectStore.svelte';
 import { trayStore } from '../store/trayStore.svelte';
 import { deckStore } from '../store/deckStore.svelte';
-import { seatStore } from '../store/seatStore.svelte';
+import { seatStore, setSeat } from '../store/seatStore.svelte';
 
 /**
  * Higher-order function to wrap store update methods with websocket sync
@@ -22,6 +22,20 @@ export function withWebsocketSync<T extends (...args: any[]) => void>(
     
     // Generate path from function arguments
     const path = pathGenerator(...args);
+    
+    // Skip sending updates for cards being dragged by others
+    if (path[0] === 'boardState') {
+      const cardId = path[1];
+      const cardState = objectStore.getCardState(cardId);
+      const currentPlayerId = get(playerId);
+      
+      if (cardState?.lastTouchedBy &&
+          cardState.lastTouchedBy !== currentPlayerId &&
+          Date.now() - (cardState.lastTouchTime || 0) < 2000) {
+        console.log(`Not sending update for ${cardId} - owned by ${cardState.lastTouchedBy}`);
+        return; // Don't send update for card owned by another player
+      }
+    }
     
     // Get value to send (depends on the path and store)
     // This is simplified - in a real implementation you'd extract the exact value
@@ -132,11 +146,17 @@ export function applyWebsocketToDeckStore(playerId: string): void {
  */
 export function applyWebsocketToSeatStore(playerId: string): void {
   // Wrap setSeat with websocket sync
-  const originalSetSeat = seatStore.setSeat;
-  seatStore.setSeat = withWebsocketSync(
+  const originalSetSeat = setSeat;
+  
+  // Create a wrapped version that sends updates to the server
+  const wrappedSetSeat = withWebsocketSync(
     originalSetSeat,
     (seat) => ['playerStates', playerId, 'metadata', 'seat']
   );
+  
+  // This overrides the imported function
+  // @ts-ignore - ignore TypeScript error about setSeat not being on seatStore
+  global.setSeat = wrappedSetSeat;
 }
 
 /**

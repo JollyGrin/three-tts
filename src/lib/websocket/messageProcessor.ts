@@ -7,7 +7,7 @@ import { objectStore } from '../store/objectStore.svelte';
 import { trayStore } from '../store/trayStore.svelte';
 import { deckStore } from '../store/deckStore.svelte';
 import { seatStore, setSeat } from '../store/seatStore.svelte';
-import { playerId, setMessageProcessor } from './websocketService';
+import { playerId } from './websocketService';
 
 // Track processed messages to prevent applying duplicate updates
 const processedMessages = new Set<string>();
@@ -25,16 +25,19 @@ function logDebug(message: string, data?: any): void {
  * Process incoming websocket message and update appropriate stores
  */
 export function processWebsocketMessage(message: any): void {
-  // Always ignore messages from self
-  if (message.playerId === get(playerId)) {
-    logDebug(`Ignoring message from self: ${message.messageId || 'unknown'}`);
+  // More aggressive filtering of own messages
+  const currentPlayerId = get(playerId);
+  
+  // First check - ignore messages from self
+  if (message.playerId === currentPlayerId) {
+    logDebug(`Ignoring message from self by player ID: ${message.messageId || 'unknown'}`);
     return;
   }
   
   logDebug(`Processing message from ${message.playerId}, type: ${message.type}`, 
-    message.path ? { path: message.path } : null);
+    message.path ? { path: message.path.join('.') } : null);
   
-  // Check for duplicate messages (additional safeguard)
+  // Second check - check for duplicate message IDs
   if (message.messageId) {
     if (processedMessages.has(message.messageId)) {
       logDebug(`Already processed message: ${message.messageId}`);
@@ -47,7 +50,7 @@ export function processWebsocketMessage(message: any): void {
     // Clean up after a delay to prevent memory leaks
     setTimeout(() => {
       processedMessages.delete(message.messageId);
-    }, 5000);
+    }, 10000); // Increased to 10 seconds to ensure we catch all duplicates
   }
   
   // Process based on message type
@@ -138,6 +141,54 @@ function processUpdateMessage(message: any): void {
   
   const [stateType, id, ...restPath] = message.path;
   
+  // More aggressive check - ignore position updates for cards we're currently touching
+  const currentPlayerId = get(playerId);
+  if (stateType === 'boardState' && 
+      typeof message.value === 'object' && 
+      message.value !== null &&
+      message.value.position) {
+      
+    // Get the current state of this card to see if we're touching it
+    const currentState = objectStore.getCardState(id);
+    
+    if (currentState?.lastTouchedBy === currentPlayerId && 
+        (Date.now() - (currentState.lastTouchTime || 0)) < 2500) {
+      // We're currently touching this card - IGNORE updates from other players
+      logDebug(`IGNORING update for card ${id} - we are currently touching it`, {
+        ourTouch: { 
+          by: currentPlayerId, 
+          at: currentState.lastTouchTime
+        },
+        incomingUpdate: {
+          from: message.playerId,
+          at: message.timestamp
+        }
+      });
+      return;
+    }
+    
+    // Special case - only one player should control a card at a time
+    // If incoming update has lastTouchedBy set to the other player, and it's recent,
+    // we should defer to them
+    if (message.value.lastTouchedBy && 
+        message.value.lastTouchedBy !== currentPlayerId &&
+        message.value.lastTouchTime &&
+        (Date.now() - message.value.lastTouchTime < 3000)) {
+      
+      logDebug(`Detected other player ${message.value.lastTouchedBy} is touching card ${id}`);
+      
+      // Only apply if we're not actively touching it
+      if (currentState?.lastTouchedBy !== currentPlayerId || 
+          (Date.now() - (currentState?.lastTouchTime || 0)) > 3000) {
+        
+        logDebug(`Applying their update since we're not touching it`);
+      } else {
+        logDebug(`CONFLICT - both players touching card ${id}, ignoring their update`);
+        return;
+      }
+    }
+  }
+  
   logDebug(`Processing update - Path: ${message.path.join('.')}`, { 
     fromPlayer: message.playerId,
     messageId: message.messageId
@@ -180,7 +231,34 @@ function applyBoardUpdate(objectId: string, value: any, propertyPath: string[]):
     
     const { position, rotation, faceImageUrl, backImageUrl } = value;
     logDebug(`Updating card: ${objectId}`, { position, rotation });
-    objectStore.updateCardState(objectId, position, faceImageUrl, rotation, backImageUrl);
+    
+    // Force direct update to store with proper array format
+    if (Array.isArray(position) && position.length === 3) {
+      // Cast to proper position type [x, y, z]
+      const typedPosition: [number, number, number] = [
+        Number(position[0]), 
+        Number(position[1]), 
+        Number(position[2])
+      ];
+      
+      console.log(`APPLYING UPDATE TO CARD ${objectId}:`, {
+        position: typedPosition,
+        from: 'board update'
+      });
+      
+      // Direct store update - forcing the update to happen
+      // Pass true as last parameter to indicate this is from sync
+      objectStore.updateCardState(
+        objectId, 
+        typedPosition, 
+        faceImageUrl, 
+        rotation, 
+        backImageUrl,
+        true // Mark as coming from sync/server
+      );
+    } else {
+      console.warn(`Invalid position format for card ${objectId}:`, position);
+    }
     
     // Verify the update was applied
     setTimeout(() => {
@@ -200,13 +278,31 @@ function applyBoardUpdate(objectId: string, value: any, propertyPath: string[]):
     switch (property) {
       case 'position':
         logDebug(`Updating card position: ${objectId}`, value);
-        objectStore.updateCardState(
-          objectId, 
-          value, 
-          currentState.faceImageUrl, 
-          currentState.rotation,
-          currentState.backImageUrl
-        );
+        
+        // Handle position update with proper type conversion
+        if (Array.isArray(value) && value.length === 3) {
+          const typedPosition: [number, number, number] = [
+            Number(value[0]),
+            Number(value[1]),
+            Number(value[2])
+          ];
+          
+          console.log(`APPLYING POSITION UPDATE TO CARD ${objectId}:`, {
+            position: typedPosition,
+            from: 'partial update'
+          });
+          
+          objectStore.updateCardState(
+            objectId, 
+            typedPosition,
+            currentState.faceImageUrl, 
+            currentState.rotation,
+            currentState.backImageUrl,
+            true // Mark as coming from sync/server
+          );
+        } else {
+          console.warn(`Invalid position format for card ${objectId}:`, value);
+        }
         break;
         
       case 'rotation':
@@ -216,7 +312,8 @@ function applyBoardUpdate(objectId: string, value: any, propertyPath: string[]):
           currentState.position, 
           currentState.faceImageUrl, 
           value,
-          currentState.backImageUrl
+          currentState.backImageUrl,
+          true // Mark as coming from sync/server
         );
         break;
         
@@ -269,7 +366,3 @@ function applyPlayerUpdate(playerId: string, path: string[], value: any): void {
       console.warn('Unknown player component:', component);
   }
 }
-
-// Register the message processor with the websocket service
-// This resolves the circular dependency
-setMessageProcessor(processWebsocketMessage);
