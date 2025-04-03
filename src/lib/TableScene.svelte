@@ -50,9 +50,10 @@
 		}
 	});
 
-	// Get the current player's ID for card and deck naming
+	// Get the current player's ID for private player objects
 	const currentPlayerId = get(playerId);
 
+	// Initial cards - using globally consistent IDs without player ID
 	const init = [
 		'beast_of_burden',
 		'bosk_troll',
@@ -61,7 +62,7 @@
 		'vile_imp',
 		'flame_wave'
 	].map((card, index) => [
-		`card:${currentPlayerId}:${index + 1}`,
+		`card:global:${index + 1}`, // Global consistent ID for shared objects
 		[-6 + index * 2, 0, 0],
 		`https://card.cards.army/cards/${card}.webp`
 	]);
@@ -78,20 +79,22 @@
 		);
 	});
 
+	// Player-specific decks - use player ID for private objects
 	deckStore.updateDeck(`deck:${currentPlayerId}:1`, {
 		position: [8.25, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:${currentPlayerId}:${slug}-${index}`,
+			id: `card:${currentPlayerId}:${slug}-${index}`, // Player-specific cards (in hand)
 			faceImageUrl: getSorceryCardImage(slug),
 			backImageUrl: getStaticResourceUrl('/s-back.jpg')
 		}))
 	});
 
-	deckStore.updateDeck(`deck:${currentPlayerId}:2`, {
+	// Shared deck (using global ID)
+	deckStore.updateDeck(`deck:global:2`, {
 		isFaceUp: true,
 		position: [10, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:${currentPlayerId}:${slug}-${index}`,
+			id: `card:global:${slug}-${index}`, // Global IDs for shared objects
 			faceImageUrl: getSorceryCardImage(slug),
 			backImageUrl: getStaticResourceUrl('/s-back.jpg')
 		}))
