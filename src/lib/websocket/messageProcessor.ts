@@ -141,7 +141,8 @@ function processUpdateMessage(message: any): void {
   
   const [stateType, id, ...restPath] = message.path;
   
-  // More aggressive check - ignore position updates for cards we're currently touching
+  // CRITICAL FIX: Ignore position updates for cards we're currently touching
+  // This is the key fix that prevents feedback loops!
   const currentPlayerId = get(playerId);
   if (stateType === 'boardState' && 
       typeof message.value === 'object' && 
@@ -151,41 +152,12 @@ function processUpdateMessage(message: any): void {
     // Get the current state of this card to see if we're touching it
     const currentState = objectStore.getCardState(id);
     
+    // Simple ownership check - we ignore updates for cards we're currently touching
     if (currentState?.lastTouchedBy === currentPlayerId && 
-        (Date.now() - (currentState.lastTouchTime || 0)) < 2500) {
+        (Date.now() - (currentState.lastTouchTime || 0)) < 2000) {
       // We're currently touching this card - IGNORE updates from other players
-      logDebug(`IGNORING update for card ${id} - we are currently touching it`, {
-        ourTouch: { 
-          by: currentPlayerId, 
-          at: currentState.lastTouchTime
-        },
-        incomingUpdate: {
-          from: message.playerId,
-          at: message.timestamp
-        }
-      });
+      logDebug(`IGNORING update for card ${id} - we are currently touching it`);
       return;
-    }
-    
-    // Special case - only one player should control a card at a time
-    // If incoming update has lastTouchedBy set to the other player, and it's recent,
-    // we should defer to them
-    if (message.value.lastTouchedBy && 
-        message.value.lastTouchedBy !== currentPlayerId &&
-        message.value.lastTouchTime &&
-        (Date.now() - message.value.lastTouchTime < 3000)) {
-      
-      logDebug(`Detected other player ${message.value.lastTouchedBy} is touching card ${id}`);
-      
-      // Only apply if we're not actively touching it
-      if (currentState?.lastTouchedBy !== currentPlayerId || 
-          (Date.now() - (currentState?.lastTouchTime || 0)) > 3000) {
-        
-        logDebug(`Applying their update since we're not touching it`);
-      } else {
-        logDebug(`CONFLICT - both players touching card ${id}, ignoring their update`);
-        return;
-      }
     }
   }
   

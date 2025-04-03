@@ -14,7 +14,6 @@ export class LobbyManager {
   private lobbies = new Map<string, Lobby>();
   private clientToLobby = new Map<WebSocket, string>();
   private clientToPlayer = new Map<WebSocket, string>();
-  private objectOwnership = new Map<string, { playerId: string, timestamp: number }>();
 
   /**
    * Get player ID for a socket connection
@@ -158,37 +157,6 @@ export class LobbyManager {
       return;
     }
 
-    // ANTI-FEEDBACK LOOP: Check if this is a card being updated
-    const [stateType, objectId] = message.path;
-    if (stateType === 'boardState' && 
-        message.value && 
-        typeof message.value === 'object' &&
-        message.value.lastTouchedBy) {
-      
-      // Current timestamp
-      const now = Date.now();
-      
-      // Previous ownership data we have for this object
-      const lastOwnership = this.objectOwnership.get(`${lobbyId}:${objectId}`);
-      
-      // If this object is already being manipulated by another player
-      if (lastOwnership && 
-          lastOwnership.playerId !== playerId && 
-          lastOwnership.playerId === message.value.lastTouchedBy &&
-          now - lastOwnership.timestamp < 2000) {
-        
-        // Reject this update - object is locked by another player
-        logger.info(`Rejecting update to ${objectId} - currently owned by ${lastOwnership.playerId}`);
-        return;
-      }
-      
-      // Update our ownership tracking
-      this.objectOwnership.set(`${lobbyId}:${objectId}`, {
-        playerId: message.value.lastTouchedBy,
-        timestamp: message.value.lastTouchTime || now
-      });
-    }
-    
     // Update timestamp
     message.timestamp = Date.now();
     
