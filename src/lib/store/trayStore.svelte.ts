@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { CardState } from './objectStore.svelte';
+import { playerId } from '../websocket';
 
 type CardsState = Record<string, CardState>;
 
@@ -13,12 +14,24 @@ function updateCardState(
 	_faceImageUrl?: string,
 	_rotation?: [number, number, number]
 ) {
+	const currentPlayerId = get(playerId);
+	const now = Date.now();
+	
 	cards.update((state) => {
-		const rotation = _rotation ?? state[id]?.rotation ?? [0, 0, 0];
-		const faceImageUrl = _faceImageUrl ?? state[id]?.faceImageUrl ?? '';
+		const currentCard = state[id];
+		const rotation = _rotation ?? currentCard?.rotation ?? [0, 0, 0];
+		const faceImageUrl = _faceImageUrl ?? currentCard?.faceImageUrl ?? '';
+		
 		return {
 			...state,
-			[id]: { position, rotation, faceImageUrl }
+			[id]: { 
+				position, 
+				rotation, 
+				faceImageUrl,
+				// Add ownership info to prevent feedback loops
+				lastTouchedBy: currentPlayerId,
+				lastTouchTime: now 
+			}
 		};
 	});
 }

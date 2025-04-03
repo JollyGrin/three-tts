@@ -9,6 +9,8 @@
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { playerId } from './websocket/websocketService';
+	import { get } from 'svelte/store';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
@@ -17,19 +19,56 @@
 	function handleDragEnd() {
 		if (!$dragStore.isDragging) return;
 		const id = $dragStore.isDragging;
-		const { faceImageUrl } = $objectStore[$dragStore.isDragging];
+		const cardState = $objectStore[id];
+		if (!cardState) return;
+		
+		const { faceImageUrl } = cardState;
+		
+		// Add ownership tracking to prevent feedback loops
+		const currentPlayerId = get(playerId);
+		const now = Date.now();
 
 		if ($dragStore.isTrayHovered) {
 			console.log('Storing in hand:', id, faceImageUrl);
+			
+			// Update the card with lastTouched info first (to claim ownership)
+			objectStore.updateCardState(
+				id, 
+				cardState.position,
+				faceImageUrl,
+				cardState.rotation,
+				cardState.backImageUrl
+			);
+			
+			// First add to tray
 			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
-			objectStore.removeCard(id);
+			
+			// Then remove from board (after a small delay to ensure tray update is processed first)
+			setTimeout(() => {
+				objectStore.removeCard(id);
+			}, 50);
 		}
 
 		if (!!$dragStore.isDeckHovered) {
 			const deckIdHovered = $dragStore.isDeckHovered;
 			console.log('Storing in deck', deckIdHovered);
+			
+			// Update the card with lastTouched info first (to claim ownership)
+			objectStore.updateCardState(
+				id, 
+				cardState.position,
+				faceImageUrl,
+				cardState.rotation,
+				cardState.backImageUrl
+			);
+			
+			// First add to deck
 			deckStore.placeOnTopOfDeck(deckIdHovered, id);
-			objectStore.removeCard(id);
+			
+			// Then remove from board (after a small delay)
+			setTimeout(() => {
+				objectStore.removeCard(id);
+			}, 50);
 		}
 
 		dragEnd();
