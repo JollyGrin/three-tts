@@ -4,7 +4,7 @@
 	import { Text, Billboard, ImageMaterial, interactivity } from '@threlte/extras';
 	import { degrees, seatStore } from '$lib/store/seatStore.svelte';
 	import { objectStore } from '$lib/store/objectStore.svelte';
-	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
+	import { dragEnd, dragStart, dragStore, setDeckHover } from '$lib/store/dragStore.svelte';
 	import { deckStore } from '$lib/store/deckStore.svelte';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { getStaticResourceUrl } from './utils/image';
@@ -51,7 +51,14 @@
 	}
 </script>
 
-<T.Group {position} {rotation} onpointerdown={handleDragStart} onpointerup={handleDragEnd}>
+<T.Group
+	{position}
+	{rotation}
+	onpointerdown={handleDragStart}
+	onpointerup={handleDragEnd}
+	onpointerenter={() => setDeckHover(id)}
+	onpointerleave={() => setDeckHover(null)}
+>
 	<Billboard>
 		<Text
 			fontSize={0.5}

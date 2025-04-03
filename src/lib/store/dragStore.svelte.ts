@@ -4,6 +4,7 @@ import type { Vector3 } from 'three';
 interface DragState {
 	isDragging: string | null;
 	isHovered: string | null;
+	isDeckHovered: string | null;
 	isTrayHovered: boolean;
 	isPreview?: boolean;
 	dragHeight?: number;
@@ -13,6 +14,7 @@ interface DragState {
 const initialState: DragState = {
 	isDragging: null,
 	isHovered: null,
+	isDeckHovered: null,
 	isTrayHovered: false,
 	isPreview: false,
 	dragHeight: undefined,
@@ -65,6 +67,13 @@ function setTrayHover(isTrayHovered: boolean) {
 	}));
 }
 
+function setDeckHover(deckId: string | null) {
+	dragStore.update((state) => ({
+		...state,
+		isDeckHovered: deckId
+	}));
+}
+
 // Create store actions object
 const dragActions = {
 	subscribe: dragStore.subscribe,
@@ -82,6 +91,7 @@ export {
 	dragStart,
 	dragEnd,
 	setHover,
+	setDeckHover,
 	setTrayHover,
 	updateIntersection,
 	dragActions,
