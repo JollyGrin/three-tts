@@ -2,7 +2,7 @@
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
 	import { World } from '@threlte/rapier';
-	import { Billboard, HUD, interactivity, Text } from '@threlte/extras';
+	import { HUD, interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
@@ -86,7 +86,8 @@
 		position: [10, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug)
+			faceImageUrl: getSorceryCardImage(slug),
+			backImageUrl: getSorceryCardImage('/s-back.jpg')
 		}))
 	});
 
