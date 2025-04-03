@@ -13,15 +13,16 @@
 <body data-sveltekit-preload-data="hover">
   <div style="display: contents">%sveltekit.body%</div>
   <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/registerSW.js')
-        .then(registration => {
-          console.log('Service worker registered successfully:', registration.scope);
-        })
-        .catch(error => {
-          console.error('Service worker registration failed:', error);
-        });
-    }
+    // TODO: use service worker to cache
+    // if ('serviceWorker' in navigator) {
+    //   navigator.serviceWorker.register('/registerSW.js')
+    //     .then(registration => {
+    //       console.log('Service worker registered successfully:', registration.scope);
+    //     })
+    //     .catch(error => {
+    //       console.error('Service worker registration failed:', error);
+    //     });
+    // }
   </script>
 </body>
 

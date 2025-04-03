@@ -5,14 +5,14 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 
 export default defineConfig({
 	plugins: [
-		sveltekit(), 
+		sveltekit(),
 		tailwindcss(),
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
 			manifest: {
-				name: 'Threlte App',
-				short_name: 'ThrelteApp',
-				description: 'Threlte 3D application with PWA support',
+				name: 'TableTop Browser',
+				short_name: 'TTB',
+				description: 'A tabletop simulator in the browser',
 				theme_color: '#ffffff',
 				icons: [
 					{
@@ -23,9 +23,7 @@ export default defineConfig({
 				]
 			},
 			workbox: {
-				globPatterns: [
-					'**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,glb,gltf}'
-				],
+				globPatterns: ['**/*.{js,css,html,ico,png,jpg,jpeg,svg,webp,glb,gltf}'],
 				maximumFileSizeToCacheInBytes: 4194304, // 4MB - increased from default 2MB
 				// Cache images and 3D models with a CacheFirst strategy
 				runtimeCaching: [
