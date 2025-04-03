@@ -33,7 +33,7 @@
 
 		objectStore.updateCardState(
 			card.id,
-			[x, 5, z],
+			[x, 2.5, z],
 			card.faceImageUrl,
 			[
 				isFaceUp ? 0 : 180,
@@ -43,7 +43,7 @@
 			deckBackImage
 		);
 
-		dragStart(card.id, 5);
+		dragStart(card.id, 2.5);
 	}
 	function handleDragEnd() {
 		dragEnd();
