@@ -48,7 +48,7 @@ function updateIntersection(point: Vector3) {
 
 // End dragging and reset state
 function dragEnd() {
-	dragStore.set(initialState);
+	dragStore.update((state) => ({ ...state, isDragging: null }));
 }
 
 // Set hover state

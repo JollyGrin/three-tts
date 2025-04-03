@@ -1,15 +1,12 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import type { RigidBody as RapierRigidBody } from '@dimforge/rapier3d-compat';
-	import { dragEnd, dragStart, dragStore } from './store/dragStore.svelte';
+	import { dragStart, dragStore } from './store/dragStore.svelte';
 	import { objectStore } from './store/objectStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
-	import { trayStore } from './store/trayStore.svelte';
 	import { degrees, seatStore } from './store/seatStore.svelte';
-	import { deckStore } from './store/deckStore.svelte';
 
 	let { id } = $props();
 
@@ -77,27 +74,6 @@
 		setTimeout(() => (height.target = 2), 150);
 	}
 
-	const handleDragEnd = () => {
-		console.log('HIT');
-		const deckIdHovered = $dragStore.isDeckHovered;
-		console.log({ deckIdHovered });
-
-		if ($dragStore.isTrayHovered) {
-			console.log('Storing in hand:', id, faceImageUrl);
-			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
-			objectStore.removeCard(id);
-		}
-
-		if (!!$dragStore.isDeckHovered) {
-			const deckIdHovered = $dragStore.isDeckHovered;
-			console.log('Storing in deck', deckIdHovered);
-			deckStore.placeOnTopOfDeck(deckIdHovered, id);
-			objectStore.removeCard(id);
-		}
-
-		dragEnd();
-	};
-
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
 		isHovered = true;
@@ -115,7 +91,6 @@
 	rotation.x={rotation.current * DEG2RAD}
 	rotation.y={rotationTap.current * -DEG2RAD}
 	onpointerdown={handleDragStart}
-	onpointerup={handleDragEnd}
 	onpointerleave={handlePointerLeave}
 	onpointerenter={handlePointerEnter}
 >
