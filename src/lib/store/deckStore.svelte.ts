@@ -11,6 +11,8 @@ export type DeckDTO = {
 	 * true if the deck is face up (like discard pile)
 	 * */
 	isFaceUp?: boolean;
+	position: [number, number, number];
+	rotation: [number, number, number];
 	cards: Omit<CardState, 'position' | 'rotation'>[];
 };
 
