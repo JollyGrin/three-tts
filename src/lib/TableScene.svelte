@@ -77,7 +77,8 @@
 		position: [8.25, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug)
+			faceImageUrl: getSorceryCardImage(slug),
+			backImageUrl: getSorceryCardImage('/s-back.jpg')
 		}))
 	});
 
