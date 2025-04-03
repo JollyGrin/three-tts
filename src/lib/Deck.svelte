@@ -1,7 +1,12 @@
 <script lang="ts">
+	import * as THREE from 'three';
 	import { T } from '@threlte/core';
 	import { Text, Billboard, ImageMaterial, interactivity } from '@threlte/extras';
+	import { degrees, seatStore } from '$lib/store/seatStore.svelte';
+	import { objectStore } from '$lib/store/objectStore.svelte';
+	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { deckStore } from '$lib/store/deckStore.svelte';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 	interactivity();
 
@@ -11,6 +16,7 @@
 		id: string;
 	} = $props();
 
+	const deckBackImage = '/s-back.jpg';
 	const deck = $derived($deckStore[id] ?? {});
 	const position = $derived(deck.position ?? [0, 0, 0]);
 	const rotation = $derived(deck.rotation ?? [0, 0, 0]);
@@ -18,13 +24,33 @@
 	const lastCardImage = $derived(deck?.cards?.[0].faceImageUrl ?? '');
 	const displayedImage = $derived(isFaceUp ? lastCardImage : '/s-back.jpg');
 
-	const draw = (e: PointerEvent) => {
+	function handleDragStart(e: PointerEvent) {
 		e.stopPropagation();
-		deckStore.drawFromTop(id);
-	};
+		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
+		const card = deckStore.drawFromTop(id);
+		if (!card) return console.warn('No card drawn');
+		console.log('CARD', card);
+
+		objectStore.updateCardState(
+			card.id,
+			[x, 5, z],
+			card.faceImageUrl,
+			[
+				isFaceUp ? 0 : 180,
+				0,
+				-degrees[$seatStore.seat] / DEG2RAD // should be facing the player in seat
+			],
+			deckBackImage
+		);
+
+		dragStart(card.id, 5);
+	}
+	function handleDragEnd() {
+		dragEnd();
+	}
 </script>
 
-<T.Group {position} {rotation} onpointerup={draw}>
+<T.Group {position} {rotation} onpointerdown={handleDragStart} onpointerup={handleDragEnd}>
 	<Billboard>
 		<Text
 			fontSize={0.5}

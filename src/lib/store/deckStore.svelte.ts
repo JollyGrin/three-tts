@@ -1,19 +1,25 @@
 import { writable, get } from 'svelte/store';
 import type { CardState } from './objectStore.svelte';
 
+type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
+
 export type DeckDTO = {
 	/**
 	 * id format
 	 * deck:playername:id
 	 * */
 	id: string;
+	deckBackImageUrl?: string;
 	/**
 	 * true if the deck is face up (like discard pile)
 	 * */
 	isFaceUp?: boolean;
 	position: [number, number, number];
 	rotation: [number, number, number];
-	cards: Omit<CardState, 'position' | 'rotation'>[];
+	/**
+	 * Cards in deck are an array instead of record
+	 * */
+	cards: CardInDeck[];
 };
 
 type DecksState = Record<string, DeckDTO>;
@@ -35,12 +41,15 @@ function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
  * Follows LIFO (Last In First Out)
  * When facedown (like a deck of cards), the top card = cards.length - 1
  * When faceup (like a visible discard pile), the top card = cards[0]
+ *
+ * returns the card drawn. Recommended to store it in objectStore (table) or trayStore (hand) after receiving
  * */
 function drawFromTop(id: string) {
 	const { cards, isFaceUp, ...deck } = get(decks)[id];
 
 	const card = isFaceUp ? cards.shift() : cards.pop();
 	updateDeck(id, { cards, isFaceUp, ...deck });
+	return card;
 }
 
 /**

@@ -6,7 +6,9 @@ export function generateCardImages(amount: number = 5) {
 	}
 
 	const shuffled = [...CARDS_SORCERY].sort(() => Math.random() - 0.5);
-	return shuffled
-		.slice(0, amount)
-		.map((card) => `https://card.cards.army/cards/${card.slug}.webp`);
+	return shuffled.slice(0, amount).map((card) => card.slug);
+}
+
+export function getSorceryCardImage(slug: string) {
+	return `https://card.cards.army/cards/${slug}.webp`;
 }

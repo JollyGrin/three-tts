@@ -15,7 +15,7 @@
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import { deckStore } from './store/deckStore.svelte';
-	import { generateCardImages } from './utils/mock/cards';
+	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -74,18 +74,18 @@
 
 	deckStore.updateDeck(`deck:playername:1`, {
 		position: [8.25, 0.4, 3],
-		cards: generateCardImages(30).map((card, index) => ({
-			id: `card:playername:${card}-${index}`,
-			faceImageUrl: card
+		cards: generateCardImages(30).map((slug, index) => ({
+			id: `card:playername:${slug}-${index}`,
+			faceImageUrl: getSorceryCardImage(slug)
 		}))
 	});
 
 	deckStore.updateDeck(`deck:playername:2`, {
 		isFaceUp: true,
 		position: [10, 0.4, 3],
-		cards: generateCardImages(30).map((card, index) => ({
-			id: `card:playername:${card}-${index}`,
-			faceImageUrl: card
+		cards: generateCardImages(30).map((slug, index) => ({
+			id: `card:playername:${slug}-${index}`,
+			faceImageUrl: getSorceryCardImage(slug)
 		}))
 	});
 
