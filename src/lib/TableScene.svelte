@@ -78,7 +78,7 @@
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getSorceryCardImage('/s-back.jpg')
+			backImageUrl: getStaticResourceUrl('/s-back.jpg')
 		}))
 	});
 
@@ -88,7 +88,7 @@
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getSorceryCardImage('/s-back.jpg')
+			backImageUrl: getStaticResourceUrl('/s-back.jpg')
 		}))
 	});
 
