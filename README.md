@@ -45,8 +45,6 @@ When adding new synchronized features:
 3. **Message Handling**: Extend `messageProcessor.ts` to handle new data types
 4. **Ownership Rules**: Consider ownership rules for conflict prevention
 
-## TODO
-- create a hand HUD, so that you can have cards visible at bottom of screen that are in your hand
 
 --- 
 
