@@ -9,6 +9,7 @@
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { trayStore } from './store/trayStore.svelte';
 	import { degrees, seatStore } from './store/seatStore.svelte';
+	import { deckStore } from './store/deckStore.svelte';
 
 	let { id } = $props();
 
@@ -77,11 +78,23 @@
 	}
 
 	const handleDragEnd = () => {
+		console.log('HIT');
+		const deckIdHovered = $dragStore.isDeckHovered;
+		console.log({ deckIdHovered });
+
 		if ($dragStore.isTrayHovered) {
 			console.log('Storing in hand:', id, faceImageUrl);
 			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
 			objectStore.removeCard(id);
 		}
+
+		if (!!$dragStore.isDeckHovered) {
+			const deckIdHovered = $dragStore.isDeckHovered;
+			console.log('Storing in deck', deckIdHovered);
+			deckStore.placeOnTopOfDeck(deckIdHovered, id);
+			objectStore.removeCard(id);
+		}
+
 		dragEnd();
 	};
 
@@ -101,17 +114,12 @@
 	{position}
 	rotation.x={rotation.current * DEG2RAD}
 	rotation.y={rotationTap.current * -DEG2RAD}
+	onpointerdown={handleDragStart}
+	onpointerup={handleDragEnd}
+	onpointerleave={handlePointerLeave}
+	onpointerenter={handlePointerEnter}
 >
-	<T.Mesh
-		castShadow
-		receiveShadow
-		bind:ref={card}
-		rotation.x={-Math.PI / 2}
-		onpointerdown={handleDragStart}
-		onpointerup={handleDragEnd}
-		onpointerleave={handlePointerLeave}
-		onpointerenter={handlePointerEnter}
-	>
+	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
 		<ImageMaterial
 			url={faceImageUrl}

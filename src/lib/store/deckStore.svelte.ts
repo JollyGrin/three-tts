@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import type { CardState } from './objectStore.svelte';
+import { objectStore, type CardState } from './objectStore.svelte';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -52,6 +52,16 @@ function drawFromTop(id: string) {
 	return card;
 }
 
+function placeOnTopOfDeck(deckId: string, cardId: string) {
+	const _card = get(objectStore)[cardId];
+	const card: CardInDeck = { id: cardId, faceImageUrl: _card.faceImageUrl };
+
+	const { cards, isFaceUp, ...deck } = get(decks)[deckId];
+	isFaceUp ? cards.unshift(card) : cards.push(card);
+
+	return updateDeck(deckId, { cards, isFaceUp, ...deck });
+}
+
 /**
  * How many cards are in the deck
  * */
@@ -63,5 +73,6 @@ export const deckStore = {
 	...decks,
 	updateDeck,
 	getDeckLength,
-	drawFromTop
+	drawFromTop,
+	placeOnTopOfDeck
 };

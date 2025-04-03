@@ -25,12 +25,13 @@
 	const lastCardImage = $derived(deck?.cards?.[0].faceImageUrl ?? '');
 	const displayedImage = $derived(isFaceUp ? lastCardImage : deckBackImage);
 
+	const isHovered = $derived(id === $dragStore.isDeckHovered);
+
 	function handleDragStart(e: PointerEvent) {
 		e.stopPropagation();
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
 		const card = deckStore.drawFromTop(id);
 		if (!card) return console.warn('No card drawn');
-		console.log('CARD', card);
 
 		objectStore.updateCardState(
 			card.id,
@@ -46,16 +47,12 @@
 
 		dragStart(card.id, 2.5);
 	}
-	function handleDragEnd() {
-		dragEnd();
-	}
 </script>
 
 <T.Group
 	{position}
 	{rotation}
 	onpointerdown={handleDragStart}
-	onpointerup={handleDragEnd}
 	onpointerenter={() => setDeckHover(id)}
 	onpointerleave={() => setDeckHover(null)}
 >
@@ -71,7 +68,7 @@
 		<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.205}>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			{#key displayedImage}
-				<ImageMaterial url={displayedImage} side={2} radius={0.1} />
+				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.9 : 1} />
 			{/key}
 		</T.Mesh>
 	{/if}
