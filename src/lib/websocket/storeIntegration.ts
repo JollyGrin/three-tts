@@ -95,12 +95,15 @@ export function applyWebsocketToObjectStore(): void {
     (id, position, faceImageUrl, rotation, backImageUrl) => ['boardState', id]
   );
   
-  // Wrap removeCard with websocket sync
+  // Wrap removeCard with websocket sync - ensure removals are never filtered
   const originalRemoveCard = objectStore.removeCard;
-  objectStore.removeCard = withWebsocketSync(
-    originalRemoveCard,
-    (id) => ['boardState', id]
-  );
+  objectStore.removeCard = function(id: string) {
+    // Directly pass a null value to ensure it's processed as a removal
+    sendUpdate(['boardState', id], null);
+    
+    // Call the original function to update the local state
+    originalRemoveCard(id);
+  };
 }
 
 /**

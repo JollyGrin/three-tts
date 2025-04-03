@@ -115,12 +115,15 @@ function updateCardRotation(id: string, quaternion: THREE.Quaternion) {
 	});
 }
 
+// Remove a card from the board
 function removeCard(id: string) {
-	cards.update((state) => {
-		const newState = { ...state };
-		delete newState[id];
-		return newState;
-	});
+  // Log removal - this is important for debugging sync issues
+  console.log(`[objectStore] Removing card ${id} from board`);
+  
+  cards.update((state) => {
+    const { [id]: _, ...rest } = state;
+    return rest;
+  });
 }
 
 function getCardState(id: string): CardState | undefined {

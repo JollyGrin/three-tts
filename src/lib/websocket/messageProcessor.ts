@@ -146,8 +146,8 @@ function processUpdateMessage(message: any): void {
   const currentPlayerId = get(playerId);
   if (stateType === 'boardState' && 
       typeof message.value === 'object' && 
-      message.value !== null &&
-      message.value.position) {
+      message.value !== null &&        // Skip this check for null values (deletion)
+      message.value.position) {        // Only check for position updates
       
     // Get the current state of this card to see if we're touching it
     const currentState = objectStore.getCardState(id);
