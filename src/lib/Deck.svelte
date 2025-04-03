@@ -68,7 +68,7 @@
 		<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.205}>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			{#key displayedImage}
-				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.9 : 1} />
+				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
 			{/key}
 		</T.Mesh>
 	{/if}
@@ -77,8 +77,8 @@
 	{#if isFaceUp && deck.cards.length > 1}
 		<T.Mesh>
 			<T.PlaneGeometry args={[0, 0]} />
-			{#key deck.cards[1]?.faceImageUrl}
-				<ImageMaterial url={deck.cards[1]?.faceImageUrl} side={2} radius={0.1} opacity={0} />
+			{#key deck?.cards[1]?.faceImageUrl}
+				<ImageMaterial url={deck?.cards[1]?.faceImageUrl} side={2} radius={0.1} opacity={0} />
 			{/key}
 		</T.Mesh>
 	{/if}
