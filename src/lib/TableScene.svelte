@@ -16,6 +16,7 @@
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import { deckStore } from './store/deckStore.svelte';
 	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
+	import { getStaticResourceUrl } from './utils/image';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -68,7 +69,7 @@
 			position as [number, number, number],
 			faceImageUrl as string,
 			undefined,
-			'/s-back.jpg'
+			getStaticResourceUrl('/s-back.jpg')
 		);
 	});
 
