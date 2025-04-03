@@ -25,7 +25,7 @@
 	const { camera } = useThrelte();
 
 	let intersectionPoint: THREE.Vector3 | null = $state(null);
-	
+
 	// Debounce variables to limit card position updates
 	let lastUpdateTime = 0;
 	const MIN_UPDATE_INTERVAL = 100; // ms between updates - moderate throttle
@@ -40,25 +40,29 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				
+
 				// Get the card being dragged
 				const cardId = $dragStore.isDragging as string;
-				
+
 				// Get the current time
 				const now = Date.now();
-				
+
 				// Check if card is owned by another player
 				const cardState = objectStore.getCardState(cardId);
 				const currentPlayerId = get(playerId);
-				
-				if (cardState?.lastTouchedBy && 
-					cardState.lastTouchedBy !== currentPlayerId && 
-					(now - (cardState.lastTouchTime || 0)) < 2000) {
+
+				if (
+					cardState?.lastTouchedBy &&
+					cardState.lastTouchedBy !== currentPlayerId &&
+					now - (cardState.lastTouchTime || 0) < 2000
+				) {
 					// Card is being controlled by another player - don't update position
-					console.log(`Card ${cardId} is locked by ${cardState.lastTouchedBy}, not updating position`);
+					console.log(
+						`Card ${cardId} is locked by ${cardState.lastTouchedBy}, not updating position`
+					);
 					return;
 				}
-				
+
 				// Simple throttle - only update at defined intervals
 				if (now - lastUpdateTime >= MIN_UPDATE_INTERVAL) {
 					// Update card position - we are the owner
@@ -77,7 +81,7 @@
 			state.raycaster.setFromCamera(state.pointer.current, $camera);
 		}
 	});
-	
+
 	// Get the current player's ID for private player objects
 	const currentPlayerId = get(playerId);
 
