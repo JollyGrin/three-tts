@@ -7,6 +7,7 @@
 	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { deckStore } from '$lib/store/deckStore.svelte';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { getStaticResourceUrl } from './utils/image';
 
 	interactivity();
 
@@ -16,13 +17,13 @@
 		id: string;
 	} = $props();
 
-	const deckBackImage = '/s-back.jpg';
+	const deckBackImage = getStaticResourceUrl('/s-back.jpg');
 	const deck = $derived($deckStore[id] ?? {});
 	const position = $derived(deck.position ?? [0, 0, 0]);
 	const rotation = $derived(deck.rotation ?? [0, 0, 0]);
 	const isFaceUp = $derived(deck.isFaceUp ?? false); // true = cards[0] is top, false = cards[cards.length - 1] is top
 	const lastCardImage = $derived(deck?.cards?.[0].faceImageUrl ?? '');
-	const displayedImage = $derived(isFaceUp ? lastCardImage : '/s-back.jpg');
+	const displayedImage = $derived(isFaceUp ? lastCardImage : deckBackImage);
 
 	function handleDragStart(e: PointerEvent) {
 		e.stopPropagation();
