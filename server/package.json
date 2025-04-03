@@ -1,0 +1,17 @@
+{
+  "name": "tabletop-websocket-server",
+  "version": "0.1.0",
+  "description": "Websocket server for tabletop simulator",
+  "main": "index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts",
+    "dev": "bun --watch index.ts"
+  },
+  "dependencies": {
+    "bun": "latest"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

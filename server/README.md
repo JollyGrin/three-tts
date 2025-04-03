@@ -1,5 +1,18 @@
 # Server to handle websocket connections
 
+server/
+├── index.ts               # Main entry point
+├── package.json           # Dependencies and scripts
+├── tsconfig.json          # TypeScript configuration
+├── src/
+│   ├── core/
+│   │   ├── websocketServer.ts  # WebSocket connection handling
+│   │   └── lobbyManager.ts     # Lobby and state management
+│   ├── models/
+│   │   └── types.ts            # Type definitions
+│   └── utils/
+│       └── stateUtils.ts       # State update utilities
+
 ## Goal
 
 - Create a server that can handle websocket connections
