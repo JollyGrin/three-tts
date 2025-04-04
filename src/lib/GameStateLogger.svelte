@@ -2,14 +2,17 @@
 	import { onMount, onDestroy } from 'svelte';
 	import {
 		playerList,
+		orderedPlayerList,
 		lobbyId,
 		connectionStatus,
 		ConnectionState,
-		playerId
+		playerId,
+		type OrderedPlayer
 	} from './websocket/websocketService';
 
 	// State to track
 	let players: string[] = [];
+	let orderedPlayers: OrderedPlayer[] = [];
 	let currentLobbyId: string;
 	let currentPlayerId: string;
 	let connected = false;
@@ -21,6 +24,12 @@
 	// Subscribe to stores for real-time updates without triggering immediate logs
 	const unsubPlayerList = playerList.subscribe((value) => {
 		players = value;
+		scheduleLogGameState();
+	});
+	
+	// Subscribe to ordered players list (sorted by join time)
+	const unsubOrderedPlayerList = orderedPlayerList.subscribe((value) => {
+		orderedPlayers = value;
 		scheduleLogGameState();
 	});
 
@@ -69,6 +78,7 @@
 				lobby: currentLobbyId,
 				totalPlayers: players.length,
 				players,
+				orderedPlayers: orderedPlayers.map(p => ({ id: p.id, joinedAt: new Date(p.joinTime).toLocaleTimeString() })),
 				currentPlayer: currentPlayerId
 			});
 		}
@@ -77,6 +87,7 @@
 	onDestroy(() => {
 		// Clean up subscriptions
 		unsubPlayerList();
+		unsubOrderedPlayerList();
 		unsubLobbyId();
 		unsubPlayerId();
 		unsubConnection();
@@ -112,15 +123,17 @@
 		</div>
 
 		<div class="players-list">
-			<h4>Players:</h4>
-			{#if players.length === 0}
+			<h4>Players (by join order):</h4>
+			{#if orderedPlayers.length === 0}
 				<p>No players connected</p>
 			{:else}
 				<ul>
-					{#each players as player}
-						<li class={player === currentPlayerId ? 'current-player' : ''}>
-							{player}
-							{player === currentPlayerId ? '(You)' : ''}
+					{#each orderedPlayers as player, index}
+						<li class={player.id === currentPlayerId ? 'current-player' : ''}>
+							<span class="position">{index + 1}.</span>
+							<span class="player-id">{player.id}</span>
+							{player.id === currentPlayerId ? '<You>' : ''}
+							<span class="join-time">Joined: {new Date(player.joinTime).toLocaleTimeString()}</span>
 						</li>
 					{/each}
 				</ul>
@@ -193,7 +206,27 @@
 	}
 
 	.players-list li {
-		padding: 2px 0;
+		padding: 4px 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 6px;
+	}
+
+	.position {
+		min-width: 15px;
+		font-weight: bold;
+	}
+	
+	.player-id {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	
+	.join-time {
+		font-size: 0.8em;
+		color: rgba(255, 255, 255, 0.7);
+		margin-left: auto;
 	}
 
 	.current-player {

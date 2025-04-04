@@ -22,6 +22,13 @@ const playerId = writable<string>(browser ? localStorage.getItem('playerId') || 
 export const lobbyId = writable<string>('default'); // Default lobby ID
 export const playerList = writable<string[]>([]);
 
+// Track players in order of their first join
+export interface OrderedPlayer {
+  id: string;
+  joinTime: number;
+}
+export const orderedPlayerList = writable<OrderedPlayer[]>([]);
+
 // Store of sent message IDs to prevent feedback loops
 const sentMessageIds = new Set<string>();
 
@@ -157,17 +164,54 @@ function handleMessage(event: MessageEvent): void {
     switch (message.type) {
       case 'playerList':
         // Update player list
+        // Debug the exact payload structure
+        console.log('[WS Debug] PlayerList message payload:', message.payload);
+        console.log('[WS Debug] Payload type:', typeof message.payload);
+        
         if (message.payload) {
-          // Server sends player list directly in payload (not nested in 'players' property)
-          // Use .update instead of .set to avoid unnecessary subscription triggers
-          playerList.update(current => {
-            const newPlayers = Array.isArray(message.payload) ? message.payload : [];
-            // Only log if there's an actual change
-            if (JSON.stringify(current) !== JSON.stringify(newPlayers)) {
-              console.log(`[WS] Updated player list: ${newPlayers.length} players`, newPlayers);
+          // Handle both old and new formats
+          if (typeof message.payload === 'object' && !Array.isArray(message.payload)) {
+            console.log('[WS Debug] Processing object payload format:', message.payload);
+            
+            // New format with ordered players
+            if (message.payload.orderedPlayers) {
+              console.log('[WS Debug] Found orderedPlayers:', message.payload.orderedPlayers);
+              
+              // Update ordered player list
+              orderedPlayerList.update(current => {
+                const newOrderedPlayers = message.payload.orderedPlayers;
+                // Only log if there's an actual change
+                if (JSON.stringify(current) !== JSON.stringify(newOrderedPlayers)) {
+                  console.log(`[WS] Updated ordered player list (by join time)`, newOrderedPlayers);
+                }
+                return newOrderedPlayers;
+              });
+              
+              // Also update regular player list for compatibility
+              playerList.update(current => {
+                // Use playerIds if available, otherwise extract IDs from orderedPlayers
+                const newPlayers = message.payload.playerIds || 
+                                  message.payload.orderedPlayers.map((p: OrderedPlayer) => p.id);
+                
+                if (JSON.stringify(current) !== JSON.stringify(newPlayers)) {
+                  console.log(`[WS] Updated player list: ${newPlayers.length} players`, newPlayers);
+                }
+                return newPlayers;
+              });
+            } else {
+              console.log('[WS Debug] No orderedPlayers property found in payload object');
             }
-            return newPlayers;
-          });
+          } else {
+            // Legacy format (direct array)
+            playerList.update(current => {
+              const newPlayers = Array.isArray(message.payload) ? message.payload : [];
+              // Only log if there's an actual change
+              if (JSON.stringify(current) !== JSON.stringify(newPlayers)) {
+                console.log(`[WS] Updated player list (legacy format): ${newPlayers.length} players`, newPlayers);
+              }
+              return newPlayers;
+            });
+          }
         }
         break;
         

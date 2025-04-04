@@ -14,6 +14,8 @@ export class LobbyManager {
   private lobbies = new Map<string, Lobby>();
   private clientToLobby = new Map<WebSocket, string>();
   private clientToPlayer = new Map<WebSocket, string>();
+  // Track join timestamps to preserve order of attendees
+  private playerJoinTimes = new Map<string, number>();
 
   /**
    * Get player ID for a socket connection
@@ -77,6 +79,14 @@ export class LobbyManager {
     // Map client to lobby and player
     this.clientToLobby.set(client, lobbyId);
     this.clientToPlayer.set(client, playerId);
+    
+    // Record join timestamp if this is player's first connection
+    if (!this.playerJoinTimes.has(playerId)) {
+      this.playerJoinTimes.set(playerId, Date.now());
+      logger.info(`First join timestamp recorded for player ${playerId}`);
+    } else {
+      logger.info(`Player ${playerId} reconnected (first joined at ${new Date(this.playerJoinTimes.get(playerId)!)})`);
+    }
     
     logger.info(`Player ${playerId} added to lobby ${lobbyId}`);
     logger.debug(`Current lobby state: ${lobby.players.size} players, ${Object.keys(lobby.state.boardState).length} board objects`);
@@ -197,14 +207,30 @@ export class LobbyManager {
    * Broadcast player list to all clients in a lobby
    */
   private broadcastPlayerList(lobby: Lobby): void {
+    // Get all players in the lobby
+    const players = Array.from(lobby.players);
+    
+    // Create array of player data with join times
+    const playerData = players.map(id => ({
+      id,
+      joinTime: this.playerJoinTimes.get(id) || Date.now() // Fallback to current time if no record
+    }));
+    
+    // Sort by join time (earliest first)
+    playerData.sort((a, b) => a.joinTime - b.joinTime);
+    
     const message: Message = {
       type: "playerList",
       playerId: "server",
       timestamp: Date.now(),
-      payload: Array.from(lobby.players)
+      payload: {
+        playerIds: players,                // For backwards compatibility
+        orderedPlayers: playerData         // New structure with order info
+      }
     };
     
     logger.info(`Broadcasting player list update in lobby ${lobby.id}: ${lobby.players.size} players`);
+    logger.debug('Player order by join time:', playerData.map(p => p.id).join(', '));
     this.broadcast(lobby, message);
   }
 
