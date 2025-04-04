@@ -19,6 +19,7 @@
 	import { getStaticResourceUrl } from './utils/image';
 	import { playerId } from './websocket';
 	import { get } from 'svelte/store';
+	import { trayStore } from './store/trayStore.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -101,36 +102,42 @@
 
 	const initCards = init;
 
-	initCards.forEach(([id, position, faceImageUrl]) => {
-		objectStore.updateCardState(
-			id as string,
-			position as [number, number, number],
-			faceImageUrl as string,
-			undefined,
-			getStaticResourceUrl('/s-back.jpg')
-		);
-	});
+	trayStore.updateCardState(
+		'card:global:1',
+		[-6, 0, 0],
+		'https://card.cards.army/cards/abundance-f.webp'
+	);
 
-	// Player-specific decks - use player ID for private objects
-	deckStore.updateDeck(`deck:${currentPlayerId}:1`, {
-		position: [8.25, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:${currentPlayerId}:${slug}-${index}`, // Player-specific cards (in hand)
-			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getStaticResourceUrl('/s-back.jpg')
-		}))
-	});
+	// initCards.forEach(([id, position, faceImageUrl]) => {
+	// 	objectStore.updateCardState(
+	// 		id as string,
+	// 		position as [number, number, number],
+	// 		faceImageUrl as string,
+	// 		undefined,
+	// 		getStaticResourceUrl('/s-back.jpg')
+	// 	);
+	// });
 
-	// Shared deck (using global ID)
-	deckStore.updateDeck(`deck:global:2`, {
-		isFaceUp: true,
-		position: [10, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:global:${slug}-${index}`, // Global IDs for shared objects
-			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getStaticResourceUrl('/s-back.jpg')
-		}))
-	});
+	// // Player-specific decks - use player ID for private objects
+	// deckStore.updateDeck(`deck:${currentPlayerId}:1`, {
+	// 	position: [8.25, 0.4, 3],
+	// 	cards: generateCardImages(30).map((slug, index) => ({
+	// 		id: `card:${currentPlayerId}:${slug}-${index}`, // Player-specific cards (in hand)
+	// 		faceImageUrl: getSorceryCardImage(slug),
+	// 		backImageUrl: getStaticResourceUrl('/s-back.jpg')
+	// 	}))
+	// });
+
+	// // Shared deck (using global ID)
+	// deckStore.updateDeck(`deck:global:2`, {
+	// 	isFaceUp: true,
+	// 	position: [10, 0.4, 3],
+	// 	cards: generateCardImages(30).map((slug, index) => ({
+	// 		id: `card:global:${slug}-${index}`, // Global IDs for shared objects
+	// 		faceImageUrl: getSorceryCardImage(slug),
+	// 		backImageUrl: getStaticResourceUrl('/s-back.jpg')
+	// 	}))
+	// });
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>

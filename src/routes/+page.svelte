@@ -4,6 +4,7 @@
 	import { cardTransforms } from '$lib/utils/transforms/card';
 	import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
+	import GameStateLogger from '$lib/GameStateLogger.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
@@ -23,6 +24,7 @@
 </svelte:head>
 
 <svelte:window on:keydown|preventDefault={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
+<GameStateLogger />
 
 <div
 	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"

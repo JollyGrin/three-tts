@@ -157,9 +157,17 @@ function handleMessage(event: MessageEvent): void {
     switch (message.type) {
       case 'playerList':
         // Update player list
-        if (message.payload && Array.isArray(message.payload.players)) {
-          playerList.set(message.payload.players);
-          console.log(`[WS] Updated player list: ${message.payload.players.length} players`);
+        if (message.payload) {
+          // Server sends player list directly in payload (not nested in 'players' property)
+          // Use .update instead of .set to avoid unnecessary subscription triggers
+          playerList.update(current => {
+            const newPlayers = Array.isArray(message.payload) ? message.payload : [];
+            // Only log if there's an actual change
+            if (JSON.stringify(current) !== JSON.stringify(newPlayers)) {
+              console.log(`[WS] Updated player list: ${newPlayers.length} players`, newPlayers);
+            }
+            return newPlayers;
+          });
         }
         break;
         
