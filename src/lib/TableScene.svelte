@@ -22,7 +22,8 @@
 
 	// TODO: prepare setting up decks
 	onMount(() => {
-		playerStore.addPlayer(undefined, true);
+		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
+		// TODO: this should handle a reload to have same id
 	});
 	$inspect($playerStore);
 
