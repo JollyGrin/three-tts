@@ -108,13 +108,12 @@ export class LobbyManager {
 			.sort((a, b) => a.time - b.time)
 			.map((player, index) => {
 				if (player.id === playerId) {
-					playerOrder = index % 4;
+					playerOrder = (index % 4) as 0 | 1 | 2 | 3; // Ensure type safety
 				}
 			});
 
 		// TODO: replace this with real data
 		// BUG: this is not saving it to actual state, it clears when refereshed and does not show for opponent
-		//
 		const cards: CardInDeck[] = [
 			{
 				id: `card:${playerId}:bosk_troll`,
@@ -125,25 +124,67 @@ export class LobbyManager {
 		// Initialize player state if needed
 		if (!lobby.state.playerStates[playerId]) {
 			logger.debug(`Creating initial state for player ${playerId}`);
-			lobby.state.playerStates[playerId] = {
+			const initialPlayerState = {
+				// Store in a temporary variable first
 				metadata: {
 					name: playerId,
-					seat: playerOrder // Default seat position
+					seat: playerOrder
 				},
 				decks: {
 					[`deck:${playerId}`]: {
 						id: `deck:${playerId}`,
 						cards: cards,
 						isFaceUp: false,
-						position: [8.25, 0.4, 3 + playerOrder * 3],
-						rotation: [0, 0, 0]
+						position: [8.25, 0.4, 3 + playerOrder * 3] as [
+							number,
+							number,
+							number
+						], // Ensure tuple type
+						rotation: [0, 0, 0] as [number, number, number] // Also ensure tuple type for rotation
 					}
 				},
 				tray: {}
 			};
+			// Assign the initial state to the lobby state
+			lobby.state.playerStates[playerId] = initialPlayerState;
+
+			// Construct an update message for the new player state
+			const playerStateUpdateMessage: UpdateMessage = {
+				type: 'update',
+				playerId: playerId, // Indicate server-initiated change
+				timestamp: Date.now(),
+				messageId: `server-init-${playerId}-${Date.now()}`, // Unique ID
+				path: ['playerStates', playerId],
+				value: initialPlayerState // Send the newly created state object
+			};
+
+			// Broadcast this specific update to other players in the lobby
+			logger.info(
+				`Broadcasting initial state for player ${playerId} to other lobby members.`
+			);
+			this.broadcastToLobby(lobbyId, playerStateUpdateMessage, client); // Exclude the new player
+		} else {
+			// If player state already exists (reconnect), ensure their seat is correctly set based on order
+			// This might be redundant if seat is handled client-side based on orderedPlayerList, but good practice server-side.
+			if (lobby.state.playerStates[playerId].metadata.seat !== playerOrder) {
+				logger.debug(
+					`Updating seat for reconnecting player ${playerId} to ${playerOrder}`
+				);
+				lobby.state.playerStates[playerId].metadata.seat = playerOrder;
+				// Also broadcast this specific change if needed, similar to above
+				const seatUpdateMessage: UpdateMessage = {
+					type: 'update',
+					playerId: 'server',
+					timestamp: Date.now(),
+					messageId: `server-seat-update-${playerId}-${Date.now()}`,
+					path: ['playerStates', playerId, 'metadata', 'seat'],
+					value: playerOrder
+				};
+				this.broadcastToLobby(lobbyId, seatUpdateMessage, client);
+			}
 		}
 
-		// Send full state to the new player
+		// Send full state to the new player (ensures they have the LATEST state including any updates made just above)
 		this.sendFullState(client, lobby);
 
 		// Broadcast player list update to all players in lobby
@@ -178,6 +219,9 @@ export class LobbyManager {
 		if (lobby.players.size === 0) {
 			logger.info(`Lobby ${lobbyId} is empty, removing it`);
 			this.lobbies.delete(lobbyId);
+			// Also clear the join times map for this lobby if needed, though it might be useful to keep if lobby re-forms?
+			// For simplicity, let's clear entries related to players of this lobby
+			lobby.players.forEach((pid) => this.playerJoinTimes.delete(pid));
 		}
 	}
 
@@ -216,7 +260,8 @@ export class LobbyManager {
 			`Applying update to lobby ${lobbyId} from player ${playerId}:`,
 			{
 				path: message.path,
-				messageId: message.messageId
+				messageId: message.messageId,
+				value: message.value // Log the value being set for clarity
 			}
 		);
 
@@ -242,12 +287,18 @@ export class LobbyManager {
 			type: 'sync',
 			playerId: 'server',
 			timestamp: Date.now(),
-			payload: lobby.state
+			payload: lobby.state // Send the current, possibly just-updated, state
 		};
 
 		logger.info(
 			`Sending full state to player ${playerId} in lobby ${lobby.id}`
 		);
+		logger.logWebsocketMessage(
+			'SENDING',
+			message,
+			playerId,
+			this.getSocketId(client)
+		); // Log sync messages too
 		client.send(JSON.stringify(message));
 	}
 
@@ -255,36 +306,38 @@ export class LobbyManager {
 	 * Broadcast player list to all clients in a lobby
 	 */
 	private broadcastPlayerList(lobby: Lobby): void {
-		// Get all players in the lobby
-		const players = Array.from(lobby.players);
+		// Get all players currently in the lobby set
+		const currentPlayers = Array.from(lobby.players);
 
-		// Create array of player data with join times
-		const playerData = players.map((id) => ({
-			id,
-			joinTime: this.playerJoinTimes.get(id) || Date.now() // Fallback to current time if no record
-		}));
+		// Create array of player data using current players and stored join times
+		const playerData = currentPlayers
+			.map((id) => ({
+				id,
+				joinTime: this.playerJoinTimes.get(id) || Date.now() // Use recorded time, fallback shouldn't usually happen here
+			}))
+			.filter((p) => this.playerJoinTimes.has(p.id)); // Ensure only players with recorded join times are included
 
 		// Sort by join time (earliest first)
 		playerData.sort((a, b) => a.joinTime - b.joinTime);
+
+		// Get just the sorted IDs
+		const orderedPlayerIds = playerData.map((p) => p.id);
 
 		const message: Message = {
 			type: 'playerList',
 			playerId: 'server',
 			timestamp: Date.now(),
 			payload: {
-				playerIds: players, // For backwards compatibility
-				orderedPlayers: playerData // New structure with order info
+				playerIds: currentPlayers, // Current players (unsorted, legacy)
+				orderedPlayers: playerData // New structure with sorted {id, joinTime}
 			}
 		};
 
 		logger.info(
 			`Broadcasting player list update in lobby ${lobby.id}: ${lobby.players.size} players`
 		);
-		logger.debug(
-			'Player order by join time:',
-			playerData.map((p) => p.id).join(', ')
-		);
-		this.broadcast(lobby, message);
+		logger.debug('Player order by join time:', orderedPlayerIds.join(', '));
+		this.broadcast(lobby, message); // Use the general broadcast method
 	}
 
 	/**
@@ -301,85 +354,93 @@ export class LobbyManager {
 		const messageStr = JSON.stringify(message);
 
 		// Track excluded socket ID for logging
-		const excludeSocketId = excludeWs ? this.getSocketId(excludeWs) : null;
+		const excludeSocketId = excludeWs ? this.getSocketId(excludeWs) : 'none';
+		const excludePlayerId = excludeWs
+			? this.clientToPlayer.get(excludeWs)
+			: 'none';
 
 		// Count of successful sends
 		let sendCount = 0;
 
-		// Broadcast to all sockets in the lobby except the sender
+		// Broadcast to all sockets currently mapped to this lobby except the sender
 		for (const client of this.clientToLobby.keys()) {
+			// Double check the client is still mapped to THIS lobby
 			if (client !== excludeWs && this.clientToLobby.get(client) === lobbyId) {
+				const receiverPlayerId = this.clientToPlayer.get(client) || 'unknown';
+				const receiverSocketId = this.getSocketId(client);
 				try {
-					const receiverSocketId = this.getSocketId(client);
-
 					// Log the message being sent
 					logger.logWebsocketMessage(
 						'SENDING',
 						message,
-						this.clientToPlayer.get(client) || 'unknown',
+						receiverPlayerId,
 						receiverSocketId
 					);
-
 					// Send the message
 					client.send(messageStr);
 					sendCount++;
 				} catch (error) {
 					logger.error(
-						`Error sending message to player ${this.clientToPlayer.get(client) || 'unknown'}:`,
+						`Error sending message to player ${receiverPlayerId}:`,
 						error
 					);
-					// Socket is probably dead, remove player from lobby
-					this.removePlayerFromLobby(client);
+					// Socket is probably dead, schedule removal
+					// Avoid modifying collections while iterating; consider marking for removal
+					// For now, just log and continue, rely on close handler for cleanup
+					// this.removePlayerFromLobby(client); // <-- Potentially unsafe during iteration
 				}
 			}
 		}
 
 		logger.debug(
-			`Broadcast message to ${sendCount} players in lobby ${lobbyId} (excluding ${excludeSocketId || 'none'})`
+			`Broadcast message type '${message.type}' to ${sendCount} players in lobby ${lobbyId} (excluding player ${excludePlayerId} / socket ${excludeSocketId})`
 		);
 	}
 
 	/**
-	 * Broadcast a message to all clients in a lobby
+	 * Broadcast a message to all clients mapped to a specific lobby
 	 */
 	private broadcast(lobby: Lobby, message: Message): void {
-		for (const client of this.clientToLobby.keys()) {
-			if (this.clientToLobby.get(client) === lobby.id) {
-				const clientPlayerId = this.clientToPlayer.get(client) || 'unknown';
-				logger.logWebsocketMessage(
-					'SENDING',
-					message,
-					clientPlayerId,
-					this.getSocketId(client)
-				);
-				client.send(JSON.stringify(message));
-			}
-		}
+		// Use broadcastToLobby without excluding anyone
+		this.broadcastToLobby(lobby.id, message, undefined);
 	}
 
 	/**
 	 * Get a unique identifier for a socket
 	 */
 	private getSocketId(ws: WebSocket): string {
-		// Use the clientToPlayer map to get the player ID associated with this socket
-		const playerId = this.clientToPlayer.get(ws);
-		if (playerId) {
-			return `socket-${playerId.substring(0, 8)}`;
+		// Bun's ws object might have a built-in ID or remoteAddress, let's use remoteAddress for now
+		try {
+			return ws.remoteAddress;
+		} catch {
+			// Fallback if remoteAddress isn't available or fails
+			const playerId = this.clientToPlayer.get(ws);
+			if (playerId) {
+				return `socket-player-${playerId.substring(0, 6)}`;
+			}
+			return 'unknown-socket-' + Math.random().toString(36).substring(2, 8);
 		}
-
-		// Fallback if no player ID is found
-		return 'unknown-socket';
 	}
 
 	/**
 	 * Basic permission check for updates
 	 */
 	private hasUpdatePermission(playerId: string, path: string[]): boolean {
-		// Only allow players to update their own player state
-		if (path[0] === 'playerStates' && path[1] !== playerId) {
-			return false;
+		// Allow server-initiated updates
+		if (playerId === 'server') {
+			return true;
 		}
 
-		return true;
+		// Only allow players to update their own player state sub-paths or general board state
+		if (path[0] === 'playerStates') {
+			return path[1] === playerId;
+		} else if (path[0] === 'boardState') {
+			// Allow players to modify the general board state
+			// More granular checks could be added here later if needed
+			return true;
+		}
+
+		// Deny other top-level path updates by default
+		return false;
 	}
 }
