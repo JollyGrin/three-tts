@@ -17,6 +17,14 @@
 	import { deckStore } from './store/deckStore.svelte';
 	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
 	import { getStaticResourceUrl } from './utils/image';
+	import { onMount } from 'svelte';
+	import { playerStore } from './store/playerStore.svelte';
+
+	// TODO: prepare setting up decks
+	onMount(() => {
+		playerStore.addPlayer(undefined, true);
+	});
+	$inspect($playerStore);
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
