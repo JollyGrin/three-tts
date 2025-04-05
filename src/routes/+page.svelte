@@ -3,6 +3,7 @@
 	import TableScene from '$lib/TableScene.svelte';
 	import { cardTransforms } from '$lib/utils/transforms/card';
 	import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
+	import { playerStore } from '$lib/store/playerStore.svelte';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -15,6 +16,10 @@
 	function handleKeyUp(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
 	}
+
+	const showInitDeck = $derived(playerStore.getMe()?.deckIds.length === 0);
+
+	$inspect('xxxxx', playerStore.getMe()?.deckIds);
 </script>
 
 <svelte:head>
@@ -54,6 +59,10 @@
 		<span class="text-white"> Reverse Tap card </span>
 	</button>
 </div>
+
+{#if showInitDeck}
+	<button class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2">init deck</button>
+{/if}
 
 <div class="h-screen w-screen overflow-clip">
 	<Canvas>

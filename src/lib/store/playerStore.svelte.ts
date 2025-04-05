@@ -85,7 +85,8 @@ function addDeckToPlayer(playerId: string, deckId: string) {
 }
 
 function getMe() {
-	return get(myPlayerId);
+	const myId = get(myPlayerId);
+	return get(players)[myId];
 }
 
 // SUBSCRIBE TO CHANGES

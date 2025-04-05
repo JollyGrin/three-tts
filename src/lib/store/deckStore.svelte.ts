@@ -1,5 +1,8 @@
 import { writable, get } from 'svelte/store';
 import { objectStore, type CardState } from './objectStore.svelte';
+import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
+import { getStaticResourceUrl } from '$lib/utils/image';
+import { playerStore } from './playerStore.svelte';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -33,6 +36,21 @@ function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
 			...state,
 			[id]: { ...selectedDeck, ...updatedState }
 		};
+	});
+}
+
+function initDeck(props: { isFaceUp?: boolean }) {
+	const { id, deckIds } = playerStore.getMe() ?? {};
+	if (!id || !deckIds) return;
+	const newDeckIndex = deckIds.length; // length - 1 = last item, so length = next item
+	deckStore.updateDeck(`deck:${id}:${newDeckIndex}`, {
+		isFaceUp: props.isFaceUp ?? false,
+		position: [10, 0.4, 3],
+		cards: generateCardImages(30).map((slug, index) => ({
+			id: `card:playername:${slug}-${index}`,
+			faceImageUrl: getSorceryCardImage(slug),
+			backImageUrl: getStaticResourceUrl('/s-back.jpg')
+		}))
 	});
 }
 
@@ -74,5 +92,6 @@ export const deckStore = {
 	updateDeck,
 	getDeckLength,
 	drawFromTop,
-	placeOnTopOfDeck
+	placeOnTopOfDeck,
+	initDeck
 };
