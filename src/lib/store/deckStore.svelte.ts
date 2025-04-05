@@ -43,7 +43,9 @@ function initDeck(props: { isFaceUp?: boolean }) {
 	const { id, deckIds } = playerStore.getMe() ?? {};
 	if (!id || !deckIds) return;
 	const newDeckIndex = deckIds.length; // length - 1 = last item, so length = next item
-	deckStore.updateDeck(`deck:${id}:${newDeckIndex}`, {
+	const deckId = `deck:${id}:${newDeckIndex}`;
+	playerStore.addDeckToPlayer(id, deckId);
+	deckStore.updateDeck(deckId, {
 		isFaceUp: props.isFaceUp ?? false,
 		position: [10, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({

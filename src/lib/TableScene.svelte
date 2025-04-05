@@ -20,13 +20,6 @@
 	import { onMount } from 'svelte';
 	import { playerStore } from './store/playerStore.svelte';
 
-	// TODO: prepare setting up decks
-	onMount(() => {
-		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
-		// TODO: this should handle a reload to have same id
-	});
-	$inspect($playerStore);
-
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
 	const { camera } = useThrelte();
@@ -57,49 +50,49 @@
 		}
 	});
 
-	const init = [
-		'beast_of_burden',
-		'bosk_troll',
-		'border_militia',
-		'abundance-f',
-		'vile_imp',
-		'flame_wave'
-	].map((card, index) => [
-		`card:playername:${index + 1}`,
-		[-6 + index * 2, 0, 0],
-		`https://card.cards.army/cards/${card}.webp`
-	]);
+	// const init = [
+	// 	'beast_of_burden',
+	// 	'bosk_troll',
+	// 	'border_militia',
+	// 	'abundance-f',
+	// 	'vile_imp',
+	// 	'flame_wave'
+	// ].map((card, index) => [
+	// 	`card:playername:${index + 1}`,
+	// 	[-6 + index * 2, 0, 0],
+	// 	`https://card.cards.army/cards/${card}.webp`
+	// ]);
 
-	const initCards = init;
+	// const initCards = init;
 
-	initCards.forEach(([id, position, faceImageUrl]) => {
-		objectStore.updateCardState(
-			id as string,
-			position as [number, number, number],
-			faceImageUrl as string,
-			undefined,
-			getStaticResourceUrl('/s-back.jpg')
-		);
-	});
+	// initCards.forEach(([id, position, faceImageUrl]) => {
+	// 	objectStore.updateCardState(
+	// 		id as string,
+	// 		position as [number, number, number],
+	// 		faceImageUrl as string,
+	// 		undefined,
+	// 		getStaticResourceUrl('/s-back.jpg')
+	// 	);
+	// });
 
-	deckStore.updateDeck(`deck:playername:1`, {
-		position: [8.25, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getStaticResourceUrl('/s-back.jpg')
-		}))
-	});
+	// deckStore.updateDeck(`deck:playername:1`, {
+	// 	position: [8.25, 0.4, 3],
+	// 	cards: generateCardImages(30).map((slug, index) => ({
+	// 		id: `card:playername:${slug}-${index}`,
+	// 		faceImageUrl: getSorceryCardImage(slug),
+	// 		backImageUrl: getStaticResourceUrl('/s-back.jpg')
+	// 	}))
+	// });
 
-	deckStore.updateDeck(`deck:playername:2`, {
-		isFaceUp: true,
-		position: [10, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getStaticResourceUrl('/s-back.jpg')
-		}))
-	});
+	// deckStore.updateDeck(`deck:playername:2`, {
+	// 	isFaceUp: true,
+	// 	position: [10, 0.4, 3],
+	// 	cards: generateCardImages(30).map((slug, index) => ({
+	// 		id: `card:playername:${slug}-${index}`,
+	// 		faceImageUrl: getSorceryCardImage(slug),
+	// 		backImageUrl: getStaticResourceUrl('/s-back.jpg')
+	// 	}))
+	// });
 
 	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
 </script>

@@ -5,6 +5,8 @@
 	import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
 	import { playerStore } from '$lib/store/playerStore.svelte';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
+	import { onMount } from 'svelte';
+	import { deckStore } from '$lib/store/deckStore.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
@@ -17,9 +19,13 @@
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
 	}
 
-	const showInitDeck = $derived(playerStore.getMe()?.deckIds.length === 0);
-
-	$inspect('xxxxx', playerStore.getMe()?.deckIds);
+	// TODO: prepare setting up decks
+	onMount(() => {
+		if (playerStore.getMe() !== undefined) return;
+		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
+		// TODO: this should handle a reload to have same id
+	});
+	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
 </script>
 
 <svelte:head>
@@ -61,7 +67,13 @@
 </div>
 
 {#if showInitDeck}
-	<button class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2">init deck</button>
+	<button
+		class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"
+		onclick={() =>
+			deckStore.initDeck({
+				isFaceUp: false
+			})}>init deck</button
+	>
 {/if}
 
 <div class="h-screen w-screen overflow-clip">
