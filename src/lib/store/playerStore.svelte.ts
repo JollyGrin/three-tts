@@ -25,8 +25,19 @@ type PlayersState = Record<string, PlayerDTO>;
 const players = writable<PlayersState>({});
 const myPlayerId = writable<string>(undefined);
 
+const handleLocalStorage = {
+	get: () => {
+		return localStorage.getItem('myPlayerId');
+	},
+	update: (id: string) => {
+		localStorage.setItem('myPlayerId', id);
+	}
+};
+
 function addPlayer(_id?: string, isMe: boolean = false) {
-	const id = _id ?? nanoid(6);
+	const cacheId = handleLocalStorage.get();
+	const id = _id ?? cacheId ?? nanoid(6);
+	if (!cacheId) handleLocalStorage.update(id);
 	if (isMe) myPlayerId.set(id);
 	players.update((state) => {
 		return {
