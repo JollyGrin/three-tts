@@ -3,6 +3,7 @@ import { objectStore, type CardState } from './objectStore.svelte';
 import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
 import { getStaticResourceUrl } from '$lib/utils/image';
 import { playerStore } from './playerStore.svelte';
+import { wsWrapper } from '$lib/websocket/storeIntegration';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -47,7 +48,7 @@ function initDeck(props: { isFaceUp?: boolean }) {
 	playerStore.addDeckToPlayer(id, deckId);
 	deckStore.updateDeck(deckId, {
 		isFaceUp: props.isFaceUp ?? false,
-		position: [8, 0.4, 3],
+		position: [8.5, 0.4, 3],
 		cards: generateCardImages(30).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
@@ -95,5 +96,6 @@ export const deckStore = {
 	getDeckLength,
 	drawFromTop,
 	placeOnTopOfDeck,
-	initDeck
+	initDeck,
+	initWs: wsWrapper(initDeck)
 };
