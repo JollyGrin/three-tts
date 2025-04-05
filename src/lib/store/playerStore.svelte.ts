@@ -2,11 +2,13 @@ import { get, writable } from 'svelte/store';
 import { nanoid } from 'nanoid';
 import type { CardState } from './objectStore.svelte';
 import { trayStore } from './trayStore.svelte';
+import { seatStore } from './seatStore.svelte';
 
 type PlayerDTO = {
 	id: string;
 	joinTimestamp: number;
 	trayCards: Record<string, CardState>;
+	seat: 0 | 1 | 2 | 3;
 	/**
 	 * The ids of the decks owned by player
 	 * reference in deckStore
@@ -31,6 +33,7 @@ function addPlayer(_id?: string, isMe: boolean = false) {
 			...state,
 			[id]: {
 				id,
+				seat: 0,
 				joinTimestamp: Date.now(),
 				trayCards: {},
 				deckIds: [],
@@ -81,24 +84,37 @@ function addDeckToPlayer(playerId: string, deckId: string) {
 	});
 }
 
-const unsubTrayStore = trayStore.subscribe((state) => {
-	const myId = get(myPlayerId);
-	if (!myId) return;
-	players.update((players) => {
-		return {
-			...players,
-			[myId]: {
-				...players[myId],
-				trayCards: state
-			}
-		};
-	});
-});
-
 function getMe() {
 	return get(myPlayerId);
 }
 
+// SUBSCRIBE TO CHANGES
+// Use local stores to update state but then sync them with playerstore
+const unsubTrayStore = trayStore.subscribe((state) => {
+	const myId = get(myPlayerId);
+	if (!myId) return;
+	players.update((players) => ({
+		...players,
+		[myId]: {
+			...players[myId],
+			trayCards: state
+		}
+	}));
+});
+
+const unsubSeatStore = seatStore.subscribe((state) => {
+	const myId = get(myPlayerId);
+	if (!myId) return;
+	players.update((players) => ({
+		...players,
+		[myId]: {
+			...players[myId],
+			seat: state.seat
+		}
+	}));
+});
+
+export type { PlayerDTO };
 export const playerStore = {
 	...players,
 	getMe,
@@ -107,6 +123,7 @@ export const playerStore = {
 	addDeckToPlayer,
 
 	unsub: {
-		unsubTrayStore
+		unsubTrayStore,
+		unsubSeatStore
 	}
 };
