@@ -98,7 +98,7 @@
 		<T.PlaneGeometry args={[1.4, 2]} />
 		<ImageMaterial
 			url={faceImageUrl}
-			side={2}
+			side={0}
 			radius={0.1}
 			monochromeColor={'#fff'}
 			monochromeStrength={emissiveIntensity}
@@ -106,24 +106,18 @@
 	</T.Mesh>
 
 	{#if backImageUrl}
-		<T.Mesh
-			castShadow
-			receiveShadow
-			rotation.z={DEG2RAD * 180}
-			rotation.x={-Math.PI / 2}
-			position.y={-0.002}
-		>
+		<T.Mesh castShadow receiveShadow rotation.x={-DEG2RAD * 270} position.y={-0.002}>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<ImageMaterial
 				url={backImageUrl}
-				side={2}
+				side={0}
 				radius={0.1}
 				monochromeColor={'#fff'}
 				monochromeStrength={emissiveIntensity}
 			/>
 		</T.Mesh>
 	{:else}
-		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={1}>
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={0}>
 			<T.PlaneGeometry args={[1.4, 2]} />
 			<T.MeshBasicMaterial color="white" />
 		</T.Mesh>
