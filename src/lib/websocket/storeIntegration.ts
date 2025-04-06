@@ -87,25 +87,3 @@ export function initWrappers() {
 	deckStore.updateDeck = wsWrapperUpdateDeck(originalFnUpdateDeck);
 	deckStore.silentUpdateDeck = originalFnUpdateDeck;
 }
-
-// ARCHIVE -- overcomplicated
-// export function wsWrapper(fn: Function) {
-// 	const nameOfArgs = fn
-// 		.toString()
-// 		.match(/\(([^)]*)\)/)?.[1]
-// 		.split(',')
-// 		.map((arg) => arg.trim().replace(/\/\*.*\*\//, '')) // Remove comments
-// 		.map((arg) => arg.split('=')[0].trim()); // Remove default values
-// 	console.log({ nameOfArgs });
-// 	return function passArgs(...args: any[]) {
-// 		console.log('spread logs', ...args);
-
-//     // maps args to their names
-// 		const obj = Object.fromEntries(
-// 			args.map((arg, index) => [nameOfArgs?.[index], arg])
-// 		);
-// 		console.log('obj', obj);
-
-// 		return fn(...args);
-// 	};
-// }
