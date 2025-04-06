@@ -7,6 +7,7 @@ import {
 	type ConnectedPlayer
 } from './connection';
 import { playerStore } from '$lib/store/playerStore.svelte';
+import { deckStore } from '$lib/store/deckStore.svelte';
 
 /**
  * Initialize websocket connection and join the default lobby
@@ -80,7 +81,7 @@ function setupMessageHandlers(): void {
 				console.log('Received sync message, updating local state', message);
 				console.log('xxxxx sync state', message);
 				Object.entries(message?.state?.players ?? []).forEach(([id, state]) => {
-					//@ts-expect-error: server sends var connected
+					// @ts-expect-error: server sends var connected
 					const { connected, ...playerState } = state ?? {};
 					playerStore.updatePlayer(id, playerState);
 				});
