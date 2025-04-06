@@ -40,18 +40,15 @@ export function wsWrapperObjectUpdate(fn: Function) {
 }
 
 export function wsWrapperPlayerUpdate(fn: Function) {
-	console.log('hit 1');
 	return function passArgs(...args: any[]) {
-		console.log('hit 2', args);
-		console.log('spread logs player', ...args);
-
+		console.log('ws player: spread args:', ...args);
 		return fn(...args);
 	};
 }
 
 export function wsWrapperUpdateDeck(fn: Function) {
 	return function passArgs(...args: any[]) {
-		console.log('spread logs player', ...args);
+		console.log('ws deck: spread args', ...args);
 		const [deckId, ...rest] = args;
 		const cards = rest[0]?.cards;
 
