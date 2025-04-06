@@ -3,7 +3,7 @@
 	import * as THREE from 'three';
 	import { ImageMaterial, interactivity } from '@threlte/extras';
 	import { objectStore } from '$lib/store/objectStore.svelte';
-	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
+	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { trayStore } from '$lib/store/trayStore.svelte';
 	import { degrees, seatStore } from '$lib/store/seatStore.svelte';
