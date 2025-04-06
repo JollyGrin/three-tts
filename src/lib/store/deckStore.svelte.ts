@@ -3,7 +3,6 @@ import { objectStore, type CardState } from './objectStore.svelte';
 import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
 import { getStaticResourceUrl } from '$lib/utils/image';
 import { playerStore } from './playerStore.svelte';
-import { wsWrapper } from '$lib/websocket/storeIntegration';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -96,6 +95,5 @@ export const deckStore = {
 	getDeckLength,
 	drawFromTop,
 	placeOnTopOfDeck,
-	initDeck,
-	initWs: wsWrapper(initDeck)
+	initDeck
 };

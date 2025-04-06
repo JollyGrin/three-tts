@@ -7,6 +7,8 @@
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 	import { onMount } from 'svelte';
 	import { deckStore } from '$lib/store/deckStore.svelte';
+	import { initWrappers } from '$lib/websocket/storeIntegration';
+	import { objectStore } from '$lib/store/objectStore.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
@@ -21,11 +23,14 @@
 
 	// TODO: prepare setting up decks
 	onMount(() => {
+		initWrappers();
 		if (playerStore.getMe() !== undefined) return;
 		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
 		// TODO: this should handle a reload to have same id
 	});
 	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
+
+	$inspect('xxxxx', $objectStore);
 </script>
 
 <svelte:head>
