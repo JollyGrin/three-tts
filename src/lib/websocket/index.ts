@@ -140,7 +140,6 @@ function setupMessageHandlers(): void {
 						{ payloadIsEmpty }
 					);
 					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
-					// BUG: works in real time but removes position and rotation from gamestate
 					objectStore.silentUpdateCard(cardId, payloadIsEmpty ? null : payload);
 				}
 
