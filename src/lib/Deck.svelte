@@ -17,6 +17,8 @@
 		id: string;
 	} = $props();
 
+	$inspect('deck store monitor:', $deckStore);
+
 	const deckBackImage = getStaticResourceUrl('/s-back.jpg');
 	const deck = $derived($deckStore[id] ?? {});
 	const position = $derived(deck.position ?? [0, 0, 0]);
@@ -59,7 +61,7 @@
 	<Billboard>
 		<Text
 			fontSize={0.5}
-			text={(deck.cards ?? []).length.toString()}
+			text={(deck.cards ?? [])?.length?.toString() ?? '0'}
 			position={[0, 1.75, 0]}
 			anchorX="center"
 		/>
