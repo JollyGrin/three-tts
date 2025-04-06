@@ -62,7 +62,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 				cardsMap[card.id] = card;
 			});
 		}
-		const isFaceUp = rest[0]?.isFaceUp;
+
 		const path = ['decks', deckId]; // add 'position' or other var to be more specific
 
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
@@ -73,7 +73,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			path,
 			value: {
 				cards: cardsMap,
-				isFaceUp,
+				isFaceUp: rest[0]?.isFaceUp,
 				position,
 				rotation
 			}
