@@ -8,7 +8,6 @@
 	import { onMount } from 'svelte';
 	import { deckStore } from '$lib/store/deckStore.svelte';
 	import { initWrappers } from '$lib/websocket/storeIntegration';
-	import { objectStore } from '$lib/store/objectStore.svelte';
 	import { initWebsocket } from '$lib/websocket';
 
 	function handleKeyDown(event: KeyboardEvent) {
