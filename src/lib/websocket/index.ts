@@ -77,7 +77,14 @@ function setupMessageHandlers(): void {
 				break;
 
 			case 'sync':
-				console.log('Received sync message, updating local state');
+				console.log('Received sync message, updating local state', message);
+				console.log('xxxxx sync state', message);
+				Object.entries(message?.state?.players ?? []).forEach(([id, state]) => {
+					//@ts-expect-error: server sends var connected
+					const { connected, ...playerState } = state ?? {};
+					playerStore.updatePlayer(id, playerState);
+				});
+
 				// Will handle sync logic later
 				break;
 

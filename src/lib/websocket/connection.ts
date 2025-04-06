@@ -1,17 +1,25 @@
 import { playerStore } from '$lib/store/playerStore.svelte';
+import type { DeckDTO } from '$lib/store/deckStore.svelte';
+import type { PlayerDTO } from '$lib/store/playerStore.svelte';
+import type { CardState as CardDTO } from '$lib/store/objectStore.svelte';
 
 export type ConnectedPlayer = {
-  id: string;
-  joinTimestamp: number;
+	id: string;
+	joinTimestamp: number;
 };
 
 export type WebSocketMessage = {
-  type: 'connect' | 'sync' | 'update' | 'error' | 'disconnect' | 'playerList';
-  path?: string[];
-  value?: any;
-  playerId: string;
-  timestamp: number;
-  players?: ConnectedPlayer[];
+	type: 'connect' | 'sync' | 'update' | 'error' | 'disconnect' | 'playerList';
+	path?: string[];
+	value?: any;
+	playerId: string;
+	timestamp: number;
+	players?: ConnectedPlayer[];
+	state?: {
+		decks: Record<string, DeckDTO>;
+		players: Record<string, PlayerDTO>;
+		objects: Record<string, CardDTO>;
+	};
 };
 
 // Config
@@ -35,84 +43,90 @@ const messageCallbacks: MessageCallback[] = [];
  * @param lobbyId The lobby ID to connect to (defaults to 'default')
  * @returns Promise that resolves when connected
  */
-export async function connect(lobbyId: string = DEFAULT_LOBBY): Promise<boolean> {
-  if (isConnected) {
-    console.log('Already connected to websocket server');
-    return true;
-  }
+export async function connect(
+	lobbyId: string = DEFAULT_LOBBY
+): Promise<boolean> {
+	if (isConnected) {
+		console.log('Already connected to websocket server');
+		return true;
+	}
 
-  if (isConnecting) {
-    console.log('Already attempting to connect to websocket server');
-    return false;
-  }
+	if (isConnecting) {
+		console.log('Already attempting to connect to websocket server');
+		return false;
+	}
 
-  isConnecting = true;
-  const player = playerStore.getMe();
-  
-  if (!player) {
-    console.error('No player found in store');
-    isConnecting = false;
-    return false;
-  }
+	isConnecting = true;
+	const player = playerStore.getMe();
 
-  const playerId = player.id;
-  const wsUrl = `${WS_SERVER_URL}?lobby=${lobbyId}&player=${playerId}`;
-  
-  console.log(`Connecting to websocket server at ${wsUrl}`);
-  
-  return new Promise((resolve) => {
-    try {
-      socket = new WebSocket(wsUrl);
-      
-      socket.onopen = () => {
-        console.log('Connected to websocket server');
-        isConnected = true;
-        isConnecting = false;
-        reconnectAttempts = 0;
-        resolve(true);
-      };
-      
-      socket.onclose = (event) => {
-        console.log(`Websocket connection closed: ${event.code} ${event.reason}`);
-        isConnected = false;
-        isConnecting = false;
-        
-        // Attempt to reconnect
-        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          reconnectAttempts++;
-          setTimeout(() => {
-            console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
-            connect(lobbyId);
-          }, RECONNECT_DELAY);
-        }
-        
-        if (!event.wasClean) {
-          console.error('Connection closed abnormally');
-        }
-        
-        resolve(false);
-      };
-      
-      socket.onerror = (error) => {
-        console.error('Websocket error:', error);
-        isConnecting = false;
-        resolve(false);
-      };
-      
-      socket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data) as WebSocketMessage;
-          handleMessage(message);
-        } catch (error) {
-          console.error('Error parsing message:', error);
-        }
-      };
-    } catch (error) {
-      console.error('Error connecting to websocket server:', error);
-      isConnecting = false;
-      resolve(false);
-    }
-  });
+	if (!player) {
+		console.error('No player found in store');
+		isConnecting = false;
+		return false;
+	}
+
+	const playerId = player.id;
+	const wsUrl = `${WS_SERVER_URL}?lobby=${lobbyId}&player=${playerId}`;
+
+	console.log(`Connecting to websocket server at ${wsUrl}`);
+
+	return new Promise((resolve) => {
+		try {
+			socket = new WebSocket(wsUrl);
+
+			socket.onopen = () => {
+				console.log('Connected to websocket server');
+				isConnected = true;
+				isConnecting = false;
+				reconnectAttempts = 0;
+				resolve(true);
+			};
+
+			socket.onclose = (event) => {
+				console.log(
+					`Websocket connection closed: ${event.code} ${event.reason}`
+				);
+				isConnected = false;
+				isConnecting = false;
+
+				// Attempt to reconnect
+				if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+					reconnectAttempts++;
+					setTimeout(() => {
+						console.log(
+							`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
+						);
+						connect(lobbyId);
+					}, RECONNECT_DELAY);
+				}
+
+				if (!event.wasClean) {
+					console.error('Connection closed abnormally');
+				}
+
+				resolve(false);
+			};
+
+			socket.onerror = (error) => {
+				console.error('Websocket error:', error);
+				isConnecting = false;
+				resolve(false);
+			};
+
+			socket.onmessage = (event) => {
+				try {
+					const message = JSON.parse(event.data) as WebSocketMessage;
+					handleMessage(message);
+				} catch (error) {
+					console.error('Error parsing message:', error);
+				}
+			};
+		} catch (error) {
+			console.error('Error connecting to websocket server:', error);
+			isConnecting = false;
+			resolve(false);
+		}
+	});
 }
 
 /**
@@ -120,27 +134,29 @@ export async function connect(lobbyId: string = DEFAULT_LOBBY): Promise<boolean>
  * @param lobbyId Lobby ID to join (defaults to 'default')
  * @returns Promise that resolves when joined
  */
-export async function joinLobby(lobbyId: string = DEFAULT_LOBBY): Promise<boolean> {
-  // First ensure we're connected
-  if (!isConnected) {
-    const connected = await connect(lobbyId);
-    if (!connected) return false;
-  }
-  
-  const player = playerStore.getMe();
-  if (!player) {
-    console.error('No player found in store');
-    return false;
-  }
-  
-  // Send join message
-  const joinMessage: WebSocketMessage = {
-    type: 'connect',
-    playerId: player.id,
-    timestamp: Date.now()
-  };
-  
-  return sendMessage(joinMessage);
+export async function joinLobby(
+	lobbyId: string = DEFAULT_LOBBY
+): Promise<boolean> {
+	// First ensure we're connected
+	if (!isConnected) {
+		const connected = await connect(lobbyId);
+		if (!connected) return false;
+	}
+
+	const player = playerStore.getMe();
+	if (!player) {
+		console.error('No player found in store');
+		return false;
+	}
+
+	// Send join message
+	const joinMessage: WebSocketMessage = {
+		type: 'connect',
+		playerId: player.id,
+		timestamp: Date.now()
+	};
+
+	return sendMessage(joinMessage);
 }
 
 /**
@@ -149,18 +165,18 @@ export async function joinLobby(lobbyId: string = DEFAULT_LOBBY): Promise<boolea
  * @returns True if sent successfully
  */
 export function sendMessage(message: WebSocketMessage): boolean {
-  if (!socket || !isConnected) {
-    console.error('Cannot send message: not connected to websocket server');
-    return false;
-  }
-  
-  try {
-    socket.send(JSON.stringify(message));
-    return true;
-  } catch (error) {
-    console.error('Error sending message:', error);
-    return false;
-  }
+	if (!socket || !isConnected) {
+		console.error('Cannot send message: not connected to websocket server');
+		return false;
+	}
+
+	try {
+		socket.send(JSON.stringify(message));
+		return true;
+	} catch (error) {
+		console.error('Error sending message:', error);
+		return false;
+	}
 }
 
 /**
@@ -168,7 +184,7 @@ export function sendMessage(message: WebSocketMessage): boolean {
  * @param callback Function to call with the received message
  */
 export function onMessage(callback: MessageCallback): void {
-  messageCallbacks.push(callback);
+	messageCallbacks.push(callback);
 }
 
 /**
@@ -176,29 +192,29 @@ export function onMessage(callback: MessageCallback): void {
  * @param message Message received from the server
  */
 function handleMessage(message: WebSocketMessage): void {
-  // Log the message
-  console.log('Received message:', message);
-  
-  // Call all registered callbacks
-  messageCallbacks.forEach(callback => {
-    try {
-      callback(message);
-    } catch (error) {
-      console.error('Error in message callback:', error);
-    }
-  });
+	// Log the message
+	console.log('Received message:', message);
+
+	// Call all registered callbacks
+	messageCallbacks.forEach((callback) => {
+		try {
+			callback(message);
+		} catch (error) {
+			console.error('Error in message callback:', error);
+		}
+	});
 }
 
 /**
  * Disconnect from the websocket server
  */
 export function disconnect(): void {
-  if (socket) {
-    socket.close();
-    socket = null;
-  }
-  isConnected = false;
-  isConnecting = false;
+	if (socket) {
+		socket.close();
+		socket = null;
+	}
+	isConnected = false;
+	isConnecting = false;
 }
 
 /**
@@ -206,5 +222,5 @@ export function disconnect(): void {
  * @returns True if connected
  */
 export function isWebSocketConnected(): boolean {
-  return isConnected;
+	return isConnected;
 }
