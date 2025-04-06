@@ -1,6 +1,7 @@
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
+import { sendMessage } from './connection';
 
 /**
  * THIS IS A WORKING TEST TO WRAP A FUNCTION TO PASS ARGUMENTS
@@ -44,6 +45,24 @@ export function wsWrapperPlayerUpdate(fn: Function) {
 	};
 }
 
+export function wsWrapperUpdateDeck(fn: Function) {
+	return function passArgs(...args: any[]) {
+		console.log('spread logs player', ...args);
+		const [deckId, ...rest] = args;
+		const path = ['decks', deckId, 'position'];
+		const playerId = playerStore.getMe().id;
+		sendMessage({
+			type: 'update',
+			path,
+			value: rest.position,
+			playerId,
+			timestamp: Date.now()
+		});
+
+		return fn(...args);
+	};
+}
+
 export function initWrappers() {
 	// const originalFn = objectStore.updateCardState;
 	// objectStore.updateCardState = wsWrapperObjectUpdate(originalFn);
@@ -51,8 +70,8 @@ export function initWrappers() {
 	const originalFnUpdatePlayer = playerStore.addDeckToPlayer;
 	playerStore.addDeckToPlayer = wsWrapperPlayerUpdate(originalFnUpdatePlayer);
 
-	const originalFnAddDeck = deckStore.updateDeck;
-	deckStore.updateDeck = wsWrapperPlayerUpdate(originalFnAddDeck);
+	const originalFnUpdateDeck = deckStore.updateDeck;
+	deckStore.updateDeck = wsWrapperUpdateDeck(originalFnUpdateDeck);
 }
 
 // ARCHIVE -- overcomplicated

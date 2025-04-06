@@ -29,6 +29,14 @@ type DecksState = Record<string, DeckDTO>;
 
 const decks = writable<DecksState>({});
 
+/**
+ * NOTE: when using this internally, ALWAYS use deckStore.updateDeck.
+ * This is required for the websocket to properly shadow the function
+ * Otherwise, internal functions won't use the replaced function.
+ *
+ * NOTE: ONLY SEND WHATS NECESSARY
+ * Let existing state be used by default if values undefined
+ * */
 function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
 	decks.update((state) => {
 		const selectedDeck = state[id];
@@ -68,7 +76,7 @@ function drawFromTop(id: string) {
 	const { cards, isFaceUp, ...deck } = get(decks)[id];
 
 	const card = isFaceUp ? cards.shift() : cards.pop();
-	updateDeck(id, { cards, isFaceUp, ...deck });
+	deckStore.updateDeck(id, { cards });
 	return card;
 }
 
@@ -79,7 +87,7 @@ function placeOnTopOfDeck(deckId: string, cardId: string) {
 	const { cards, isFaceUp, ...deck } = get(decks)[deckId];
 	isFaceUp ? cards.unshift(card) : cards.push(card);
 
-	return updateDeck(deckId, { cards, isFaceUp, ...deck });
+	return deckStore.updateDeck(deckId, { cards });
 }
 
 /**
