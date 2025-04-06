@@ -56,12 +56,6 @@ function addPlayer(_id?: string, isMe: boolean = false) {
 }
 
 function updatePlayer(id: string, updatedState: Partial<PlayerDTO>) {
-	console.log(
-		'PLAYER_STORE: update player',
-		id,
-		'with updated state:',
-		updatedState
-	);
 	players.update((state) => {
 		const selectedPlayer = state[id];
 		return {

@@ -17,8 +17,6 @@
 		id: string;
 	} = $props();
 
-	$inspect('deck store monitor:', $deckStore);
-
 	const deckBackImage = getStaticResourceUrl('/s-back.jpg');
 	const deck = $derived($deckStore[id] ?? {});
 	const position = $derived(deck.position ?? [0, 0, 0]);
