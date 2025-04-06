@@ -1,10 +1,8 @@
 import { deckStore } from '$lib/store/deckStore.svelte';
-import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
+import { type CardState } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
-import {
-	convertVec3ArrayToRecord,
-	createWsMetaData
-} from '$lib/utils/transforms/data';
+import { convertVec3ArrayToRecord } from '$lib/utils/transforms/data';
+import { createWsMetaData } from '$lib/utils/transforms/websocket';
 import { sendMessage } from './connection';
 
 /**

@@ -1,5 +1,3 @@
-import { playerStore } from '$lib/store/playerStore.svelte';
-
 /**
  * Removes all undefined values from an object
  *
@@ -45,16 +43,4 @@ export function convertVec3ArrayToRecord(
 	}
 
 	return vec3Object;
-}
-
-/**
- * Returns your playerId, timestamp, and type as update
- *
- * Useful to reduce code needed when using sendMessage
- * */
-export function createWsMetaData() {
-	const playerId = playerStore.getMe().id;
-	const timestamp = Date.now();
-	const type = 'update' as const;
-	return { playerId, timestamp, type };
 }
