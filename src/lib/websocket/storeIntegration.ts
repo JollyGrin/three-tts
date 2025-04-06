@@ -1,7 +1,10 @@
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
-import { convertVec3ArrayToRecord } from '$lib/utils/transforms/data';
+import {
+	convertVec3ArrayToRecord,
+	createWsMetaData
+} from '$lib/utils/transforms/data';
 import { sendMessage } from './connection';
 
 /**
@@ -64,18 +67,16 @@ export function wsWrapperUpdateDeck(fn: Function) {
 
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
 		const position = convertVec3ArrayToRecord(rest[0].position);
-		const playerId = playerStore.getMe().id;
+		const rotation = convertVec3ArrayToRecord(rest[0].rotation);
 		sendMessage({
-			type: 'update',
+			...createWsMetaData(),
 			path,
 			value: {
 				cards: cardsMap,
 				isFaceUp,
 				position,
-				rotation: { x: 0, y: 0, z: 0 }
-			},
-			playerId,
-			timestamp: Date.now()
+				rotation
+			}
 		});
 
 		return fn(...args);
