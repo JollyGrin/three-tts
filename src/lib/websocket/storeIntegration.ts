@@ -1,5 +1,5 @@
 import { deckStore } from '$lib/store/deckStore.svelte';
-import { objectStore } from '$lib/store/objectStore.svelte';
+import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
 import { sendMessage } from './connection';
 
@@ -50,14 +50,14 @@ export function wsWrapperUpdateDeck(fn: Function) {
 		console.log('spread logs player', ...args);
 		const [deckId, ...rest] = args;
 		const cards = rest[0]?.cards;
-		const cardsMap = {};
+		const cardsMap: Record<string, CardState> = {};
 		if (Array.isArray(cards)) {
-			cards.forEach((card) => {
+			cards.forEach((card: CardState & { id: string }) => {
 				cardsMap[card.id] = card;
 			});
 		}
 		const isFaceUp = rest[0]?.isFaceUp;
-		const path = ['decks', deckId];
+		const path = ['decks', deckId]; // add 'position' or other var to be more specific
 
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
 		const position = rest[0].position;
