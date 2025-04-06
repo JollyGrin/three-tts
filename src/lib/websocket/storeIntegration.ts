@@ -49,12 +49,20 @@ export function wsWrapperUpdateDeck(fn: Function) {
 	return function passArgs(...args: any[]) {
 		console.log('spread logs player', ...args);
 		const [deckId, ...rest] = args;
-		const path = ['decks', deckId, 'position'];
-		
+		const cards = rest[0]?.cards;
+		const cardsMap = {};
+		if (Array.isArray(cards)) {
+			cards.forEach((card) => {
+				cardsMap[card.id] = card;
+			});
+		}
+		const isFaceUp = rest[0]?.isFaceUp;
+		const path = ['decks', deckId];
+
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
 		const position = rest[0].position;
 		let positionObj;
-		
+
 		if (Array.isArray(position)) {
 			// If position is an array [x, y, z], convert to object {x, y, z}
 			positionObj = {
@@ -73,13 +81,18 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			// Fallback for any other case
 			positionObj = { x: 0, y: 0, z: 0 };
 		}
-		
+
 		console.log('Sending position as:', positionObj);
 		const playerId = playerStore.getMe().id;
 		sendMessage({
 			type: 'update',
 			path,
-			value: positionObj,
+			value: {
+				cards: cardsMap,
+				isFaceUp,
+				position: positionObj,
+				rotation: { x: 0, y: 0, z: 0 }
+			},
 			playerId,
 			timestamp: Date.now()
 		});
