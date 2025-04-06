@@ -8,7 +8,7 @@ import {
 } from './connection';
 import { playerStore } from '$lib/store/playerStore.svelte';
 import { deckStore } from '$lib/store/deckStore.svelte';
-import type { CardState } from '$lib/store/objectStore.svelte';
+import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import {
 	convertVec3RecordToArray,
 	purgeUndefinedValues
@@ -121,6 +121,23 @@ function setupMessageHandlers(): void {
 
 			case 'update':
 				console.log('Received update message', message);
+
+				if (message.path?.includes('cards')) {
+					const cardId = message.path[1];
+					const payload = {
+						...message.value,
+						position: message?.value?.position
+							? Object.values(message?.value?.position)
+							: undefined,
+						rotation: message?.value?.rotation
+							? Object.values(message?.value?.rotation)
+							: undefined
+					};
+					console.log('repacked, and updating card with:', { payload });
+					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
+					// BUG: works in real time but removes position and rotation from gamestate
+					objectStore.silentUpdateCard(cardId, payload);
+				}
 
 				if (message.path?.includes('decks')) {
 					const deckId = message.path[1];
