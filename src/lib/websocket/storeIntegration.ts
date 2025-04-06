@@ -110,6 +110,7 @@ export function initWrappers() {
 
 	const originalFnUpdateDeck = deckStore.updateDeck;
 	deckStore.updateDeck = wsWrapperUpdateDeck(originalFnUpdateDeck);
+	deckStore.silentUpdateDeck = originalFnUpdateDeck;
 }
 
 // ARCHIVE -- overcomplicated

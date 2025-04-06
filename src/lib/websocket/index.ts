@@ -91,7 +91,23 @@ function setupMessageHandlers(): void {
 
 			case 'update':
 				console.log('Received update message', message);
-				// Will handle update logic later
+
+				if (message.path?.includes('decks')) {
+					const deckId = message.path[1];
+					const position = Object.values(message.value.position);
+					const rotation = Object.values(message.value.rotation);
+					const cards = Object.values(message.value.cards);
+					const payload = {
+						...message.value,
+						cards,
+						position,
+						rotation
+					};
+					console.log('repacked, and updating deck with:', { payload });
+					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
+					deckStore.silentUpdateDeck(deckId, payload);
+				}
+
 				break;
 
 			case 'error':
