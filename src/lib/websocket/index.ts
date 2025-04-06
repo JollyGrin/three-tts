@@ -10,7 +10,6 @@ import { playerStore } from '$lib/store/playerStore.svelte';
 import { deckStore } from '$lib/store/deckStore.svelte';
 import type { CardState } from '$lib/store/objectStore.svelte';
 import {
-	convertVec3ArrayToRecord,
 	convertVec3RecordToArray,
 	purgeUndefinedValues
 } from '$lib/utils/transforms/data';
@@ -97,7 +96,7 @@ function setupMessageHandlers(): void {
 					const { connected, ...deckState } = state ?? {};
 					const cardRecords: Record<string, CardState> =
 						(deckState?.cards as Record<string, any>) ?? {};
-					const cards: CardState[] = [];
+					const cards: (CardState & { id: string })[] = [];
 
 					Object.entries(cardRecords).forEach(([key, value]) => {
 						cards.push({
@@ -106,7 +105,11 @@ function setupMessageHandlers(): void {
 						});
 					});
 
+					//TODO: update state returned from websocket to reflect that it uses records
+					//
+					//@ts-expect-error: ws state uses records
 					const position = convertVec3RecordToArray(deckState?.position);
+					//@ts-expect-error: ws state uses records
 					const rotation = convertVec3RecordToArray(deckState?.rotation);
 					const payload = { ...deckState, cards, position, rotation };
 

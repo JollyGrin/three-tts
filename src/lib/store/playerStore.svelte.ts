@@ -118,6 +118,9 @@ export const playerStore = {
 	getMe,
 	addPlayer,
 	updatePlayer,
+	// NOTE: silent updated in storeIntegration.ts
+	silentUpdatePlayer: (..._args: Parameters<typeof updatePlayer>) =>
+		console.warn('updatePlayer not initialized'),
 	updateMe,
 	addDeckToPlayer,
 

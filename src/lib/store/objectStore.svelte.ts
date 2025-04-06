@@ -55,6 +55,9 @@ function getCardState(id: string): CardState | undefined {
 
 export const objectStore = {
 	updateCard,
+	// NOTE: silent updated in storeIntegration.ts
+	silentUpdateCard: (..._args: Parameters<typeof updateCard>) =>
+		console.warn('updateCard not initialized'),
 	updateCardRotation,
 	removeCard,
 	getCardState,

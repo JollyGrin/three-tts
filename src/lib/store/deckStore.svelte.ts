@@ -74,7 +74,7 @@ function initDeck(props: { isFaceUp?: boolean }) {
  * returns the card drawn. Recommended to store it in objectStore (table) or trayStore (hand) after receiving
  * */
 function drawFromTop(id: string) {
-	const { cards, isFaceUp, ...deck } = get(decks)[id];
+	const { cards, isFaceUp } = get(decks)[id];
 
 	const card = isFaceUp ? cards.shift() : cards.pop();
 	deckStore.updateDeck(id, { cards });
@@ -85,7 +85,7 @@ function placeOnTopOfDeck(deckId: string, cardId: string) {
 	const _card = get(objectStore)[cardId];
 	const card: CardInDeck = { id: cardId, faceImageUrl: _card.faceImageUrl };
 
-	const { cards, isFaceUp, ...deck } = get(decks)[deckId];
+	const { cards, isFaceUp } = get(decks)[deckId];
 	isFaceUp ? cards.unshift(card) : cards.push(card);
 
 	return deckStore.updateDeck(deckId, { cards });
@@ -101,6 +101,9 @@ function getDeckLength(id: string) {
 export const deckStore = {
 	...decks,
 	updateDeck,
+	// NOTE: silent updated in storeIntegration.ts
+	silentUpdateDeck: (..._args: Parameters<typeof updateDeck>) =>
+		console.warn('updateDeck not initialized'),
 	getDeckLength,
 	drawFromTop,
 	placeOnTopOfDeck,
