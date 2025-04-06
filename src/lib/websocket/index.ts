@@ -133,10 +133,15 @@ function setupMessageHandlers(): void {
 							? Object.values(message?.value?.rotation)
 							: undefined
 					};
-					console.log('repacked, and updating card with:', { payload });
+					const payloadIsEmpty = Object.keys(message.value).length === 0;
+					console.log(
+						'repacked, and updating card with:',
+						{ payload },
+						{ payloadIsEmpty }
+					);
 					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
 					// BUG: works in real time but removes position and rotation from gamestate
-					objectStore.silentUpdateCard(cardId, payload);
+					objectStore.silentUpdateCard(cardId, payloadIsEmpty ? null : payload);
 				}
 
 				if (message.path?.includes('decks')) {

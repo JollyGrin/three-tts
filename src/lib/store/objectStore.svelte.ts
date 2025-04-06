@@ -19,7 +19,14 @@ type CardsState = Record<string, CardState>;
 
 const cards = writable<CardsState>({});
 
-function updateCard(id: string, updatedState: Partial<CardState>) {
+function updateCard(id: string, updatedState: Partial<CardState> | null) {
+	if (updatedState === null) {
+		cards.update((state) => {
+			const { [id]: _, ...rest } = state;
+			return rest;
+		});
+		return;
+	}
 	cards.update((state) => {
 		const selectedCard = state[id];
 		return {
@@ -30,10 +37,11 @@ function updateCard(id: string, updatedState: Partial<CardState>) {
 }
 
 function removeCard(id: string) {
-	cards.update((state) => {
-		const { [id]: _, ...rest } = state;
-		return rest;
-	});
+	return objectStore.updateCard(id, null);
+	// cards.update((state) => {
+	// 	const { [id]: _, ...rest } = state;
+	// 	return rest;
+	// });
 }
 
 function getCardState(id: string): CardState | undefined {
