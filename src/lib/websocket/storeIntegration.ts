@@ -90,7 +90,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			value: {
 				cards: cardsMap,
 				isFaceUp,
-				position: positionObj,
+				position: rest[0]?.position ? positionObj : undefined,
 				rotation: { x: 0, y: 0, z: 0 }
 			},
 			playerId,

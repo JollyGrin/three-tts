@@ -3,6 +3,7 @@ import { objectStore, type CardState } from './objectStore.svelte';
 import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
 import { getStaticResourceUrl } from '$lib/utils/image';
 import { playerStore } from './playerStore.svelte';
+import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -42,7 +43,7 @@ function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
 		const selectedDeck = state[id];
 		return {
 			...state,
-			[id]: { ...selectedDeck, ...updatedState }
+			[id]: { ...selectedDeck, ...purgeUndefinedValues(updatedState) }
 		};
 	});
 }

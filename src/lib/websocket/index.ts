@@ -94,14 +94,20 @@ function setupMessageHandlers(): void {
 
 				if (message.path?.includes('decks')) {
 					const deckId = message.path[1];
-					const position = Object.values(message.value.position);
-					const rotation = Object.values(message.value.rotation);
-					const cards = Object.values(message.value.cards);
+					const position = message?.value?.position
+						? Object.values(message?.value?.position)
+						: undefined;
+					const rotation = message?.value?.rotation
+						? Object.values(message?.value?.rotation)
+						: undefined;
+					const cards = message?.value?.cards
+						? Object.values(message?.value?.cards)
+						: undefined;
 					const payload = {
 						...message.value,
 						cards,
 						position,
-						rotation
+						rotation: message?.value?.rotation ? rotation : undefined
 					};
 					console.log('repacked, and updating deck with:', { payload });
 					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
