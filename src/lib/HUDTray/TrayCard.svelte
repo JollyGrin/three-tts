@@ -8,6 +8,7 @@
 	import { trayStore } from '$lib/store/trayStore.svelte';
 	import { degrees, seatStore } from '$lib/store/seatStore.svelte';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { getStaticResourceUrl } from '$lib/utils/image';
 
 	interactivity();
 	let {
@@ -51,11 +52,13 @@
 	}
 	function handleDragStart() {
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
-		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl, [
-			0,
-			0,
-			-degrees[$seatStore.seat] / DEG2RAD // should be facing the player in seat
-		]);
+		objectStore.updateCard(id, {
+			position: [x, 2.5, z],
+			rotation: [0, 0, -degrees[$seatStore.seat] / DEG2RAD],
+			faceImageUrl: card.faceImageUrl,
+			backImageUrl: card.backImageUrl ?? getStaticResourceUrl('/s-back.jpg') // TODO: update this with its actual cardback
+		});
+
 		trayStore.removeCard(id);
 		dragStart(id, 2.5);
 	}
