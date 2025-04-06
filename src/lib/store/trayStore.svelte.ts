@@ -6,7 +6,9 @@ type CardsState = Record<string, CardState>;
 // Create the writable store
 const cards = writable<CardsState>({});
 
-// Add or update a card's state
+/**
+ * @deprecated: use updateCard instead
+ * */
 function updateCardState(
 	id: string,
 	position: [number, number, number],
@@ -22,6 +24,17 @@ function updateCardState(
 		};
 	});
 }
+
+// Add or update a card's state
+// function updateCard(id: string, updatedState: Partial<CardState>) {
+// 	cards.update((state) => {
+// 		const selectedCard = state[id];
+// 		return {
+// 			...state,
+// 			[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
+// 		};
+// 	});
+// }
 
 // Remove a card
 function removeCard(id: string) {
