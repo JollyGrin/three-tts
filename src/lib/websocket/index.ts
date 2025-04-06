@@ -8,6 +8,12 @@ import {
 } from './connection';
 import { playerStore } from '$lib/store/playerStore.svelte';
 import { deckStore } from '$lib/store/deckStore.svelte';
+import type { CardState } from '$lib/store/objectStore.svelte';
+import {
+	convertVec3ArrayToRecord,
+	convertVec3RecordToArray,
+	purgeUndefinedValues
+} from '$lib/utils/transforms/data';
 
 /**
  * Initialize websocket connection and join the default lobby
@@ -86,6 +92,27 @@ function setupMessageHandlers(): void {
 					playerStore.updatePlayer(id, playerState);
 				});
 
+				Object.entries(message?.state?.decks ?? []).forEach(([id, state]) => {
+					// @ts-expect-error: server sends var connected
+					const { connected, ...deckState } = state ?? {};
+					const cardRecords: Record<string, CardState> =
+						(deckState?.cards as Record<string, any>) ?? {};
+					const cards: CardState[] = [];
+
+					Object.entries(cardRecords).forEach(([key, value]) => {
+						cards.push({
+							...value,
+							id: key
+						});
+					});
+
+					const position = convertVec3RecordToArray(deckState?.position);
+					const rotation = convertVec3RecordToArray(deckState?.rotation);
+					const payload = { ...deckState, cards, position, rotation };
+
+					deckStore.silentUpdateDeck(id, purgeUndefinedValues(payload));
+				});
+
 				// Will handle sync logic later
 				break;
 
@@ -109,6 +136,7 @@ function setupMessageHandlers(): void {
 						position,
 						rotation: message?.value?.rotation ? rotation : undefined
 					};
+
 					console.log('repacked, and updating deck with:', { payload });
 					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
 					deckStore.silentUpdateDeck(deckId, payload);
