@@ -24,15 +24,16 @@
 
 	// TODO: prepare setting up decks
 	onMount(() => {
-		initWebsocket();
 		initWrappers();
 		if (playerStore.getMe() !== undefined) return;
 		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
 		// TODO: this should handle a reload to have same id
+
+		initWebsocket();
 	});
 	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
 
-	$inspect('xxxxx', $objectStore);
+	$inspect('xxxxx - object store', $objectStore);
 </script>
 
 <svelte:head>
