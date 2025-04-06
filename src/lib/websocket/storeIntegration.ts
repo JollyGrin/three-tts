@@ -50,12 +50,36 @@ export function wsWrapperUpdateDeck(fn: Function) {
 		console.log('spread logs player', ...args);
 		const [deckId, ...rest] = args;
 		const path = ['decks', deckId, 'position'];
-		console.log('rest', rest, rest[0].position);
+		
+		// Position could be an array or already an object, let's ensure it's an object with x, y, z
+		const position = rest[0].position;
+		let positionObj;
+		
+		if (Array.isArray(position)) {
+			// If position is an array [x, y, z], convert to object {x, y, z}
+			positionObj = {
+				x: position[0],
+				y: position[1],
+				z: position[2]
+			};
+		} else if (typeof position === 'object') {
+			// Position is already an object, make sure it has x, y, z fields
+			positionObj = {
+				x: position.x || 0,
+				y: position.y || 0,
+				z: position.z || 0
+			};
+		} else {
+			// Fallback for any other case
+			positionObj = { x: 0, y: 0, z: 0 };
+		}
+		
+		console.log('Sending position as:', positionObj);
 		const playerId = playerStore.getMe().id;
 		sendMessage({
 			type: 'update',
 			path,
-			value: rest[0].position,
+			value: positionObj,
 			playerId,
 			timestamp: Date.now()
 		});
