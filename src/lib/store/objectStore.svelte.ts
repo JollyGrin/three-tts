@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { writable, get } from 'svelte/store';
+import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 
 export interface CardState {
 	position: [number, number, number];
@@ -18,6 +19,19 @@ type CardsState = Record<string, CardState>;
 
 const cards = writable<CardsState>({});
 
+function updateCard(id: string, updatedState: Partial<CardState>) {
+	cards.update((state) => {
+		const selectedCard = state[id];
+		return {
+			...state,
+			[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
+		};
+	});
+}
+
+/**
+ * @deprecated: use updateCard instead
+ * */
 function updateCardState(
 	id: string,
 	position: [number, number, number],
