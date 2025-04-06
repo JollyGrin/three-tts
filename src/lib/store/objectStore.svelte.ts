@@ -29,27 +29,6 @@ function updateCard(id: string, updatedState: Partial<CardState>) {
 	});
 }
 
-/**
- * @deprecated: use updateCard instead
- * */
-function updateCardState(
-	id: string,
-	position: [number, number, number],
-	_faceImageUrl?: string,
-	_rotation?: [number, number, number],
-	_backImageUrl?: string
-) {
-	cards.update((state) => {
-		const rotation = _rotation ?? state[id]?.rotation ?? [0, 0, 0];
-		const faceImageUrl = _faceImageUrl ?? state[id]?.faceImageUrl ?? '';
-		const backImageUrl = _backImageUrl ?? state[id]?.backImageUrl ?? '';
-		return {
-			...state,
-			[id]: { position, rotation, faceImageUrl, backImageUrl }
-		};
-	});
-}
-
 function updateCardRotation(id: string, quaternion: THREE.Quaternion) {
 	cards.update((state) => {
 		const card = state[id];
@@ -76,7 +55,6 @@ function getCardState(id: string): CardState | undefined {
 
 export const objectStore = {
 	updateCard,
-	updateCardState,
 	updateCardRotation,
 	removeCard,
 	getCardState,
