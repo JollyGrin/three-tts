@@ -139,6 +139,7 @@ function setupMessageHandlers(): void {
 
 					console.log('repacked, and updating deck with:', { payload });
 					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
+					// BUG: works in real time but removes position and rotation from gamestate
 					deckStore.silentUpdateDeck(deckId, payload);
 				}
 
