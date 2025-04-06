@@ -1,5 +1,38 @@
 Manages the state for client
 
+# game state
+
+the gamestate is broken down into:
+- decks: all decks on the table (location, rotation, cards, face up/down)
+- objects: all cards on the table (location, rotation, face/back image)
+- players: all players in the game
+    - player: meatadata (life, resources), deckIds, tray*, seat*
+    * (tray & seat are updated via a subscription to the local stores. This means only the local player can update their own state)
+
+all of these are records for quick lookups and path adjustments. For example:
+```
+const decks = {
+    deck1: {...state},
+    deck2: {...state},
+    ...
+}
+const objects = {
+    object1: {...state},
+}
+const players = {
+    player1: {...state},
+    player2: {...state},
+    ...
+}
+
+const gamestate = {decks, objects, players, lobbyId}
+```
+The entire gamestate should always be on the server, so that if a player reloads the page, everything is synced.
+
+Updates to the gamestate should be through surgical changes. 
+When a player broadcasts a change, it will just be the path towards the variable to be changed in the gamestate, and the new value. 
+Then each client should be able read this message and apply it locally in their client stores.
+
 # stores
 
 ## deckStore
