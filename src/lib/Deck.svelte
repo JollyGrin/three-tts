@@ -33,17 +33,15 @@
 		const card = deckStore.drawFromTop(id);
 		if (!card) return console.warn('No card drawn');
 
-		objectStore.updateCardState(
-			card.id,
-			[x, 2.5, z],
-			card.faceImageUrl,
-			[
-				isFaceUp ? 0 : 180,
-				0,
-				-degrees[$seatStore.seat] / DEG2RAD // should be facing the player in seat
-			],
-			card?.backImageUrl ?? deckBackImage
-		);
+		const rotX = isFaceUp ? 0 : 180;
+		const rotY = 0;
+		const rotZ = -degrees[$seatStore.seat] / DEG2RAD;
+		objectStore.updateCard(card.id, {
+			position: [x, 2.5, z],
+			rotation: [rotX, rotY, rotZ],
+			faceImageUrl: card.faceImageUrl,
+			backImageUrl: card.backImageUrl ?? deckBackImage
+		});
 
 		dragStart(card.id, 2.5);
 	}
