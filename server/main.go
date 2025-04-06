@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"net/http"
@@ -8,7 +9,7 @@ import (
 	"time"
 
 	"github.com/jollygrin/tts-server/logger"
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 )
 
 // Command line flags
@@ -17,32 +18,23 @@ var (
 	debug = flag.Bool("debug", false, "enable debug logging")
 )
 
-// Upgrader for websocket connections
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now
-	},
-}
-
 // CardState represents a card on the table or in a deck
 type CardState struct {
-	ID          string  `json:"id"`
-	Position    Vec3    `json:"position,omitempty"`
-	Rotation    Vec3    `json:"rotation,omitempty"`
-	FaceImageUrl string  `json:"faceImageUrl,omitempty"`
-	BackImageUrl string  `json:"backImageUrl,omitempty"`
-	FaceUp      bool    `json:"faceUp,omitempty"`
+	ID           string `json:"id"`
+	Position     Vec3   `json:"position,omitempty"`
+	Rotation     Vec3   `json:"rotation,omitempty"`
+	FaceImageUrl string `json:"faceImageUrl,omitempty"`
+	BackImageUrl string `json:"backImageUrl,omitempty"`
+	FaceUp       bool   `json:"faceUp,omitempty"`
 }
 
 // DeckState represents a deck of cards on the table
 type DeckState struct {
-	ID          string               `json:"id"`
-	Position    Vec3                 `json:"position,omitempty"`
-	Rotation    Vec3                 `json:"rotation,omitempty"`
-	Cards       map[string]CardState `json:"cards,omitempty"`
-	FaceUp      bool                 `json:"faceUp,omitempty"`
+	ID       string               `json:"id"`
+	Position Vec3                 `json:"position,omitempty"`
+	Rotation Vec3                 `json:"rotation,omitempty"`
+	Cards    map[string]CardState `json:"cards,omitempty"`
+	FaceUp   bool                 `json:"faceUp,omitempty"`
 }
 
 // Vec3 represents a 3D position or rotation
@@ -73,19 +65,19 @@ type GameState struct {
 
 // Lobby represents a game room
 type Lobby struct {
-	ID        string
-	Clients   map[*Client]bool
+	ID      string
+	Clients map[*Client]bool
 	// GameState is the authoritative state for this lobby
-	State     GameState
-	mu        sync.Mutex
+	State GameState
+	mu    sync.Mutex
 }
 
 // Client represents a websocket client
 type Client struct {
-	ID         string
-	Conn       *websocket.Conn
-	Lobby      *Lobby
-	Send       chan []byte
+	ID    string
+	Conn  *websocket.Conn
+	Lobby *Lobby
+	Send  chan []byte
 }
 
 // Message represents a message from a client
@@ -96,19 +88,21 @@ type Message struct {
 	PlayerID  string          `json:"playerId"`
 	Timestamp int64           `json:"timestamp"`
 	// For sync messages
-	State     *GameState      `json:"state,omitempty"`
+	State *GameState `json:"state,omitempty"`
 }
 
 // Global lobby registry
 var (
-	lobbies = make(map[string]*Lobby)
+	lobbies   = make(map[string]*Lobby)
 	lobbiesMu sync.Mutex
 )
 
 // Handle websocket connections
 func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	// Upgrade HTTP connection to websocket
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		InsecureSkipVerify: true, // Fix this when you go to prod
+	})
 	if err != nil {
 		logger.Error("Failed to upgrade connection: %v", err)
 		return
@@ -120,7 +114,7 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 
 	if lobbyID == "" || playerID == "" {
 		logger.Error("Missing lobby ID or player ID")
-		conn.Close()
+		_ = conn.Close(websocket.StatusInternalError, "missing lobby or player ID")
 		return
 	}
 
@@ -140,7 +134,7 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	// Add client to lobby and track player
 	lobby.mu.Lock()
 	lobby.Clients[client] = true
-	
+
 	// Check if player already exists, if not add them with join timestamp
 	timestamp := time.Now().UnixMilli()
 	if player, exists := lobby.State.Players[playerID]; exists {
@@ -161,10 +155,10 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	lobby.mu.Unlock()
 
 	logger.Info("Player %s connected to lobby %s", playerID, lobbyID)
-	
+
 	// Send full game state to the new client
 	sendGameState(client)
-	
+
 	// Broadcast player connected message to all other clients
 	broadcastPlayerChange(lobby, playerID, "connect", timestamp)
 
@@ -202,27 +196,26 @@ func (c *Client) readPump() {
 	defer func() {
 		c.Lobby.mu.Lock()
 		delete(c.Lobby.Clients, c)
-		
+
 		// Mark player as disconnected
 		if player, exists := c.Lobby.State.Players[c.ID]; exists {
 			player.Connected = false
 			c.Lobby.State.Players[c.ID] = player
 		}
-		
+
 		c.Lobby.mu.Unlock()
-		c.Conn.Close()
+		c.Conn.Close(websocket.StatusInternalError, "readPump closed")
 		logger.Info("Player %s disconnected from lobby %s", c.ID, c.Lobby.ID)
-		
+
 		// Broadcast player disconnected message
 		broadcastPlayerChange(c.Lobby, c.ID, "disconnect", time.Now().UnixMilli())
 	}()
 
 	for {
-		_, message, err := c.Conn.ReadMessage()
+		// TODO: Throw in an actual context.
+		_, message, err := c.Conn.Read(context.Background())
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				logger.Error("Unexpected close error: %v", err)
-			}
+			logger.Error("Unexpected close error: %v", err)
 			break
 		}
 
@@ -242,22 +235,21 @@ func (c *Client) readPump() {
 
 // Write messages to the websocket
 func (c *Client) writePump() {
-	defer c.Conn.Close()
+	defer c.Conn.Close(websocket.StatusInternalError, "writePump closed")
 
 	for {
 		select {
 		case message, ok := <-c.Send:
 			if !ok {
 				// Channel was closed
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			if err := c.Conn.WriteMessage(websocket.TextMessage, message); err != nil {
+			if err := c.Conn.Write(context.Background(), websocket.MessageText, message); err != nil {
 				logger.Error("Failed to write message: %v", err)
 				return
 			}
-			
+
 			logger.Debug("Sent message to player %s", c.ID)
 		}
 	}
@@ -275,7 +267,7 @@ func (c *Client) processMessage(msg Message) {
 	case "update":
 		// Apply the update to the lobby's state
 		applyUpdate(c.Lobby, msg)
-		
+
 	case "sync":
 		// Request for full state sync - send the current state
 		sendGameState(c)
@@ -313,7 +305,7 @@ func sendGameState(client *Client) {
 	lobby.mu.Lock()
 	stateCopy := lobby.State
 	lobby.mu.Unlock()
-	
+
 	// Create sync message with full state
 	msg := Message{
 		Type:      "sync",
@@ -321,14 +313,14 @@ func sendGameState(client *Client) {
 		Timestamp: time.Now().UnixMilli(),
 		State:     &stateCopy,
 	}
-	
+
 	// Marshal and send
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		logger.Error("Failed to marshal player list: %v", err)
 		return
 	}
-	
+
 	select {
 	case client.Send <- payload:
 		logger.Debug("Sent player list to player %s", client.ID)
@@ -355,14 +347,14 @@ func broadcastPlayerChange(lobby *Lobby, playerID, changeType string, timestamp 
 		valueJSON = []byte("false")
 	}
 	msg.Value = json.RawMessage(valueJSON)
-	
+
 	// Marshal message
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		logger.Error("Failed to marshal player change message: %v", err)
 		return
 	}
-	
+
 	// Broadcast to all clients in the lobby
 	lobby.mu.Lock()
 	for client := range lobby.Clients {
@@ -370,7 +362,7 @@ func broadcastPlayerChange(lobby *Lobby, playerID, changeType string, timestamp 
 		if client.ID == playerID && changeType == "connect" {
 			continue
 		}
-		
+
 		select {
 		case client.Send <- payload:
 			logger.Debug("Broadcast %s message for player %s to player %s", changeType, playerID, client.ID)
@@ -495,7 +487,7 @@ func updateDeck(lobby *Lobby, msg Message) {
 			}
 
 			cardID := msg.Path[3]
-			
+
 			// If this is setting a specific card
 			if len(msg.Path) == 4 {
 				var card CardState
@@ -504,7 +496,7 @@ func updateDeck(lobby *Lobby, msg Message) {
 					return
 				}
 				card.ID = cardID
-				
+
 				// Get copy of deck, modify it, and put it back
 				deckCopy := lobby.State.Decks[deckID]
 				if deckCopy.Cards == nil {
@@ -713,7 +705,7 @@ func updatePlayer(lobby *Lobby, msg Message) {
 			}
 
 			cardID := msg.Path[3]
-			
+
 			// If this is setting a specific card
 			if len(msg.Path) == 4 {
 				var card CardState
@@ -722,7 +714,7 @@ func updatePlayer(lobby *Lobby, msg Message) {
 					return
 				}
 				card.ID = cardID
-				
+
 				if player.TrayCards == nil {
 					player.TrayCards = make(map[string]CardState)
 				}
@@ -730,7 +722,7 @@ func updatePlayer(lobby *Lobby, msg Message) {
 				lobby.State.Players[playerID] = player
 				return
 			}
-			
+
 		case "metadata":
 			// Handle metadata operations
 			if len(msg.Path) < 4 {
@@ -744,7 +736,7 @@ func updatePlayer(lobby *Lobby, msg Message) {
 				logger.Error("Failed to unmarshal metadata value: %v", err)
 				return
 			}
-			
+
 			if player.Metadata == nil {
 				player.Metadata = make(map[string]any)
 			}
