@@ -56,30 +56,6 @@ function addPlayer(_id?: string, isMe: boolean = false) {
 }
 
 /**
- * Returns the players in order of joinTimestamp
- * if playerId is provided, also returns playerOrderIndex
- * */
-function getPlayersJoinOrder(playerId?: string) {
-	const orderedPlayers = get(players)
-		? Object.values(get(players)).sort(
-				(a, b) => a.joinTimestamp - b.joinTimestamp
-			)
-		: [];
-
-	let playerOrderIndex = null;
-	const joinOrder = orderedPlayers.map((player, index) => {
-		if (player.id === playerId) playerOrderIndex = index;
-		return { id: player.id, joinTimestamp: player.joinTimestamp, order: index };
-	});
-
-	return {
-		joinOrder,
-		playerOrderIndex,
-		amountOfPlayers: orderedPlayers.length
-	};
-}
-
-/**
  * Add ownership of a deck to a specific player
  * TODO: currently not used, but can be used later to permission deck actions
  * */
@@ -131,7 +107,6 @@ export const playerStore = {
 	...players,
 	getMe,
 	addPlayer,
-	getPlayersJoinOrder,
 	addDeckToPlayer,
 
 	unsub: {
