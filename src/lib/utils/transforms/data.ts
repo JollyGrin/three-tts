@@ -41,4 +41,6 @@ export function convertVec3ArrayToRecord(
 		// Fallback for any other case
 		vec3Object = { x: 0, y: 0, z: 0 };
 	}
+
+	return vec3Object;
 }
