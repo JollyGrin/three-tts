@@ -75,6 +75,7 @@ function getCardState(id: string): CardState | undefined {
 }
 
 export const objectStore = {
+	updateCard,
 	updateCardState,
 	updateCardRotation,
 	removeCard,
