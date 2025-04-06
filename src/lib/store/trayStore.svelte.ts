@@ -7,25 +7,6 @@ type CardsState = Record<string, CardState>;
 // Create the writable store
 const cards = writable<CardsState>({});
 
-/**
- * @deprecated: use updateCard instead
- * */
-function updateCardState(
-	id: string,
-	position: [number, number, number],
-	_faceImageUrl?: string,
-	_rotation?: [number, number, number]
-) {
-	cards.update((state) => {
-		const rotation = _rotation ?? state[id]?.rotation ?? [0, 0, 0];
-		const faceImageUrl = _faceImageUrl ?? state[id]?.faceImageUrl ?? '';
-		return {
-			...state,
-			[id]: { position, rotation, faceImageUrl }
-		};
-	});
-}
-
 // Add or update a card's state
 function updateCard(id: string, updatedState: Partial<CardState>) {
 	cards.update((state) => {
@@ -52,7 +33,6 @@ function getCardState(id: string): CardState | undefined {
 
 export const trayStore = {
 	updateCard,
-	updateCardState,
 	removeCard,
 	getCardState,
 	...cards
