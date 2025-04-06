@@ -1,8 +1,6 @@
 import { get } from 'svelte/store';
 import { dragStore } from '$lib/store/dragStore.svelte';
 import { objectStore } from '$lib/store/objectStore.svelte';
-import { seatStore, degrees } from '$lib/store/seatStore.svelte';
-import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 function flipCard() {
 	const { isHovered, isDragging } = get(dragStore);
