@@ -10,6 +10,11 @@ export function purgeUndefinedValues(obj: any) {
 	);
 }
 
+export function convertVec3RecordToArray(vec3?: Record<string, number>) {
+	if (vec3 === undefined) return undefined;
+	return [vec3.x, vec3.y, vec3.z];
+}
+
 /**
  * Translate [x,y,z] array into {x,y,z} object
  * Accepts an array or object and ensure an {x,y,z} object is returned
