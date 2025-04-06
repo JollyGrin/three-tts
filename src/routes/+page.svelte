@@ -21,9 +21,10 @@
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
 	}
 
+	initWrappers();
+
 	// TODO: prepare setting up decks
 	onMount(() => {
-		initWrappers();
 		if (playerStore.getMe() !== undefined) return;
 		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
 		// TODO: this should handle a reload to have same id
@@ -33,6 +34,7 @@
 	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
 
 	$inspect('xxxxx - local player store', $playerStore);
+	$inspect('xxxxx - local deck store', $deckStore);
 </script>
 
 <svelte:head>
