@@ -29,19 +29,6 @@ function updateCard(id: string, updatedState: Partial<CardState>) {
 	});
 }
 
-function updateCardRotation(id: string, quaternion: THREE.Quaternion) {
-	cards.update((state) => {
-		const card = state[id];
-		return {
-			...state,
-			[id]: {
-				...card,
-				rotation: [quaternion.x, quaternion.y, quaternion.z]
-			}
-		};
-	});
-}
-
 function removeCard(id: string) {
 	cards.update((state) => {
 		const { [id]: _, ...rest } = state;
@@ -58,7 +45,6 @@ export const objectStore = {
 	// NOTE: silent updated in storeIntegration.ts
 	silentUpdateCard: (..._args: Parameters<typeof updateCard>) =>
 		console.warn('updateCard not initialized'),
-	updateCardRotation,
 	removeCard,
 	getCardState,
 	...cards
