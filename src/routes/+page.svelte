@@ -34,6 +34,7 @@
 	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
 
 	$inspect('xxxxx - object store', $objectStore);
+	$inspect('xxxxx - player store', $playerStore);
 </script>
 
 <svelte:head>

@@ -55,6 +55,22 @@ function addPlayer(_id?: string, isMe: boolean = false) {
 	myPlayerId.set(id);
 }
 
+function updatePlayer(id: string, updatedState: Partial<PlayerDTO>) {
+	players.update((state) => {
+		const selectedPlayer = state[id];
+		return {
+			...state,
+			[id]: { ...selectedPlayer, ...updatedState }
+		};
+	});
+}
+
+function updateMe(partialState: Partial<PlayerDTO>) {
+	const myId = get(myPlayerId);
+	if (!myId) return;
+	updatePlayer(myId, partialState);
+}
+
 /**
  * Add ownership of a deck to a specific player
  * TODO: currently not used, but can be used later to permission deck actions
@@ -71,6 +87,9 @@ function addDeckToPlayer(playerId: string, deckId: string) {
 	});
 }
 
+function getPlayer(playerId: string) {
+	return get(players)[playerId];
+}
 function getMe() {
 	const myId = get(myPlayerId);
 	return get(players)[myId];
@@ -105,8 +124,11 @@ const unsubSeatStore = seatStore.subscribe((state) => {
 export type { PlayerDTO };
 export const playerStore = {
 	...players,
+	getPlayer,
 	getMe,
 	addPlayer,
+	updatePlayer,
+	updateMe,
 	addDeckToPlayer,
 
 	unsub: {

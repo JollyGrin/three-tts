@@ -53,7 +53,12 @@ function setupMessageHandlers(): void {
 	onMessage((message: WebSocketMessage) => {
 		switch (message.type) {
 			case 'connect':
-				console.log(`Player ${message.playerId} connected`, message);
+				const playerInStore = playerStore.getPlayer(message.playerId);
+				if (!playerInStore?.joinTimestamp)
+					playerStore.updatePlayer(message.playerId, {
+						id: message.playerId,
+						joinTimestamp: message.timestamp
+					});
 
 				break;
 
