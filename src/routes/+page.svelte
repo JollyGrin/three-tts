@@ -9,6 +9,7 @@
 	import { deckStore } from '$lib/store/deckStore.svelte';
 	import { initWrappers } from '$lib/websocket/storeIntegration';
 	import { objectStore } from '$lib/store/objectStore.svelte';
+	import { initWebsocket } from '$lib/websocket';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
@@ -23,6 +24,7 @@
 
 	// TODO: prepare setting up decks
 	onMount(() => {
+		initWebsocket();
 		initWrappers();
 		if (playerStore.getMe() !== undefined) return;
 		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
