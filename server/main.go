@@ -5,6 +5,7 @@ import (
 	"flag"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/jollygrin/tts-server/logger"
 	"github.com/gorilla/websocket"
@@ -25,10 +26,18 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// ConnectedPlayer represents a player in a lobby
+type ConnectedPlayer struct {
+	ID            string    `json:"id"`
+	JoinTimestamp int64     `json:"joinTimestamp"`
+}
+
 // Lobby represents a game room
 type Lobby struct {
 	ID      string
 	Clients map[*Client]bool
+	// Players tracks connected players with their join timestamps
+	Players map[string]*ConnectedPlayer
 	mu      sync.Mutex
 }
 
@@ -47,6 +56,8 @@ type Message struct {
 	Value     json.RawMessage `json:"value,omitempty"`
 	PlayerID  string          `json:"playerId"`
 	Timestamp int64           `json:"timestamp"`
+	// For playerList messages
+	Players   []*ConnectedPlayer `json:"players,omitempty"`
 }
 
 // Global lobby registry
@@ -87,12 +98,27 @@ func handleWebsocket(w http.ResponseWriter, r *http.Request) {
 		Send:  make(chan []byte, 256),
 	}
 
-	// Add client to lobby
+	// Add client to lobby and track player
 	lobby.mu.Lock()
 	lobby.Clients[client] = true
+	
+	// Check if player already exists, if not add them with join timestamp
+	timestamp := time.Now().UnixMilli()
+	if _, exists := lobby.Players[playerID]; !exists {
+		lobby.Players[playerID] = &ConnectedPlayer{
+			ID:            playerID,
+			JoinTimestamp: timestamp,
+		}
+	}
 	lobby.mu.Unlock()
 
 	logger.Info("Player %s connected to lobby %s", playerID, lobbyID)
+	
+	// Send current player list to the new client
+	sendPlayerList(client)
+	
+	// Broadcast player connected message to all other clients
+	broadcastPlayerChange(lobby, playerID, "connect", timestamp)
 
 	// Start client routines
 	go client.readPump()
@@ -112,6 +138,7 @@ func getLobby(id string) *Lobby {
 	lobby := &Lobby{
 		ID:      id,
 		Clients: make(map[*Client]bool),
+		Players: make(map[string]*ConnectedPlayer),
 	}
 	lobbies[id] = lobby
 	return lobby
@@ -122,9 +149,14 @@ func (c *Client) readPump() {
 	defer func() {
 		c.Lobby.mu.Lock()
 		delete(c.Lobby.Clients, c)
+		// Don't remove the player from the Players map to preserve join order
+		// We'll handle reconnections at the application level
 		c.Lobby.mu.Unlock()
 		c.Conn.Close()
 		logger.Info("Player %s disconnected from lobby %s", c.ID, c.Lobby.ID)
+		
+		// Broadcast player disconnected message
+		broadcastPlayerChange(c.Lobby, c.ID, "disconnect", time.Now().UnixMilli())
 	}()
 
 	for {
@@ -203,6 +235,75 @@ func (c *Client) processMessage(msg Message) {
 		}
 	}
 	c.Lobby.mu.Unlock()
+}
+
+// Send the current player list to a client
+func sendPlayerList(client *Client) {
+	lobby := client.Lobby
+	lobby.mu.Lock()
+	
+	// Convert map to slice for JSON
+	players := make([]*ConnectedPlayer, 0, len(lobby.Players))
+	for _, player := range lobby.Players {
+		players = append(players, player)
+	}
+	lobby.mu.Unlock()
+	
+	// Create player list message
+	msg := Message{
+		Type:      "playerList",
+		PlayerID:  client.ID,
+		Timestamp: time.Now().UnixMilli(),
+		Players:   players,
+	}
+	
+	// Marshal and send
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		logger.Error("Failed to marshal player list: %v", err)
+		return
+	}
+	
+	select {
+	case client.Send <- payload:
+		logger.Debug("Sent player list to player %s", client.ID)
+	default:
+		logger.Warn("Failed to send player list to player %s (channel full)", client.ID)
+	}
+}
+
+// Broadcast player connection/disconnection
+func broadcastPlayerChange(lobby *Lobby, playerID, changeType string, timestamp int64) {
+	// Create connect/disconnect message
+	msg := Message{
+		Type:      changeType,
+		PlayerID:  playerID,
+		Timestamp: timestamp,
+	}
+	
+	// Marshal message
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		logger.Error("Failed to marshal player change message: %v", err)
+		return
+	}
+	
+	// Broadcast to all clients in the lobby
+	lobby.mu.Lock()
+	for client := range lobby.Clients {
+		// Skip the player who triggered the change
+		if client.ID == playerID && changeType == "connect" {
+			continue
+		}
+		
+		select {
+		case client.Send <- payload:
+			logger.Debug("Broadcast %s message for player %s to player %s", changeType, playerID, client.ID)
+		default:
+			logger.Warn("Failed to broadcast player change to player %s (channel full)", client.ID)
+		}
+	}
+	lobby.mu.Unlock()
 }
 
 func main() {

@@ -3,7 +3,8 @@ import {
 	joinLobby,
 	onMessage,
 	sendMessage,
-	type WebSocketMessage
+	type WebSocketMessage,
+	type ConnectedPlayer
 } from './connection';
 import { playerStore } from '$lib/store/playerStore.svelte';
 
@@ -53,13 +54,26 @@ function setupMessageHandlers(): void {
 	onMessage((message: WebSocketMessage) => {
 		switch (message.type) {
 			case 'connect':
-				const playerInStore = playerStore.getPlayer(message.playerId);
-				if (!playerInStore?.joinTimestamp)
-					playerStore.updatePlayer(message.playerId, {
-						id: message.playerId,
-						joinTimestamp: message.timestamp
-					});
+				console.log(`Player ${message.playerId} connected`);
+				break;
 
+			case 'disconnect':
+				console.log(`Player ${message.playerId} disconnected`);
+				// We keep the player in the store to preserve their data
+				// but could mark them as offline if needed
+				break;
+
+			case 'playerList':
+				console.log('Received player list:', message.players);
+				if (message.players && message.players.length > 0) {
+					// Update all players in the store
+					message.players.forEach((player: ConnectedPlayer) => {
+						playerStore.updatePlayer(player.id, {
+							id: player.id,
+							joinTimestamp: player.joinTimestamp
+						});
+					});
+				}
 				break;
 
 			case 'sync':

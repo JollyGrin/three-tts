@@ -1,11 +1,17 @@
 import { playerStore } from '$lib/store/playerStore.svelte';
 
+export type ConnectedPlayer = {
+  id: string;
+  joinTimestamp: number;
+};
+
 export type WebSocketMessage = {
-  type: 'connect' | 'sync' | 'update' | 'error';
+  type: 'connect' | 'sync' | 'update' | 'error' | 'disconnect' | 'playerList';
   path?: string[];
   value?: any;
   playerId: string;
   timestamp: number;
+  players?: ConnectedPlayer[];
 };
 
 // Config
