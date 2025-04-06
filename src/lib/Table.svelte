@@ -21,7 +21,7 @@
 
 		if ($dragStore.isTrayHovered) {
 			console.log('Storing in hand:', id, faceImageUrl);
-			trayStore.updateCardState(id, [0, 0, 0], faceImageUrl);
+			trayStore.updateCard(id, { position: [0, 0, 0], faceImageUrl });
 			objectStore.removeCard(id);
 		}
 

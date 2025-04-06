@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
 import type { CardState } from './objectStore.svelte';
+import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 
 type CardsState = Record<string, CardState>;
 
@@ -26,15 +27,15 @@ function updateCardState(
 }
 
 // Add or update a card's state
-// function updateCard(id: string, updatedState: Partial<CardState>) {
-// 	cards.update((state) => {
-// 		const selectedCard = state[id];
-// 		return {
-// 			...state,
-// 			[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
-// 		};
-// 	});
-// }
+function updateCard(id: string, updatedState: Partial<CardState>) {
+	cards.update((state) => {
+		const selectedCard = state[id];
+		return {
+			...state,
+			[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
+		};
+	});
+}
 
 // Remove a card
 function removeCard(id: string) {
@@ -50,6 +51,7 @@ function getCardState(id: string): CardState | undefined {
 }
 
 export const trayStore = {
+	updateCard,
 	updateCardState,
 	removeCard,
 	getCardState,
