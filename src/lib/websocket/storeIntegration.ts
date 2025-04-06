@@ -60,14 +60,12 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			});
 		}
 
-		const path = ['decks', deckId]; // add 'position' or other var to be more specific
-
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
 		const position = convertVec3ArrayToRecord(rest[0].position);
 		const rotation = convertVec3ArrayToRecord(rest[0].rotation);
 		sendMessage({
 			...createWsMetaData(),
-			path,
+			path: ['decks', deckId], // add 'position' or other var to be more specific
 			value: {
 				cards: cardsMap,
 				isFaceUp: rest[0]?.isFaceUp,
