@@ -50,11 +50,12 @@ export function wsWrapperUpdateDeck(fn: Function) {
 		console.log('spread logs player', ...args);
 		const [deckId, ...rest] = args;
 		const path = ['decks', deckId, 'position'];
+		console.log('rest', rest, rest[0].position);
 		const playerId = playerStore.getMe().id;
 		sendMessage({
 			type: 'update',
 			path,
-			value: rest.position,
+			value: rest[0].position,
 			playerId,
 			timestamp: Date.now()
 		});
