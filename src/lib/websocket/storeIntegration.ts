@@ -1,27 +1,37 @@
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
-import { convertVec3ArrayToRecord } from '$lib/utils/transforms/data';
+import {
+	convertVec3ArrayToRecord,
+	purgeUndefinedValues
+} from '$lib/utils/transforms/data';
 import { createWsMetaData } from '$lib/utils/transforms/websocket';
 import { sendMessage } from './connection';
 
 export function wsWrapperObjectUpdate(fn: Function) {
 	return function passArgs(...args: any[]) {
-		console.log('ws object: spread args:', ...args);
 		const [cardId, ...rest] = args;
-		console.log('xxxxx ws wrapper object:', cardId, rest);
 
 		const position = convertVec3ArrayToRecord(rest[0]?.position);
 		const rotation = convertVec3ArrayToRecord(rest[0]?.rotation);
+		const payload = purgeUndefinedValues({ ...rest[0], position, rotation });
+
+		// if payload is just one key, make the update surgical
+		let key;
+		if (Object.entries(payload).length === 1) {
+			key = Object.keys(payload)[0];
+		}
+
+		console.log(
+			'ws object: path:',
+			['objects', cardId, ...[key]].filter((e) => e !== undefined)
+		);
+		console.log('ws object: payload being passed', payload);
 
 		sendMessage({
 			...createWsMetaData(),
-			path: ['cards', cardId], // add 'position' or other var to be more specific
-			value: {
-				...rest[0],
-				position,
-				rotation
-			}
+			path: ['objects', cardId, ...[key]].filter((e) => e !== undefined), // add 'position' or other var to be more specific
+			value: payload
 		});
 
 		return fn(...args);
