@@ -133,6 +133,8 @@ function setupMessageHandlers(): void {
 							? Object.values(message?.value?.rotation)
 							: undefined
 					};
+
+					// NOTE: remove card if the value passed is null. When sent through ws, comes out as {}
 					const payloadIsEmpty = Object.keys(message.value).length === 0;
 					console.log(
 						'repacked, and updating card with:',
