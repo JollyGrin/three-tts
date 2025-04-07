@@ -2,7 +2,7 @@ package lobby
 
 import (
 	"context"
-	"encoding/json"
+	"slices"
 	"sync"
 
 	"github.com/jollygrin/tts-server/game"
@@ -19,11 +19,13 @@ type Lobby struct {
 
 	// State is the authoritative state for this lobby
 	state      *game.Game
-	gameEvents <-chan json.RawMessage
+	gameEvents <-chan *game.PlayerMessage
 	mu         sync.Mutex
+	cancel     context.CancelFunc
 }
 
-func NewLobby(id string) *Lobby {
+func newLobby(id string) *Lobby {
+	ctx, cancel := context.WithCancel(context.Background())
 	g, msgs := game.NewGame()
 	l := &Lobby{
 		ID:         id,
@@ -31,16 +33,38 @@ func NewLobby(id string) *Lobby {
 		state:      g,
 		gameEvents: msgs,
 		mu:         sync.Mutex{},
+		cancel:     cancel,
 	}
 
-	go l.run()
+	go l.run(ctx)
 	return l
 }
 
-func (l *Lobby) run() {
+func (l *Lobby) run(ctx context.Context) {
+	defer l.Close()
 	for {
-
+		select {
+		case <-ctx.Done():
+			log.Info().
+				Str("lobby", l.ID).
+				Msg("Lobby closing")
+			return
+		case msg := <-l.gameEvents:
+			l.mu.Lock()
+			for client := range l.clients {
+				if msg.Exclude != client.Player.ID && (len(msg.To) == 0 || slices.Contains(msg.To, client.ID)) {
+					client.Send <- msg.Content
+				}
+			}
+			l.mu.Unlock()
+		}
 	}
+}
+
+func (l *Lobby) Close() {
+	l.cancel()
+	// TODO: CLOSE GAME
+	// WATCH CHANNELS, prevent deadlocks and leaks
 }
 
 func (l *Lobby) AddClient(id string, conn *websocket.Conn) *Client {
@@ -68,7 +92,7 @@ type Client struct {
 	ID string
 	// TODO: Refactor to a more general conn or use channels
 	Conn *websocket.Conn
-	Send chan []byte
+	Send chan []byte // TODO: Statically type this message
 	// The player in the game state
 	Player *game.Player
 
@@ -85,12 +109,7 @@ func (l *Lobby) clientRead(ctx context.Context, c *Client) {
 			break
 		}
 
-		ret := l.state.HandleMessage(c.Player, msg)
-		if ret != nil {
-			// TODO: Handle full channels
-			// TODO: This is jank imo
-			c.Send <- ret
-		}
+		l.state.HandleMessage(c.Player, msg)
 
 		// TODO: Uh no, let the game handle messages
 		//l.mu.Lock()

@@ -14,7 +14,9 @@ type Game struct {
 }
 
 type PlayerMessage struct {
+	// TODO: Probably a better way to add addressing
 	To      []string // If To is empty, it sends to all
+	Exclude string   // Easy method to exclude a player
 	Content json.RawMessage
 }
 

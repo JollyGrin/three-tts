@@ -4,14 +4,13 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/jollygrin/tts-server/logger"
 	"github.com/rs/zerolog/log"
 )
 
 // HandleMessage handles incoming messages from players
 // If a message is returned, send it back to the caller.
 // TODO: Make this a channel and async go routine
-func (g *Game) HandleMessage(from *Player, msg Message) json.RawMessage {
+func (g *Game) HandleMessage(from *Player, msg Message) {
 	if msg.PlayerID == "" {
 		// This feels like a bug futher up and should not be fixed here.
 		msg.PlayerID = from.ID
@@ -19,22 +18,39 @@ func (g *Game) HandleMessage(from *Player, msg Message) json.RawMessage {
 
 	switch msg.Type {
 	case "sync":
-		// This feels janky. We should not do it this way imo.
-		g.mu.Lock()
-		returnMsg := &Message{
-			Type:      "sync",
-			PlayerID:  from.ID, // TODO: should be a server id or something
-			Timestamp: time.Now().UnixMilli(),
-			State:     g,
-		}
-		data, _ := json.Marshal(returnMsg) // TODO: err
-		g.mu.Unlock()
-
-		return data
-
+		g.SyncPlayerState(from.ID)
+		return
 	case "update":
+		g.update(msg)
 	}
-	return nil
+
+	// For whatever reason, we broadcast every message.
+	// This feels.... wrong
+	data, _ := json.Marshal(msg)
+	g.out <- &PlayerMessage{ // TODO: Full channel problems
+		To:      []string{},
+		Exclude: from.ID,
+		Content: data,
+	}
+
+	return
+}
+
+func (g *Game) SyncPlayerState(id string) {
+	g.mu.Lock()
+	returnMsg := &Message{
+		Type:      "sync",
+		PlayerID:  id, // TODO: should be a server id or something
+		Timestamp: time.Now().UnixMilli(),
+		State:     g,
+	}
+	data, _ := json.Marshal(returnMsg)
+
+	g.out <- &PlayerMessage{
+		To:      []string{id},
+		Content: data,
+	}
+	defer g.mu.Unlock()
 }
 
 func (g *Game) DisconnectPlayer(p *Player) {
@@ -44,6 +60,38 @@ func (g *Game) DisconnectPlayer(p *Player) {
 	// TODO: channels?
 	p.Connected = false
 	// broadcastPlayerChange(c.Lobby, c.ID, "disconnect", time.Now().UnixMilli())
+}
+
+func (g *Game) BroadcastPlayerChange(playerID, changeType string, timestamp int64) {
+	// Create connect/disconnect message with path to update
+	msg := Message{
+		Type:      "update",
+		Path:      []string{"players", playerID, "connected"},
+		PlayerID:  playerID,
+		Timestamp: timestamp,
+	}
+
+	// Set value based on connection type
+	var valueJSON []byte
+	if changeType == "connect" {
+		valueJSON = []byte("true")
+	} else {
+		valueJSON = []byte("false")
+	}
+	msg.Value = json.RawMessage(valueJSON)
+
+	// Marshal message
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		log.Err(err).Msg("Failed to marshal player change message")
+		return
+	}
+
+	// Broadcast to all clients in the lobby
+	g.out <- &PlayerMessage{
+		To:      []string{},
+		Content: payload,
+	}
 }
 
 func (g *Game) ConnectPlayer(playerID string) *Player {
@@ -73,7 +121,7 @@ func (g *Game) ConnectPlayer(playerID string) *Player {
 
 func (g *Game) update(msg Message) {
 	if len(msg.Path) == 0 || msg.Value == nil {
-		logger.Error("Invalid update message: missing path or value")
+		log.Error().Msgf("Invalid update message: missing path or value")
 		return
 	}
 
@@ -81,7 +129,7 @@ func (g *Game) update(msg Message) {
 	defer g.mu.Unlock()
 
 	// Apply the update based on the path
-	logger.Debug("Applying update for path: %v", msg.Path)
+	log.Debug().Msgf("Applying update for path: %v", msg.Path)
 
 	switch msg.Path[0] {
 	case "decks":
@@ -118,12 +166,12 @@ func (g *Game) updateDeck(msg Message) {
 	if len(msg.Path) == 2 {
 		var deck Deck
 		if err := json.Unmarshal(msg.Value, &deck); err != nil {
-			logger.Error("Failed to unmarshal deck: %v", err)
+			log.Error().Msgf("Failed to unmarshal deck: %v", err)
 			return
 		}
 		deck.ID = deckID
 		g.Decks[deckID] = &deck
-		logger.Debug("Created/replaced deck: %s", deckID)
+		log.Debug().Msgf("Created/replaced deck: %s", deckID)
 		return
 	}
 
@@ -146,7 +194,7 @@ func (g *Game) updateDeck(msg Message) {
 		case "position":
 			var position Vec3
 			if err := json.Unmarshal(msg.Value, &position); err != nil {
-				logger.Error("Failed to unmarshal position: %v", err)
+				log.Error().Msgf("Failed to unmarshal position: %v", err)
 				return
 			}
 			// Get copy of deck, modify it, and put it back
@@ -157,7 +205,7 @@ func (g *Game) updateDeck(msg Message) {
 		case "rotation":
 			var rotation Vec3
 			if err := json.Unmarshal(msg.Value, &rotation); err != nil {
-				logger.Error("Failed to unmarshal rotation: %v", err)
+				log.Error().Msgf("Failed to unmarshal rotation: %v", err)
 				return
 			}
 			// Get copy of deck, modify it, and put it back
@@ -168,7 +216,7 @@ func (g *Game) updateDeck(msg Message) {
 		case "faceUp":
 			var faceUp bool
 			if err := json.Unmarshal(msg.Value, &faceUp); err != nil {
-				logger.Error("Failed to unmarshal faceUp: %v", err)
+				log.Error().Msgf("Failed to unmarshal faceUp: %v", err)
 				return
 			}
 			// Get copy of deck, modify it, and put it back
@@ -179,7 +227,7 @@ func (g *Game) updateDeck(msg Message) {
 		case "cards":
 			// Handle card operations
 			if len(msg.Path) < 4 {
-				logger.Error("Invalid cards path: %v", msg.Path)
+				log.Error().Msgf("Invalid cards path: %v", msg.Path)
 				return
 			}
 
@@ -189,7 +237,7 @@ func (g *Game) updateDeck(msg Message) {
 			if len(msg.Path) == 4 {
 				var card Card
 				if err := json.Unmarshal(msg.Value, &card); err != nil {
-					logger.Error("Failed to unmarshal card: %v", err)
+					log.Error().Msgf("Failed to unmarshal card: %v", err)
 					return
 				}
 				card.ID = cardID
@@ -217,7 +265,7 @@ func (g *Game) updateDeck(msg Message) {
 				case "faceUp":
 					var faceUp bool
 					if err := json.Unmarshal(msg.Value, &faceUp); err != nil {
-						logger.Error("Failed to unmarshal card faceUp: %v", err)
+						log.Error().Msgf("Failed to unmarshal card faceUp: %v", err)
 						return
 					}
 					card.FaceUp = faceUp
@@ -225,7 +273,7 @@ func (g *Game) updateDeck(msg Message) {
 				case "faceImageUrl":
 					var url string
 					if err := json.Unmarshal(msg.Value, &url); err != nil {
-						logger.Error("Failed to unmarshal card faceImageUrl: %v", err)
+						log.Error().Msgf("Failed to unmarshal card faceImageUrl: %v", err)
 						return
 					}
 					card.FaceImageUrl = url
@@ -233,7 +281,7 @@ func (g *Game) updateDeck(msg Message) {
 				case "backImageUrl":
 					var url string
 					if err := json.Unmarshal(msg.Value, &url); err != nil {
-						logger.Error("Failed to unmarshal card backImageUrl: %v", err)
+						log.Error().Msgf("Failed to unmarshal card backImageUrl: %v", err)
 						return
 					}
 					card.BackImageUrl = url
@@ -260,12 +308,12 @@ func (g *Game) updateObject(msg Message) {
 	if len(msg.Path) == 2 {
 		var card Card
 		if err := json.Unmarshal(msg.Value, &card); err != nil {
-			logger.Error("Failed to unmarshal object: %v", err)
+			log.Error().Msgf("Failed to unmarshal object: %v", err)
 			return
 		}
 		card.ID = objectID
 		g.Objects[objectID] = &card
-		logger.Debug("Created/replaced object: %s", objectID)
+		log.Debug().Msgf("Created/replaced object: %s", objectID)
 		return
 	}
 
@@ -285,7 +333,7 @@ func (g *Game) updateObject(msg Message) {
 		case "position":
 			var position Vec3
 			if err := json.Unmarshal(msg.Value, &position); err != nil {
-				logger.Error("Failed to unmarshal position: %v", err)
+				log.Error().Msgf("Failed to unmarshal position: %v", err)
 				return
 			}
 			// Get copy of object, modify it, and put it back
@@ -296,7 +344,7 @@ func (g *Game) updateObject(msg Message) {
 		case "rotation":
 			var rotation Vec3
 			if err := json.Unmarshal(msg.Value, &rotation); err != nil {
-				logger.Error("Failed to unmarshal rotation: %v", err)
+				log.Error().Msgf("Failed to unmarshal rotation: %v", err)
 				return
 			}
 			// Get copy of object, modify it, and put it back
@@ -307,7 +355,7 @@ func (g *Game) updateObject(msg Message) {
 		case "faceUp":
 			var faceUp bool
 			if err := json.Unmarshal(msg.Value, &faceUp); err != nil {
-				logger.Error("Failed to unmarshal faceUp: %v", err)
+				log.Error().Msgf("Failed to unmarshal faceUp: %v", err)
 				return
 			}
 			// Get copy of object, modify it, and put it back
@@ -318,7 +366,7 @@ func (g *Game) updateObject(msg Message) {
 		case "faceImageUrl":
 			var url string
 			if err := json.Unmarshal(msg.Value, &url); err != nil {
-				logger.Error("Failed to unmarshal faceImageUrl: %v", err)
+				log.Error().Msgf("Failed to unmarshal faceImageUrl: %v", err)
 				return
 			}
 			// Get copy of object, modify it, and put it back
@@ -329,7 +377,7 @@ func (g *Game) updateObject(msg Message) {
 		case "backImageUrl":
 			var url string
 			if err := json.Unmarshal(msg.Value, &url); err != nil {
-				logger.Error("Failed to unmarshal backImageUrl: %v", err)
+				log.Error().Msgf("Failed to unmarshal backImageUrl: %v", err)
 				return
 			}
 			// Get copy of object, modify it, and put it back
@@ -348,12 +396,12 @@ func (g *Game) updatePlayer(msg Message) {
 	if len(msg.Path) == 2 {
 		var player Player
 		if err := json.Unmarshal(msg.Value, &player); err != nil {
-			logger.Error("Failed to unmarshal player: %v", err)
+			log.Error().Msgf("Failed to unmarshal player: %v", err)
 			return
 		}
 		player.ID = playerID
 		g.Players[playerID] = &player
-		logger.Debug("Created/replaced player: %s", playerID)
+		log.Debug().Msgf("Created/replaced player: %s", playerID)
 		return
 	}
 
@@ -379,7 +427,7 @@ func (g *Game) updatePlayer(msg Message) {
 		case "seat":
 			var seat int
 			if err := json.Unmarshal(msg.Value, &seat); err != nil {
-				logger.Error("Failed to unmarshal seat: %v", err)
+				log.Error().Msgf("Failed to unmarshal seat: %v", err)
 				return
 			}
 			player.Seat = seat
@@ -388,7 +436,7 @@ func (g *Game) updatePlayer(msg Message) {
 		case "deckIds":
 			var deckIDs []string
 			if err := json.Unmarshal(msg.Value, &deckIDs); err != nil {
-				logger.Error("Failed to unmarshal deckIds: %v", err)
+				log.Error().Msgf("Failed to unmarshal deckIds: %v", err)
 				return
 			}
 			player.DeckIDs = deckIDs
@@ -397,7 +445,7 @@ func (g *Game) updatePlayer(msg Message) {
 		case "trayCards":
 			// Handle tray card operations
 			if len(msg.Path) < 4 {
-				logger.Error("Invalid trayCards path: %v", msg.Path)
+				log.Error().Msgf("Invalid trayCards path: %v", msg.Path)
 				return
 			}
 
@@ -407,7 +455,7 @@ func (g *Game) updatePlayer(msg Message) {
 			if len(msg.Path) == 4 {
 				var card Card
 				if err := json.Unmarshal(msg.Value, &card); err != nil {
-					logger.Error("Failed to unmarshal tray card: %v", err)
+					log.Error().Msgf("Failed to unmarshal tray card: %v", err)
 					return
 				}
 				card.ID = cardID
@@ -423,14 +471,14 @@ func (g *Game) updatePlayer(msg Message) {
 		case "metadata":
 			// Handle metadata operations
 			if len(msg.Path) < 4 {
-				logger.Error("Invalid metadata path: %v", msg.Path)
+				log.Error().Msgf("Invalid metadata path: %v", msg.Path)
 				return
 			}
 
 			metaKey := msg.Path[3]
 			var metaValue any
 			if err := json.Unmarshal(msg.Value, &metaValue); err != nil {
-				logger.Error("Failed to unmarshal metadata value: %v", err)
+				log.Error().Msgf("Failed to unmarshal metadata value: %v", err)
 				return
 			}
 

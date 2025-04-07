@@ -1,14 +1,14 @@
 package lobby
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jollygrin/tts-server/logger"
+	"github.com/rs/zerolog/log"
 
 	"github.com/coder/websocket"
-	"github.com/rs/zerolog/log"
 )
 
 type Lobbies struct {
@@ -29,9 +29,17 @@ func (srv *Lobbies) Router() http.Handler {
 	defer srv.lobbiesMu.RUnlock()
 
 	mux := chi.NewRouter()
+	mux.HandleFunc("/{lobby}/debug", srv.debug)
 	mux.HandleFunc("/ws", srv.handleWebsocket)
 
 	return mux
+}
+
+func (srv *Lobbies) debug(w http.ResponseWriter, r *http.Request) {
+	l := srv.lobby(chi.URLParam(r, "lobby"))
+	data, _ := json.MarshalIndent(l.state, "", "  ") // TODO: UNSAFE
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
 }
 
 func (srv *Lobbies) handleWebsocket(w http.ResponseWriter, r *http.Request) {
@@ -47,8 +55,8 @@ func (srv *Lobbies) handleWebsocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: More validation
-	lobbyID := chi.URLParam(r, "lobby")
-	playerID := chi.URLParam(r, "player")
+	lobbyID := r.URL.Query().Get("lobby")
+	playerID := r.URL.Query().Get("player")
 	if lobbyID == "" || playerID == "" {
 		log.Error().Msg("Missing lobby ID or player ID")
 		_ = conn.Close(websocket.StatusInternalError, "missing lobby or player ID")
@@ -71,5 +79,7 @@ func (srv *Lobbies) handleWebsocket(w http.ResponseWriter, r *http.Request) {
 
 	go lobby.clientRead(ctx, client)
 	go lobby.clientWrite(ctx, client)
+	lobby.state.SyncPlayerState(playerID)
 
+	<-ctx.Done()
 }

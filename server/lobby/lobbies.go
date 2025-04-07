@@ -16,7 +16,7 @@ func (l *Lobbies) lobby(id string) *Lobby {
 		Str("lobby", id).
 		Msgf("Creating new lobby: %s", id)
 
-	lobby := NewLobby(id)
+	lobby := newLobby(id)
 
 	l.lobbies[id] = lobby
 	return lobby
