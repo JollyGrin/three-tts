@@ -8,14 +8,6 @@ import (
 	ctyjson "github.com/zclconf/go-cty/cty/json"
 )
 
-/*
-	original := `{"a": {"a": 1, "b": 2}`
-    patch    := `{"a": {"a": null, "b": 3, "c": 4}}`
-	merged   := `{"a": {"a": 1, "b": 3, "c": 4}}`
-
-
-*/
-
 func Patch(original json.RawMessage, patch json.RawMessage) (json.RawMessage, error) {
 	a, err := unmarshal(original)
 	if err != nil {
