@@ -11,6 +11,7 @@ import (
 func Patch(original json.RawMessage, patch json.RawMessage) (json.RawMessage, error) {
 	a, err := unmarshal(original)
 	if err != nil {
+		fmt.Println(original)
 		return nil, fmt.Errorf("unmarshal original JSON: %w", err)
 	}
 
