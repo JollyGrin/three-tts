@@ -122,7 +122,7 @@ function setupMessageHandlers(): void {
 			case 'update':
 				console.log('Received update message', message);
 
-				if (message.path?.includes('cards')) {
+				if (message.path?.includes('objects')) {
 					const cardId = message.path[1];
 					const payload = {
 						...message.value,
