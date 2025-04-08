@@ -85,13 +85,13 @@ function setupMessageHandlers(): void {
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
 				console.log('xxxxx sync state', message);
-				Object.entries(message?.state?.players ?? []).forEach(([id, state]) => {
+				Object.entries(message?.value?.players ?? []).forEach(([id, state]) => {
 					// @ts-expect-error: server sends var connected
 					const { connected, ...playerState } = state ?? {};
 					playerStore.updatePlayer(id, playerState);
 				});
 
-				Object.entries(message?.state?.decks ?? []).forEach(([id, state]) => {
+				Object.entries(message?.value?.decks ?? []).forEach(([id, state]) => {
 					// @ts-expect-error: server sends var connected
 					const { connected, ...deckState } = state ?? {};
 					const cardRecords: Record<string, CardState> =
@@ -121,7 +121,7 @@ function setupMessageHandlers(): void {
 
 			case 'update':
 				console.log('Received update message', message);
-
+				
 				if (message.path?.includes('objects')) {
 					const cardId = message.path[1];
 					const payload = {

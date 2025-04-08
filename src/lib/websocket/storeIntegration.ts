@@ -17,21 +17,25 @@ export function wsWrapperObjectUpdate(fn: Function) {
 		const payload = purgeUndefinedValues({ ...rest[0], position, rotation });
 
 		// if payload is just one key, make the update surgical
-		let key;
-		if (Object.entries(payload).length === 1) {
-			key = Object.keys(payload)[0];
-		}
+		// let key;
+		// if (Object.entries(payload).length === 1) {
+		// 	key = Object.keys(payload)[0];
+		// }
 
-		console.log(
-			'ws object: path:',
-			['objects', cardId, ...[key]].filter((e) => e !== undefined)
-		);
+		// console.log(
+		// 	'ws object: path:',
+		// 	['objects', cardId]
+		// );
 		console.log('ws object: payload being passed', payload);
 
 		sendMessage({
 			...createWsMetaData(),
-			path: ['objects', cardId, ...[key]].filter((e) => e !== undefined), // add 'position' or other var to be more specific
-			value: payload
+			// path: ['objects', cardId, ...[key]].filter((e) => e !== undefined), // add 'position' or other var to be more specific
+			value: {
+				"objects": {
+					[cardId]: payload
+				},
+			}
 		});
 
 		return fn(...args);
@@ -65,12 +69,16 @@ export function wsWrapperUpdateDeck(fn: Function) {
 		sendMessage({
 			...createWsMetaData(),
 			// TODO: figure out how to include path for when args is just 1
-			path: ['decks', deckId], // add 'position' or other var to be more specific
+			// path: ['decks', deckId], // add 'position' or other var to be more specific
 			value: {
-				cards: cardsMap,
-				isFaceUp: rest[0]?.isFaceUp,
-				position,
-				rotation
+				"decks": {
+					[deckId]: {
+						cards: cardsMap,
+						isFaceUp: rest[0]?.isFaceUp,
+						position,
+						rotation
+					}
+				}
 			}
 		});
 
