@@ -55,14 +55,6 @@ export function wsWrapperUpdateDeck(fn: Function) {
 		const [deckId, ...rest] = args;
 		const cards = rest[0]?.cards;
 
-		// TODO: this is bad to convert to record. Lose order. Server needs to accept an array for deck cards
-		const cardsMap: Record<string, CardState> = {};
-		if (Array.isArray(cards)) {
-			cards.forEach((card: CardState & { id: string }) => {
-				cardsMap[card.id] = card;
-			});
-		}
-
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
 		const position = convertVec3ArrayToRecord(rest[0].position);
 		const rotation = convertVec3ArrayToRecord(rest[0].rotation);
@@ -73,7 +65,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			value: {
 				"decks": {
 					[deckId]: {
-						cards: cardsMap,
+						cards: cards,
 						isFaceUp: rest[0]?.isFaceUp,
 						position,
 						rotation

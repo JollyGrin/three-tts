@@ -94,24 +94,14 @@ function setupMessageHandlers(): void {
 				Object.entries(message?.value?.decks ?? []).forEach(([id, state]) => {
 					// @ts-expect-error: server sends var connected
 					const { connected, ...deckState } = state ?? {};
-					const cardRecords: Record<string, CardState> =
-						(deckState?.cards as Record<string, any>) ?? {};
-					const cards: (CardState & { id: string })[] = [];
-
-					Object.entries(cardRecords).forEach(([key, value]) => {
-						cards.push({
-							...value,
-							id: key
-						});
-					});
-
+					
 					//TODO: update state returned from websocket to reflect that it uses records
 					//
 					//@ts-expect-error: ws state uses records
 					const position = convertVec3RecordToArray(deckState?.position);
 					//@ts-expect-error: ws state uses records
 					const rotation = convertVec3RecordToArray(deckState?.rotation);
-					const payload = { ...deckState, cards, position, rotation };
+					const payload = { ...deckState, position, rotation };
 
 					deckStore.silentUpdateDeck(id, purgeUndefinedValues(payload));
 				});
