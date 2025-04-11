@@ -2,7 +2,6 @@ import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
 import {
-	convertVec3ArrayToRecord,
 	purgeUndefinedValues
 } from '$lib/utils/transforms/data';
 import { createWsMetaData } from '$lib/utils/transforms/websocket';
@@ -12,9 +11,7 @@ export function wsWrapperObjectUpdate(fn: Function) {
 	return function passArgs(...args: any[]) {
 		const [cardId, ...rest] = args;
 
-		const position = convertVec3ArrayToRecord(rest[0]?.position);
-		const rotation = convertVec3ArrayToRecord(rest[0]?.rotation);
-		const payload = purgeUndefinedValues({ ...rest[0], position, rotation });
+		const payload = purgeUndefinedValues({ ...rest[0], position:rest[0]?.position, rotation:rest[0]?.rotation });
 
 		// if payload is just one key, make the update surgical
 		// let key;
@@ -56,8 +53,6 @@ export function wsWrapperUpdateDeck(fn: Function) {
 		const cards = rest[0]?.cards;
 
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
-		const position = convertVec3ArrayToRecord(rest[0].position);
-		const rotation = convertVec3ArrayToRecord(rest[0].rotation);
 		sendMessage({
 			...createWsMetaData(),
 			// TODO: figure out how to include path for when args is just 1
@@ -67,8 +62,8 @@ export function wsWrapperUpdateDeck(fn: Function) {
 					[deckId]: {
 						cards: cards,
 						isFaceUp: rest[0]?.isFaceUp,
-						position,
-						rotation
+						position: rest[0].position,
+						rotation: rest[0].rotation
 					}
 				}
 			}

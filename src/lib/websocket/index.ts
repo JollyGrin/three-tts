@@ -10,7 +10,6 @@ import { playerStore } from '$lib/store/playerStore.svelte';
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import {
-	convertVec3RecordToArray,
 	purgeUndefinedValues
 } from '$lib/utils/transforms/data';
 
@@ -98,9 +97,9 @@ function setupMessageHandlers(): void {
 					//TODO: update state returned from websocket to reflect that it uses records
 					//
 					//@ts-expect-error: ws state uses records
-					const position = convertVec3RecordToArray(deckState?.position);
+					const position = deckState?.position;
 					//@ts-expect-error: ws state uses records
-					const rotation = convertVec3RecordToArray(deckState?.rotation);
+					const rotation = deckState?.rotation;
 					const payload = { ...deckState, position, rotation };
 
 					deckStore.silentUpdateDeck(id, purgeUndefinedValues(payload));
@@ -111,29 +110,34 @@ function setupMessageHandlers(): void {
 
 			case 'update':
 				console.log('Received update message', message);
-				
-				if (message.path?.includes('objects')) {
-					const cardId = message.path[1];
-					const payload = {
-						...message.value,
-						position: message?.value?.position
-							? Object.values(message?.value?.position)
-							: undefined,
-						rotation: message?.value?.rotation
-							? Object.values(message?.value?.rotation)
-							: undefined
-					};
 
-					// NOTE: remove card if the value passed is null. When sent through ws, comes out as {}
-					const payloadIsEmpty = Object.keys(message.value).length === 0;
-					console.log(
-						'repacked, and updating card with:',
-						{ payload },
-						{ payloadIsEmpty }
-					);
-					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
-					objectStore.silentUpdateCard(cardId, payloadIsEmpty ? null : payload);
+				if("object" in message.value) {
+					objectStore.silentUpdateCard(message.value.object)
 				}
+
+				
+				// if (message.path?.includes('objects')) {
+				// 	const cardId = message.path[1];
+				// 	const payload = {
+				// 		...message.value,
+				// 		position: message?.value?.position
+				// 			? Object.values(message?.value?.position)
+				// 			: undefined,
+				// 		rotation: message?.value?.rotation
+				// 			? Object.values(message?.value?.rotation)
+				// 			: undefined
+				// 	};
+
+				// 	// NOTE: remove card if the value passed is null. When sent through ws, comes out as {}
+				// 	const payloadIsEmpty = Object.keys(message.value).length === 0;
+				// 	console.log(
+				// 		'repacked, and updating card with:',
+				// 		{ payload },
+				// 		{ payloadIsEmpty }
+				// 	);
+				// 	// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
+				// 	objectStore.silentUpdateCard(cardId, payloadIsEmpty ? null : payload);
+				// }
 
 				if (message.path?.includes('decks')) {
 					const deckId = message.path[1];

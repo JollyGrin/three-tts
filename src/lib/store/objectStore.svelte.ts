@@ -19,21 +19,25 @@ type CardsState = Record<string, CardState>;
 
 const cards = writable<CardsState>({});
 
-function updateCard(id: string, updatedState: Partial<CardState> | null) {
-	if (updatedState === null) {
-		cards.update((state) => {
-			const { [id]: _, ...rest } = state;
-			return rest;
-		});
-		return;
-	}
+function updateCard(payload: any) {
 	cards.update((state) => {
-		const selectedCard = state[id];
-		return {
-			...state,
-			[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
-		};
-	});
+		return merge(state, payload) as Record<string, CardState>;
+	})
+	
+	// if (updatedState === null) {
+	// 	cards.update((state) => {
+	// 		const { [id]: _, ...rest } = state;
+	// 		return rest;
+	// 	});
+	// 	return;
+	// }
+	// cards.update((state) => {
+	// 	const selectedCard = state[id];
+	// 	return {
+	// 		...state,
+	// 		[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
+	// 	};
+	// });
 }
 
 function removeCard(id: string) {

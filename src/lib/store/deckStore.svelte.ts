@@ -57,7 +57,7 @@ function initDeck(props: { isFaceUp?: boolean }) {
 	deckStore.updateDeck(deckId, {
 		isFaceUp: props.isFaceUp ?? false,
 		position: [8.5, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
+		cards: generateCardImages(2).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
 			backImageUrl: getStaticResourceUrl('/s-back.jpg')
