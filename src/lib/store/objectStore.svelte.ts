@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { writable, get } from 'svelte/store';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
+import { merge } from './merge.svelte';
 
 export interface CardState {
 	position: [number, number, number];
@@ -19,9 +20,20 @@ type CardsState = Record<string, CardState>;
 
 const cards = writable<CardsState>({});
 
-function updateCard(payload: any) {
+function updateCard(id: any, payload?: any) {
+	if(typeof(id) === "string") {
+		updateCard({
+			"object": {
+				[id]: {
+					...payload
+				}
+			}
+		})
+		return;		
+	}
+	
 	cards.update((state) => {
-		return merge(state, payload) as Record<string, CardState>;
+		return merge(state, id) as Record<string, CardState>;
 	})
 	
 	// if (updatedState === null) {
