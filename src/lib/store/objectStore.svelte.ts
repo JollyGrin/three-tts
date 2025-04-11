@@ -23,10 +23,8 @@ const cards = writable<CardsState>({});
 function updateCard(id: any, payload?: any) {
 	if(typeof(id) === "string") {
 		updateCard({
-			"object": {
-				[id]: {
-					...payload
-				}
+			[id]: {
+				...payload
 			}
 		})
 		return;		
