@@ -111,8 +111,9 @@ function setupMessageHandlers(): void {
 			case 'update':
 				console.log('Received update message', message);
 
-				if("object" in message.value) {
-					objectStore.silentUpdateCard(message.value.object)
+				if("objects" in message.value) {
+					console.log('updating objects', message.value.objects);
+					objectStore.silentUpdateCard(message.value.objects)
 				}
 
 				
