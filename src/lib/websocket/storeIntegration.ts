@@ -42,7 +42,10 @@ export function wsWrapperUpdateDeck(fn: Function) {
 	return function passArgs(...args: any[]) {
 		console.log('ws deck: spread args', ...args);
 		const [deckId, ...rest] = args;
-		const cards = rest[0]?.cards;
+		// const cards = rest[0]?.cards;
+		const payload = purgeUndefinedValues({
+			...rest[0]
+		});
 
 		// Position could be an array or already an object, let's ensure it's an object with x, y, z
 		sendMessage({
@@ -51,12 +54,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			// path: ['decks', deckId], // add 'position' or other var to be more specific
 			value: {
 				decks: {
-					[deckId]: {
-						cards: cards,
-						isFaceUp: rest[0]?.isFaceUp,
-						position: rest[0].position,
-						rotation: rest[0].rotation
-					}
+					[deckId]: payload
 				}
 			}
 		});

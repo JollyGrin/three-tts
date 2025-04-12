@@ -97,6 +97,11 @@ function setupMessageHandlers(): void {
 					objectStore.silentUpdateCard(message.value.objects);
 				}
 
+				if ('decks' in message.value) {
+					console.log('updating decks', message.value.decks);
+					deckStore.silentUpdateDeck(message.value.decks);
+				}
+
 				break;
 
 			case 'error':

@@ -4,6 +4,7 @@ import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
 import { getStaticResourceUrl } from '$lib/utils/image';
 import { playerStore } from './playerStore.svelte';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
+import { localStateUpdater, transformPayload } from './transform-helpers';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -38,14 +39,12 @@ const decks = writable<DecksState>({});
  * NOTE: ONLY SEND WHATS NECESSARY
  * Let existing state be used by default if values undefined
  * */
-function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
-	decks.update((state) => {
-		const selectedDeck = state[id];
-		return {
-			...state,
-			[id]: { ...selectedDeck, ...purgeUndefinedValues(updatedState) }
-		};
-	});
+function updateDeck(
+	id: string | Partial<DeckDTO>,
+	updatedState?: Partial<DeckDTO>
+) {
+	const payload = transformPayload(id, updatedState);
+	return localStateUpdater(payload, decks.update);
 }
 
 function initDeck(props: { isFaceUp?: boolean }) {
