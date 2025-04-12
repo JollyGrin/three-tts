@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import type { CardState } from './objectStore.svelte';
 import { trayStore } from './trayStore.svelte';
 import { seatStore } from './seatStore.svelte';
+import { localStateUpdater, transformPayload } from './transform-helpers';
 
 type PlayerDTO = {
 	id: string;
@@ -34,11 +35,37 @@ const handleLocalStorage = {
 	}
 };
 
+function updatePlayer(
+	id: string | Partial<PlayerDTO>,
+	updatedState?: Partial<PlayerDTO> | null
+) {
+	const payload = transformPayload(id, updatedState);
+	return localStateUpdater(payload, players.update);
+	//  return
+	// players.update((state) => {
+	// 	const selectedPlayer = state[id];
+	// 	return {
+	// 		...state,
+	// 		[id]: { ...selectedPlayer, ...updatedState }
+	// 	};
+	// });
+}
+
 function addPlayer(_id?: string, isMe: boolean = false) {
 	const cacheId = handleLocalStorage.get();
 	const id = _id ?? cacheId ?? nanoid(6);
 	if (!cacheId) handleLocalStorage.update(id);
 	if (isMe) myPlayerId.set(id);
+	playerStore.updatePlayer(id, {
+		id,
+		seat: 0,
+		joinTimestamp: Date.now(),
+		trayCards: {},
+		deckIds: [],
+		metadata: {}
+	});
+	return;
+
 	players.update((state) => {
 		return {
 			...state,
@@ -55,24 +82,14 @@ function addPlayer(_id?: string, isMe: boolean = false) {
 	myPlayerId.set(id);
 }
 
-function updatePlayer(id: string, updatedState: Partial<PlayerDTO>) {
-	players.update((state) => {
-		const selectedPlayer = state[id];
-		return {
-			...state,
-			[id]: { ...selectedPlayer, ...updatedState }
-		};
-	});
-}
-
 function updateMe(partialState: Partial<PlayerDTO>) {
 	const myId = get(myPlayerId);
 	if (!myId) return;
-	updatePlayer(myId, partialState);
+	playerStore.updatePlayer(myId, partialState);
 }
 
 function addDeckToPlayer(playerId: string, deckId: string) {
-	updatePlayer(playerId, {
+	playerStore.updatePlayer(playerId, {
 		deckIds: [...get(players)[playerId].deckIds, deckId]
 	});
 }
@@ -90,25 +107,25 @@ function getMe() {
 const unsubTrayStore = trayStore.subscribe((state) => {
 	const myId = get(myPlayerId);
 	if (!myId) return;
-	players.update((players) => ({
-		...players,
-		[myId]: {
-			...players[myId],
-			trayCards: state
-		}
-	}));
+	playerStore.updatePlayer(myId, {
+		trayCards: state
+	});
+	// players.update((players) => ({
+	// 	...players,
+	// 	[myId]: {
+	// 		...players[myId],
+	// 		trayCards: state
+	// 	}
+	// }));
 });
 
 const unsubSeatStore = seatStore.subscribe((state) => {
 	const myId = get(myPlayerId);
 	if (!myId) return;
-	players.update((players) => ({
-		...players,
-		[myId]: {
-			...players[myId],
-			seat: state.seat
-		}
-	}));
+
+	playerStore.updatePlayer(myId, {
+		seat: state.seat
+	});
 });
 
 export type { PlayerDTO };
