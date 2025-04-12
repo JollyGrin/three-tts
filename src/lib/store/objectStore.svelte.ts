@@ -5,7 +5,11 @@
  * */
 
 import { writable, get } from 'svelte/store';
-import { merge } from './transform-helpers';
+import {
+	localStateUpdater,
+	merge,
+	transformPayload
+} from './transform-helpers';
 
 export interface CardState {
 	position: [number, number, number];
@@ -24,27 +28,14 @@ function updateCard(
 	arg1: string | Partial<CardState>,
 	arg2?: Partial<CardState> | null
 ) {
-	if (typeof arg1 === 'string' && arg2 === null) {
-		return cards.update((state) => {
-			const { [arg1]: _, ...rest } = state;
-			return rest;
-		});
-	}
+	const payload = transformPayload(arg1, arg2);
+	return localStateUpdater(payload, cards.update);
+	return;
 
-	if (typeof arg1 === 'string')
-		return updateCard({
-			[arg1]: {
-				...arg2
-			}
-		});
-
-	// payload is recast to the first arg
-	const payload = arg1;
-	if (
-		Object.values(payload).every(
-			(value) => value === undefined || value === null
-		)
-	) {
+	const isNull = Object.values(payload).every(
+		(value) => value === undefined || value === null
+	);
+	if (isNull) {
 		// on silent update, receives a payload of {cardId: null}
 		const cardId = Object.keys(payload)[0];
 		return cards.update((state) => {
