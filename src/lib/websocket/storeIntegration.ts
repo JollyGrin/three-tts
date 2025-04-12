@@ -33,7 +33,20 @@ export function wsWrapperObjectUpdate(fn: Function) {
 
 export function wsWrapperPlayerUpdate(fn: Function) {
 	return function passArgs(...args: any[]) {
-		console.log('ws player: spread args:', ...args);
+		console.log('ws player: spread args:', args, ...args);
+		const [playerId, ...rest] = args;
+		const payload = purgeUndefinedValues({
+			...rest[0]
+		});
+		sendMessage({
+			...createWsMetaData(),
+			value: {
+				players: {
+					[playerId]: payload
+				}
+			}
+		});
+
 		return fn(...args);
 	};
 }
@@ -68,8 +81,9 @@ export function initWrappers() {
 	objectStore.updateCard = wsWrapperObjectUpdate(originalFnUpdateObject);
 	objectStore.silentUpdateCard = originalFnUpdateObject;
 
-	const originalFnUpdatePlayer = playerStore.addDeckToPlayer;
-	playerStore.addDeckToPlayer = wsWrapperPlayerUpdate(originalFnUpdatePlayer);
+	const originalFnUpdatePlayer = playerStore.updatePlayer;
+	playerStore.updatePlayer = wsWrapperPlayerUpdate(originalFnUpdatePlayer);
+	playerStore.silentUpdatePlayer = originalFnUpdatePlayer;
 
 	const originalFnUpdateDeck = deckStore.updateDeck;
 	deckStore.updateDeck = wsWrapperUpdateDeck(originalFnUpdateDeck);

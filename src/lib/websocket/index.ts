@@ -87,6 +87,15 @@ function setupMessageHandlers(): void {
 					objectStore.silentUpdateCard(message.value.objects);
 				}
 
+				if ('decks' in message.value) {
+					deckStore.silentUpdateDeck(message.value.decks);
+				}
+
+				if ('players' in message.value) {
+					// BUG: tray store and seat store are subscribed in playerStore. But updating playerstore does not update the tray/seatstore
+					playerStore.silentUpdatePlayer(message.value.players);
+				}
+
 				break;
 
 			case 'update':
