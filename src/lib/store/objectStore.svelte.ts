@@ -5,11 +5,7 @@
  * */
 
 import { writable, get } from 'svelte/store';
-import {
-	localStateUpdater,
-	merge,
-	transformPayload
-} from './transform-helpers';
+import { localStateUpdater, transformPayload } from './transform-helpers';
 
 export interface CardState {
 	position: [number, number, number];
@@ -30,24 +26,6 @@ function updateCard(
 ) {
 	const payload = transformPayload(arg1, arg2);
 	return localStateUpdater(payload, cards.update);
-	return;
-
-	const isNull = Object.values(payload).every(
-		(value) => value === undefined || value === null
-	);
-	if (isNull) {
-		// on silent update, receives a payload of {cardId: null}
-		const cardId = Object.keys(payload)[0];
-		return cards.update((state) => {
-			const { [cardId]: _, ...rest } = state;
-			return rest;
-		});
-	}
-
-	// finally, if a normal card update:
-	cards.update((state) => {
-		return merge(state, payload) as Record<string, CardState>;
-	});
 }
 
 function removeCard(id: string) {

@@ -1,5 +1,3 @@
-import type { Updater } from 'svelte/store';
-
 /**
  * Takes two objects and returns a new object with the values of the second merged into the first
  * */
