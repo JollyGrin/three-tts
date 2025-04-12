@@ -10,6 +10,7 @@ import { playerStore } from '$lib/store/playerStore.svelte';
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
+import { trayStore } from '$lib/store/trayStore.svelte';
 
 /**
  * Initialize websocket connection and join the default lobby
@@ -92,6 +93,21 @@ function setupMessageHandlers(): void {
 				}
 
 				if ('players' in message.value) {
+					const [playerId] = Object.keys(message.value.players);
+					console.log('PLAYER MSG', message.value.players[playerId]);
+
+					const myId = playerStore.getMe()?.id;
+					if ('trayCards' in message.value.players?.[myId]) {
+						const cards = Object.entries(
+							message.value.players[myId]?.trayCards
+						);
+						const [[cardId, payload]] = cards as [string, any][];
+						console.log({ cards, payload });
+						payload === undefined
+							? trayStore.removeCard(cardId)
+							: trayStore.updateCard(cardId, payload);
+					}
+
 					// BUG: tray store and seat store are subscribed in playerStore. But updating playerstore does not update the tray/seatstore
 					playerStore.silentUpdatePlayer(message.value.players);
 				}
