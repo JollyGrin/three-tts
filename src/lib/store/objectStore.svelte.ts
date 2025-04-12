@@ -4,10 +4,8 @@
  * Might rename this to cardStore and do 3d objects differently
  * */
 
-import * as THREE from 'three';
 import { writable, get } from 'svelte/store';
-import { purgeUndefinedValues } from '$lib/utils/transforms/data';
-import { merge } from './merge.svelte';
+import { merge } from './transform-helpers';
 
 export interface CardState {
 	position: [number, number, number];
@@ -26,11 +24,9 @@ function updateCard(
 	arg1: string | Partial<CardState>,
 	arg2?: Partial<CardState> | null
 ) {
-	console.log('LOCAL UPDATE', arg1, arg2);
 	if (typeof arg1 === 'string' && arg2 === null) {
 		return cards.update((state) => {
 			const { [arg1]: _, ...rest } = state;
-			console.log('REMOVING:', _);
 			return rest;
 		});
 	}
@@ -44,7 +40,6 @@ function updateCard(
 
 	// payload is recast to the first arg
 	const payload = arg1;
-	console.log('2 PAYLOAD:', payload, Object.values(payload));
 	if (
 		Object.values(payload).every(
 			(value) => value === undefined || value === null
@@ -54,7 +49,6 @@ function updateCard(
 		const cardId = Object.keys(payload)[0];
 		return cards.update((state) => {
 			const { [cardId]: _, ...rest } = state;
-			console.log('REMOVING:', _);
 			return rest;
 		});
 	}
@@ -63,29 +57,10 @@ function updateCard(
 	cards.update((state) => {
 		return merge(state, payload) as Record<string, CardState>;
 	});
-
-	// if (updatedState === null) {
-	// 	cards.update((state) => {
-	// 		const { [id]: _, ...rest } = state;
-	// 		return rest;
-	// 	});
-	// 	return;
-	// }
-	// cards.update((state) => {
-	// 	const selectedCard = state[id];
-	// 	return {
-	// 		...state,
-	// 		[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
-	// 	};
-	// });
 }
 
 function removeCard(id: string) {
 	return objectStore.updateCard(id, null);
-	// cards.update((state) => {
-	// 	const { [id]: _, ...rest } = state;
-	// 	return rest;
-	// });
 }
 
 function getCardState(id: string): CardState | undefined {
