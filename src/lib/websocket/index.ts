@@ -9,9 +9,7 @@ import {
 import { playerStore } from '$lib/store/playerStore.svelte';
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
-import {
-	purgeUndefinedValues
-} from '$lib/utils/transforms/data';
+import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 
 /**
  * Initialize websocket connection and join the default lobby
@@ -84,84 +82,19 @@ function setupMessageHandlers(): void {
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
 				console.log('xxxxx sync state', message);
-				Object.entries(message?.value?.players ?? []).forEach(([id, state]) => {
-					// @ts-expect-error: server sends var connected
-					const { connected, ...playerState } = state ?? {};
-					playerStore.updatePlayer(id, playerState);
-				});
 
-				Object.entries(message?.value?.decks ?? []).forEach(([id, state]) => {
-					// @ts-expect-error: server sends var connected
-					const { connected, ...deckState } = state ?? {};
-					
-					//TODO: update state returned from websocket to reflect that it uses records
-					//
-					//@ts-expect-error: ws state uses records
-					const position = deckState?.position;
-					//@ts-expect-error: ws state uses records
-					const rotation = deckState?.rotation;
-					const payload = { ...deckState, position, rotation };
+				if ('objects' in message.value) {
+					objectStore.silentUpdateCard(message.value.objects);
+				}
 
-					deckStore.silentUpdateDeck(id, purgeUndefinedValues(payload));
-				});
-
-				// Will handle sync logic later
 				break;
 
 			case 'update':
 				console.log('Received update message', message);
 
-				if("objects" in message.value) {
+				if ('objects' in message.value) {
 					console.log('updating objects', message.value.objects);
-					objectStore.silentUpdateCard(message.value.objects)
-				}
-
-				
-				// if (message.path?.includes('objects')) {
-				// 	const cardId = message.path[1];
-				// 	const payload = {
-				// 		...message.value,
-				// 		position: message?.value?.position
-				// 			? Object.values(message?.value?.position)
-				// 			: undefined,
-				// 		rotation: message?.value?.rotation
-				// 			? Object.values(message?.value?.rotation)
-				// 			: undefined
-				// 	};
-
-				// 	// NOTE: remove card if the value passed is null. When sent through ws, comes out as {}
-				// 	const payloadIsEmpty = Object.keys(message.value).length === 0;
-				// 	console.log(
-				// 		'repacked, and updating card with:',
-				// 		{ payload },
-				// 		{ payloadIsEmpty }
-				// 	);
-				// 	// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
-				// 	objectStore.silentUpdateCard(cardId, payloadIsEmpty ? null : payload);
-				// }
-
-				if (message.path?.includes('decks')) {
-					const deckId = message.path[1];
-					const position = message?.value?.position
-						? Object.values(message?.value?.position)
-						: undefined;
-					const rotation = message?.value?.rotation
-						? Object.values(message?.value?.rotation)
-						: undefined;
-					const cards = message?.value?.cards
-						? Object.values(message?.value?.cards)
-						: undefined;
-					const payload = {
-						...message.value,
-						cards,
-						position,
-						rotation: message?.value?.rotation ? rotation : undefined
-					};
-
-					console.log('repacked, and updating deck with:', { payload });
-					// NOTE: ATTEMPTING TO UPDATE CLIENT WITHOUT BROADCASTING AGAIN
-					// BUG: works in real time but removes position and rotation from gamestate
-					deckStore.silentUpdateDeck(deckId, payload);
+					objectStore.silentUpdateCard(message.value.objects);
 				}
 
 				break;

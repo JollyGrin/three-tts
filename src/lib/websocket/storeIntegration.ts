@@ -1,9 +1,7 @@
 import { deckStore } from '$lib/store/deckStore.svelte';
 import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
 import { playerStore } from '$lib/store/playerStore.svelte';
-import {
-	purgeUndefinedValues
-} from '$lib/utils/transforms/data';
+import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 import { createWsMetaData } from '$lib/utils/transforms/websocket';
 import { sendMessage } from './connection';
 
@@ -11,27 +9,21 @@ export function wsWrapperObjectUpdate(fn: Function) {
 	return function passArgs(...args: any[]) {
 		const [cardId, ...rest] = args;
 
-		const payload = purgeUndefinedValues({ ...rest[0], position:rest[0]?.position, rotation:rest[0]?.rotation });
-
-		// if payload is just one key, make the update surgical
-		// let key;
-		// if (Object.entries(payload).length === 1) {
-		// 	key = Object.keys(payload)[0];
-		// }
-
-		// console.log(
-		// 	'ws object: path:',
-		// 	['objects', cardId]
-		// );
+		console.log('PAYLOAD WS SEND:', args, rest);
+		const payload = purgeUndefinedValues({
+			...rest[0],
+			position: rest[0]?.position,
+			rotation: rest[0]?.rotation
+		});
 		console.log('ws object: payload being passed', payload);
 
 		sendMessage({
 			...createWsMetaData(),
 			// path: ['objects', cardId, ...[key]].filter((e) => e !== undefined), // add 'position' or other var to be more specific
 			value: {
-				"objects": {
+				objects: {
 					[cardId]: payload
-				},
+				}
 			}
 		});
 
@@ -58,7 +50,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 			// TODO: figure out how to include path for when args is just 1
 			// path: ['decks', deckId], // add 'position' or other var to be more specific
 			value: {
-				"decks": {
+				decks: {
 					[deckId]: {
 						cards: cards,
 						isFaceUp: rest[0]?.isFaceUp,
