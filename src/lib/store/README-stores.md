@@ -53,3 +53,9 @@ manages the client's position at the table.  playerStore subscribes to this trac
 ## trayStore
 manages the client's hidden hand of cards. playerStore subscribes to this track this in the larger store.
 
+# Tech Debt
+Just updated the updateStore function to accept a very silly pattern. The previous method to updating state was update(id, payload)
+Now the message is {id: payload}
+later should refactor all the update functions to just send {id: payload} and remove the helper functions
+
+Just added a bunch of transform-helpers to make the updateDeck, updateCard, and updatePlayer use the same format

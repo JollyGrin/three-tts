@@ -4,6 +4,8 @@ import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
 import { getStaticResourceUrl } from '$lib/utils/image';
 import { playerStore } from './playerStore.svelte';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
+import { localStateUpdater, transformPayload } from './transform-helpers';
+import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -38,26 +40,35 @@ const decks = writable<DecksState>({});
  * NOTE: ONLY SEND WHATS NECESSARY
  * Let existing state be used by default if values undefined
  * */
-function updateDeck(id: string, updatedState: Partial<DeckDTO>) {
-	decks.update((state) => {
-		const selectedDeck = state[id];
-		return {
-			...state,
-			[id]: { ...selectedDeck, ...purgeUndefinedValues(updatedState) }
-		};
-	});
+function updateDeck(
+	id: string | Partial<DeckDTO>,
+	updatedState?: Partial<DeckDTO>
+) {
+	const payload = transformPayload(id, updatedState);
+	return localStateUpdater(payload, decks.update);
 }
 
 function initDeck(props: { isFaceUp?: boolean }) {
-	const { id, deckIds } = playerStore.getMe() ?? {};
+	const { id, deckIds, seat } = playerStore.getMe() ?? {};
 	if (!id || !deckIds) return;
 	const newDeckIndex = deckIds.length; // length - 1 = last item, so length = next item
 	const deckId = `deck:${id}:${newDeckIndex}`;
 	playerStore.addDeckToPlayer(id, deckId);
+	const mod = props.isFaceUp ? 2 : 0;
+	const positions = [
+		[8.5 + mod, 0.4, 4.5],
+		[8.5 + mod, 0.4, -4.7]
+	];
+
+	const rotations = [
+		[0, 0, 0],
+		[0, DEG2RAD * 180, 0]
+	];
 	deckStore.updateDeck(deckId, {
 		isFaceUp: props.isFaceUp ?? false,
-		position: [8.5, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
+		position: positions[seat % positions.length] as [number, number, number],
+		rotation: rotations[seat % rotations.length] as [number, number, number],
+		cards: generateCardImages(2).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
 			backImageUrl: getStaticResourceUrl('/s-back.jpg')

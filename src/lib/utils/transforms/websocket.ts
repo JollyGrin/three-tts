@@ -7,7 +7,7 @@ import { playerStore } from '$lib/store/playerStore.svelte';
  * Useful to reduce code needed when using sendMessage
  * */
 export function createWsMetaData() {
-	const playerId = playerStore.getMe().id;
+	const playerId = playerStore.getMe()?.id;
 	const timestamp = Date.now();
 	const type = 'update' as const;
 	return { playerId, timestamp, type };

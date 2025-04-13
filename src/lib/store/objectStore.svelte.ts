@@ -4,9 +4,8 @@
  * Might rename this to cardStore and do 3d objects differently
  * */
 
-import * as THREE from 'three';
 import { writable, get } from 'svelte/store';
-import { purgeUndefinedValues } from '$lib/utils/transforms/data';
+import { localStateUpdater, transformPayload } from './transform-helpers';
 
 export interface CardState {
 	position: [number, number, number];
@@ -19,29 +18,18 @@ type CardsState = Record<string, CardState>;
 
 const cards = writable<CardsState>({});
 
-function updateCard(id: string, updatedState: Partial<CardState> | null) {
-	if (updatedState === null) {
-		cards.update((state) => {
-			const { [id]: _, ...rest } = state;
-			return rest;
-		});
-		return;
-	}
-	cards.update((state) => {
-		const selectedCard = state[id];
-		return {
-			...state,
-			[id]: { ...selectedCard, ...purgeUndefinedValues(updatedState) }
-		};
-	});
+// HACK: old method was to send id and payload, but the new method sends just a payload to update the main state
+// thus, old functions send id, this should take that and the payload, to form the new payload
+function updateCard(
+	arg1: string | Partial<CardState>,
+	arg2?: Partial<CardState> | null
+) {
+	const payload = transformPayload(arg1, arg2);
+	return localStateUpdater(payload, cards.update);
 }
 
 function removeCard(id: string) {
 	return objectStore.updateCard(id, null);
-	// cards.update((state) => {
-	// 	const { [id]: _, ...rest } = state;
-	// 	return rest;
-	// });
 }
 
 function getCardState(id: string): CardState | undefined {

@@ -15,11 +15,6 @@ export type WebSocketMessage = {
 	playerId: string;
 	timestamp: number;
 	players?: ConnectedPlayer[];
-	state?: {
-		decks: Record<string, DeckDTO>;
-		players: Record<string, PlayerDTO>;
-		objects: Record<string, CardDTO>;
-	};
 };
 
 // Config

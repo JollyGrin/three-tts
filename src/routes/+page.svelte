@@ -75,13 +75,18 @@
 	</button>
 </div>
 
-{#if showInitDeck}
+{#if true || showInitDeck}
 	<button
 		class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"
-		onclick={() =>
+		onclick={() => {
 			deckStore.initDeck({
 				isFaceUp: false
-			})}>init deck</button
+			});
+
+			deckStore.initDeck({
+				isFaceUp: true
+			});
+		}}>init deck</button
 	>
 {/if}
 
