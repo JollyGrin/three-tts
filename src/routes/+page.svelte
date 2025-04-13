@@ -88,9 +88,9 @@
 	<button onclick={fetchDeck}>init deck</button>
 </div>
 
-{#if false && showInitDeck}
+{#if true && showInitDeck}
 	<button
-		class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"
+		class="fixed right-1 bottom-16 z-50 flex w-fit rounded bg-white p-2"
 		onclick={() => {
 			deckStore.initDeck({
 				isFaceUp: false
