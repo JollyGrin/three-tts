@@ -23,15 +23,23 @@
 
 	initWrappers();
 
-	// TODO: prepare setting up decks
 	onMount(() => {
 		if (playerStore.getMe() !== undefined) return;
 		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
-		// TODO: this should handle a reload to have same id
 
 		initWebsocket();
 	});
+
 	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
+
+	let deckInput = $state('');
+	async function fetchDeck() {
+		const response = await fetch(
+			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
+		);
+		const data = await response.json();
+		console.log('res deck:', response, data);
+	}
 
 	$inspect('xxxxx - local player store', $playerStore);
 	$inspect('xxxxx - local deck store', $deckStore);
@@ -75,9 +83,14 @@
 	</button>
 </div>
 
-{#if true || showInitDeck}
+<div class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2">
+	<input />
+	<button onclick={fetchDeck}>init deck</button>
+</div>
+
+{#if true && showInitDeck}
 	<button
-		class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"
+		class="fixed right-1 bottom-16 z-50 flex w-fit rounded bg-white p-2"
 		onclick={() => {
 			deckStore.initDeck({
 				isFaceUp: false
