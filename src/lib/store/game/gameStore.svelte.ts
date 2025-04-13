@@ -48,6 +48,21 @@ function removePathFromObject(obj: any, path: string[]): any {
 	};
 }
 
+function deepFilterNulls<T>(obj: T): T {
+	if (obj === null || typeof obj !== 'object') return obj;
+
+	if (Array.isArray(obj)) {
+		return obj.map(deepFilterNulls) as unknown as T;
+	}
+
+	const result: any = {};
+	for (const [key, value] of Object.entries(obj)) {
+		if (value === null) continue;
+		result[key] = deepFilterNulls(value);
+	}
+	return result;
+}
+
 /**
  * recursive utility type called PartialWithNull<T> that allows any property in the tree to be either:
  * the original type, a partial object of that type (for nested objects), or null.
@@ -61,19 +76,20 @@ type PartialWithNull<T> = {
 function updateState(update: PartialWithNull<GameDTO>) {
 	const paths = findNullPaths(update);
 
-	if (paths.length > 0) {
-		game.update((state) => {
-			let newState = { ...state };
+	game.update((state) => {
+		let newState = { ...state };
 
-			for (const path of paths) {
-				newState = removePathFromObject(newState, path);
-			}
+		// 1. Remove nulls
+		for (const path of paths) {
+			newState = removePathFromObject(newState, path);
+		}
 
-			return newState;
-		});
-	} else {
-		game.update((state) => merge(state, update));
-	}
+		// 2. Remove nulls from update object itself (so merge doesn’t re-add them)
+		const cleanedUpdate = deepFilterNulls(update);
+
+		// 3. Merge in the remaining values
+		return merge(newState, cleanedUpdate);
+	});
 }
 
 export const gameStore = {

@@ -18,7 +18,7 @@ describe('gameStore', () => {
 		gameStore.set({});
 	});
 
-	it('should add a new card to the store', () => {
+	it('should add a new card to the table', () => {
 		const id = 'card:name:index';
 		const cardState = mockCard;
 
@@ -38,7 +38,7 @@ describe('Tray', () => {
 		gameStore.set(initGameState);
 	});
 
-	it.only('add to tray', () => {
+	it('add to tray', () => {
 		const card = get(gameStore).cards?.[CARD_ID] as GameDTO['cards'][string];
 		const trayRecord = { [CARD_ID as string]: card };
 		gameStore.updateState({
@@ -55,5 +55,31 @@ describe('Tray', () => {
 		expect(storeState?.cards).toEqual({
 			'card:player2:index': mockCard
 		});
+	});
+
+	it('add to tray with cards', () => {
+		const trayWithCards = { mock1: mockCard, mock2: mockCard }; // 2 cards in tray
+		const tableWithCards = { mock3: mockCard, mock4: mockCard }; // 2 cards on table
+		gameStore.set({
+			players: { me: { tray: { ...trayWithCards } } },
+			cards: { ...tableWithCards }
+		});
+
+		const initStore = get(gameStore);
+		expect(initStore).toEqual({
+			players: { me: { tray: { ...trayWithCards } } },
+			cards: { ...tableWithCards }
+		}); // expect store to have 2 in hand & 2 on table
+
+		gameStore.updateState({
+			players: { me: { tray: { mock3: mockCard } } }, // add mock3 to tray
+			cards: { mock3: null } // remove mock3 from table
+		});
+
+		const updatedStore = get(gameStore);
+		expect(updatedStore).toEqual({
+			players: { me: { tray: { ...trayWithCards, mock3: mockCard } } },
+			cards: { mock4: mockCard }
+		}); // expect store to have 3 in hand & 1 on table
 	});
 });
