@@ -54,9 +54,10 @@ function initDeck(props: { isFaceUp?: boolean }) {
 	const newDeckIndex = deckIds.length; // length - 1 = last item, so length = next item
 	const deckId = `deck:${id}:${newDeckIndex}`;
 	playerStore.addDeckToPlayer(id, deckId);
+	const mod = props.isFaceUp ? 2 : 0;
 	const positions = [
-		[8.5, 0.4, 4.5],
-		[8.5, 0.4, -4.7]
+		[8.5 + mod, 0.4, 4.5],
+		[8.5 + mod, 0.4, -4.7]
 	];
 
 	const rotations = [
