@@ -59,8 +59,10 @@ function drawFromTop(id: string) {
 		return console.error('Cannot draw from an empty deck');
 
 	const card = isFaceUp ? cards.shift() : cards.pop();
-	gameStore.updateState({ decks: { [id]: { cards } } });
-	return card;
+	gameStore.updateState({
+		decks: { [id]: { cards } }
+	});
+	return card; // returns card to hoist into cards for dragging
 }
 
 type Card = NonNullable<GameDTO['decks'][string]['cards']>[number];
@@ -77,7 +79,10 @@ function placeOnTopOfDeck(deckId: string, cardId: string) {
 	if (!cards) return console.error('No cards found in deck');
 
 	isFaceUp ? cards.unshift(card as Card) : cards.push(card as Card);
-	return gameStore.updateState({ decks: { [deckId]: { cards } } });
+	return gameStore.updateState({
+		cards: { [cardId]: null },
+		decks: { [deckId]: { cards } }
+	});
 }
 
 /**
