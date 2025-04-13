@@ -40,9 +40,6 @@
 		const data = await response.json();
 		console.log('res deck:', response, data);
 	}
-
-	$inspect('xxxxx - local player store', $playerStore);
-	$inspect('xxxxx - local deck store', $deckStore);
 </script>
 
 <svelte:head>
