@@ -48,7 +48,17 @@ function removePathFromObject(obj: any, path: string[]): any {
 	};
 }
 
-function updateState(update: Partial<GameDTO>) {
+/**
+ * recursive utility type called PartialWithNull<T> that allows any property in the tree to be either:
+ * the original type, a partial object of that type (for nested objects), or null.
+ * */
+type PartialWithNull<T> = {
+	[P in keyof T]?: T[P] extends object
+		? PartialWithNull<T[P]> | null
+		: T[P] | null;
+};
+
+function updateState(update: PartialWithNull<GameDTO>) {
 	const paths = findNullPaths(update);
 
 	if (paths.length > 0) {

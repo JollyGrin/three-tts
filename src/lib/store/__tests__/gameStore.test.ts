@@ -49,6 +49,11 @@ describe('Tray', () => {
 		});
 
 		const storeState = get(gameStore);
-		expect(storeState?.players?.['player:me']?.tray?.[CARD_ID]).toEqual(card);
+		expect(storeState?.players?.['player:me']?.tray).toEqual({
+			[CARD_ID]: card
+		});
+		expect(storeState?.cards).toEqual({
+			'card:player2:index': mockCard
+		});
 	});
 });
