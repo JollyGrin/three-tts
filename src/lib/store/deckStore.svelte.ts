@@ -5,6 +5,7 @@ import { getStaticResourceUrl } from '$lib/utils/image';
 import { playerStore } from './playerStore.svelte';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 import { localStateUpdater, transformPayload } from './transform-helpers';
+import { DEG2RAD } from 'three/src/math/MathUtils.js';
 
 type CardInDeck = Omit<CardState, 'position' | 'rotation'> & { id: string };
 
@@ -48,14 +49,24 @@ function updateDeck(
 }
 
 function initDeck(props: { isFaceUp?: boolean }) {
-	const { id, deckIds } = playerStore.getMe() ?? {};
+	const { id, deckIds, seat } = playerStore.getMe() ?? {};
 	if (!id || !deckIds) return;
 	const newDeckIndex = deckIds.length; // length - 1 = last item, so length = next item
 	const deckId = `deck:${id}:${newDeckIndex}`;
 	playerStore.addDeckToPlayer(id, deckId);
+	const positions = [
+		[8.5, 0.4, 4.5],
+		[8.5, 0.4, -4.7]
+	];
+
+	const rotations = [
+		[0, 0, 0],
+		[0, DEG2RAD * 180, 0]
+	];
 	deckStore.updateDeck(deckId, {
 		isFaceUp: props.isFaceUp ?? false,
-		position: [8.5, 0.4, 3],
+		position: positions[seat % positions.length] as [number, number, number],
+		rotation: rotations[seat % rotations.length] as [number, number, number],
 		cards: generateCardImages(2).map((slug, index) => ({
 			id: `card:playername:${slug}-${index}`,
 			faceImageUrl: getSorceryCardImage(slug),
