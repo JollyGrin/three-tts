@@ -5,18 +5,16 @@
 	import { HUD, interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
-	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { objectStore } from '$lib/store/objectStore.svelte';
-	import type { CardState } from '$lib/store/objectStore.svelte';
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
-	import { deckStore } from './store/deckStore.svelte';
-	import { generateCardImages, getSorceryCardImage } from './utils/mock/cards';
-	import { getStaticResourceUrl } from './utils/image';
+	import { dragStore } from '$lib/store/dragStore.svelte';
+	import { gameStore } from './store/game/gameStore.svelte';
+	import type { GameDTO } from './store/game/types';
+	type CardDTO = GameDTO['cards'][string];
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -34,7 +32,8 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				objectStore.updateCardState($dragStore.isDragging as string, [x, 2.5, z]);
+				const cardId = $dragStore.isDragging as string;
+				gameStore.updateState({ cards: { [cardId]: { position: [x, 2.5, z] } } });
 			}
 
 			state.pointer.update((p) => {
@@ -48,51 +47,7 @@
 		}
 	});
 
-	const init = [
-		'beast_of_burden',
-		'bosk_troll',
-		'border_militia',
-		'abundance-f',
-		'vile_imp',
-		'flame_wave'
-	].map((card, index) => [
-		`card:playername:${index + 1}`,
-		[-6 + index * 2, 0, 0],
-		`https://card.cards.army/cards/${card}.webp`
-	]);
-
-	const initCards = init;
-
-	initCards.forEach(([id, position, faceImageUrl]) => {
-		objectStore.updateCardState(
-			id as string,
-			position as [number, number, number],
-			faceImageUrl as string,
-			undefined,
-			getStaticResourceUrl('/s-back.jpg')
-		);
-	});
-
-	deckStore.updateDeck(`deck:playername:1`, {
-		position: [8.25, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getStaticResourceUrl('/s-back.jpg')
-		}))
-	});
-
-	deckStore.updateDeck(`deck:playername:2`, {
-		isFaceUp: true,
-		position: [10, 0.4, 3],
-		cards: generateCardImages(30).map((slug, index) => ({
-			id: `card:playername:${slug}-${index}`,
-			faceImageUrl: getSorceryCardImage(slug),
-			backImageUrl: getStaticResourceUrl('/s-back.jpg')
-		}))
-	});
-
-	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
+	const cards = $derived(Object.entries($gameStore?.cards ?? {}) as [string, CardDTO][]);
 </script>
 
 <TableCamera />
@@ -111,7 +66,7 @@
 	<Intersection />
 	<Table bind:mesh />
 
-	{#each Object.entries($deckStore) as [id] (id)}
+	{#each Object.entries($gameStore?.decks ?? {}) as [id] (id)}
 		<Deck {id} />
 	{/each}
 

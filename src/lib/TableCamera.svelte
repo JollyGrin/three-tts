@@ -2,7 +2,8 @@
 	import { T } from '@threlte/core';
 	import { OrbitControls } from '@threlte/extras';
 	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { seatStore } from '$lib/store/seatStore.svelte';
+	import { gameActions } from './store/game/actions';
+	import { gameStore } from './store/game/gameStore.svelte';
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 
@@ -13,13 +14,12 @@
 		[0.1, y, 0],
 		[-0.1, y, 0]
 	];
+
+	const myId = gameActions?.getMyId() ?? '';
+	const seat = $derived($gameStore?.players?.[myId]?.seat ?? 0);
 </script>
 
-<T.PerspectiveCamera
-	makeDefault
-	position={seating[$seatStore.seat] as [number, number, number]}
-	fov={35}
->
+<T.PerspectiveCamera makeDefault position={seating[seat] as [number, number, number]} fov={35}>
 	<OrbitControls
 		enableRotate={!isDragging}
 		enableDamping

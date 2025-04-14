@@ -2,12 +2,13 @@
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { ImageMaterial, interactivity } from '@threlte/extras';
-	import { objectStore } from '$lib/store/objectStore.svelte';
-	import { dragEnd, dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
-	import { trayStore } from '$lib/store/trayStore.svelte';
-	import { degrees, seatStore } from '$lib/store/seatStore.svelte';
+	import { degrees } from '$lib/utils/constants-rotation';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { getStaticResourceUrl } from '$lib/utils/image';
+	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { gameActions } from '$lib/store/game/actions';
 
 	interactivity();
 	let {
@@ -15,7 +16,9 @@
 		index = 0,
 		trayWidth = 0
 	}: { id: string; index: number; trayWidth?: number } = $props();
-	const card = $derived($trayStore[id]);
+
+	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
+	const card = $derived($gameStore?.players?.[myPlayerId]?.tray?.[id] ?? {});
 
 	let isCardHovered = $state(false);
 	let emissiveIntensity = $state(0);
@@ -51,12 +54,20 @@
 	}
 	function handleDragStart() {
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
-		objectStore.updateCardState(id, [x, 2.5, z], card.faceImageUrl, [
-			0,
-			0,
-			-degrees[$seatStore.seat] / DEG2RAD // should be facing the player in seat
-		]);
-		trayStore.removeCard(id);
+
+		const movedCard = gameActions.moveCardOutOfTray(id, myPlayerId);
+		gameStore?.updateState({
+			cards: {
+				[id]: {
+					...movedCard,
+					position: [x, 2.5, z],
+					rotation: [0, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
+					faceImageUrl: movedCard?.faceImageUrl ?? card?.faceImageUrl,
+					backImageUrl:
+						movedCard?.backImageUrl ?? card.backImageUrl ?? getStaticResourceUrl('/s-back.jpg') // TODO: update this with its actual cardback
+				}
+			}
+		});
 		dragStart(id, 2.5);
 	}
 </script>
@@ -71,5 +82,11 @@
 	onpointerdown={handleDragStart}
 >
 	<T.PlaneGeometry args={cardSize} />
-	<ImageMaterial url={card.faceImageUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
+	<ImageMaterial
+		url={card.faceImageUrl ?? ''}
+		side={2}
+		radius={0.1}
+		transparent={true}
+		opacity={0.9}
+	/>
 </T.Mesh>

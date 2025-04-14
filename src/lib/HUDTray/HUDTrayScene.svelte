@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import { dragStore, setTrayHover } from '$lib/store/dragStore.svelte';
-	import { trayStore } from '$lib/store/trayStore.svelte';
 	import * as THREE from 'three';
 	import { useViewport, interactivity } from '@threlte/extras';
 	import TrayCard from './TrayCard.svelte';
-	import type { CardState } from '$lib/store/objectStore.svelte';
+	import type { GameDTO } from '$lib/store/game/types';
+	import { gameActions } from '$lib/store/game/actions';
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
 
 	interactivity();
 	let {}: {} = $props();
@@ -19,7 +20,13 @@
 
 	let trayMesh: THREE.Mesh | undefined = $state(undefined);
 
-	const cards = $derived(Object.entries($trayStore) as [string, CardState][]);
+	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
+	const cards = $derived(
+		Object.entries($gameStore?.players?.[myPlayerId]?.tray ?? {}) as [
+			string,
+			GameDTO['cards'][string]
+		][]
+	);
 </script>
 
 <T.OrthographicCamera makeDefault zoom={80} position={[0, 0, 10]} />

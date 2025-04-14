@@ -24,43 +24,44 @@ This plan outlines the implementation of a websocket server for a tabletop simul
 - **Permission System**: Controls who can update which parts of the game state
 
 ## 2. Data Structure
+the gamestate is broken down into:
+- decks: all decks on the table (location, rotation, cards, face up/down)
+- objects: all cards on the table (location, rotation, face/back image)
+- players: all players in the game
+    - player: meatadata (life, resources), deckIds, tray*, seat*
+    * (tray & seat are updated via a subscription to the local stores. This means only the local player can update their own state)
 
-Based on the server README, the data model will follow this structure:
-
-```typescript
-// Server-side data model
-interface GameState {
-  boardState: BoardState;
-  playerStates: PlayerStates;
+all of these are records for quick lookups and path adjustments. For example:
+```
+const decks = {
+    deck1: {...state},
+    deck2: {...state},
+    ...
+}
+const objects = {
+    object1: {...state},
+}
+const players = {
+    player1: {...state},
+    player2: {...state},
+    ...
 }
 
-// Anyone can update objects on the board
-interface BoardState {
-  [objectId: string]: ObjectState;
-}
+const gamestate = {decks, objects, players, lobbyId}
+```
+The entire gamestate should always be on the server, so that if a player reloads the page, everything is synced.
 
-// Only the owner of a player can update their state
-interface PlayerStates {
-  [playerId: string]: {
-    metadata: PlayerMetadata; // Game information (life, mana, etc.)
-    decks: {
-      [deckId: string]: DeckState;
-    };
-    tray: TrayState; // Cards in hand only visible to player
-  };
-}
+Updates to the gamestate should be through surgical changes. 
+When a player broadcasts a change, it will just be the path towards the variable to be changed in the gamestate, and the new value. 
+Then each client should be able read this message and apply it locally in their client stores.
+
 ```
 
 ## 3. Client-Server Integration
 
 ### 3.1 Client Store Integration
 The current client stores need to be connected to the websocket layer:
-
-- **objectStore**: Will sync with server's `boardState` for card positions and states
-- **deckStore**: Will sync with `playerStates[playerId].decks` 
-- **trayStore**: Will sync with `playerStates[playerId].tray` (private to each player)
-- **seatStore**: Will be part of `playerStates[playerId].metadata` for player orientation
-- **dragStore**: Mostly client-side, but drag end events trigger state updates
+read the readme in lib/stores/README-stores.md for information how the svelte stores are setup to update the client. Remember that since decks and objects are on the table, anyone can touch and update them.
 
 ### 3.2 Surgical Updates
 Both server-to-client and client-to-server updates should be surgical to minimize data transfer:
@@ -68,9 +69,9 @@ Both server-to-client and client-to-server updates should be surgical to minimiz
 ```typescript
 // Example surgical update format
 interface StateUpdate {
-  target: 'board' | 'player' | 'deck' | 'tray';
+  target: 'player' | 'deck' | 'object';
   action: 'add' | 'update' | 'remove';
-  path: string[]; // e.g., ['playerStates', 'player1', 'decks', 'deck1']
+  path: string[]; // e.g., ['deck', 'deck1', 'cards'] or ['object', 'card3', 'position']
   value: any; // The new value for the specified path
 }
 ```
@@ -81,14 +82,14 @@ interface StateUpdate {
 - **Connect**: Initial connection with player ID, secret passphrase, lobby ID
 - **Sync**: Full state sync (used on initial connection or reconnection)
 - **Update**: Surgical update to a specific part of the state
-- **Action**: Game actions like drawing cards, shuffling decks
+- @deprecated: move actions to update - **Action**: Game actions like drawing cards, shuffling decks
 - **Error**: Error messages from server
-- **PlayerList**: Updates about players in the lobby
+- @deprecated: move playerList to and update to players **PlayerList**: Updates about players in the lobby
 
 ### 4.2 Message Structure
 ```typescript
 interface Message {
-  type: 'connect' | 'sync' | 'update' | 'action' | 'error' | 'playerList';
+  type: 'connect' | 'sync' | 'update' | 'error';
   payload: any;
   timestamp: number;
   playerId: string;
@@ -101,21 +102,19 @@ interface Message {
 ## 5. Authorization and Permissions
 
 ### 5.1 Permission Rules
-- **Board objects**: Any player can update
-- **Player state**: Only the owner can update
-- **Player metadata**: Only the owner can update
-- **Player decks**: Only the owner can update
-- **Player tray**: Only the owner can update
+- objects: all objects are on the table and able to be moved/updated by anyone
+- decks: all decks are on the table and able to be moved/updated by anyone
+- players: players holds all the players, but the client will only send updates their own player data.
 
 ### 5.2 Implementation
-- Use player ID and optional secret passphrase for authentication
-- Validate each update message against permission rules
+- Use player ID and optional secret passphrase for authentication. Can just join with lobby id and player id
+- @deprecated: not needed? keep it simple and handle restriction on client Validate each update message against permission rules
 - Reject unauthorized updates with appropriate error messages
 
 ## 6. Implementation Steps
 
 ### 6.1 Server Setup
-1. Create a basic Bun server with websocket support
+1. Create a basic go server with websocket support
 2. Implement connection handling and lobby management
 3. Set up the data structure for game state
 4. Create permission validation system
@@ -125,36 +124,27 @@ interface Message {
 2. Create handlers for each message type
 3. Set up surgical update processor
 4. Implement state diffing for efficient updates
+5. All messages should have the id of the player who initiated it and the timestamp of the action
 
 ### 6.3 Client Integration
 1. Refactor client stores to connect with websocket
 2. Add reconnection and sync functionality
 3. Create middleware for sending updates to server
 4. Implement client-side permissions validation
+5. Keep ALL integrations seperate from client stores. Do not edit client stores directly. Instead use an init function to change store update functions with a websocket wrapper that sends the message
+6. When receiving messages from the server, apply them to the client stores BUT do not rebroadcast these updates. Only send updates to the server when local player iniates.
+    - This is very important to get right, otherwise will create a feedback loop where broadcasting will update opponent, then this update triggers them to broadcast, causing you to update and trigger... and so on. 
+    - should be clever enough to detect and avoid this.
 
-### 6.4 Testing
-1. Create test scenarios for different message types
-2. Test permissions with multiple players
-3. Stress test with multiple updates
-4. Test reconnection scenarios
 
 ## 7. Optimizations
 
 ### 7.1 Bandwidth Optimization
 - Use JSON for message format with minimal payload size
-- Implement binary protocol for position/rotation updates if needed
 - Group multiple rapid updates (e.g., during movement) into batches
 
 ### 7.2 Latency Handling
-- Implement client-side prediction for smooth movement
 - Use timestamps for order resolution
-- Consider lockstep synchronization for action-critical moments
-
-## 8. Deployment Considerations
-- Keep server stateless where possible for scaling
-- Consider persistence layer for game state if needed
-- Implement monitoring and logging
-- Plan for horizontal scaling for multiple game lobbies
 
 ## Next Steps
 

@@ -1,8 +1,10 @@
 # Browser TTS
 Recreating table top simulator in the browser using threejs (threlte)
 
-## TODO
-- create a hand HUD, so that you can have cards visible at bottom of screen that are in your hand
+# Notes:
+- debugging websocket. Adding the send broadcast in storeIntegrations by wrapping the store functions
+- working with partial and full update in path (see notes in file)
+- need to have this update the client and prevent feedback loops
 
 --- 
 
