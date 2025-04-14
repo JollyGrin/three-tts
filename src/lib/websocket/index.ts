@@ -83,15 +83,12 @@ function setupMessageHandlers(): void {
 
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
-				console.log('xxxxx sync state', message);
-
 				gameStore.updateStateSilently(message.value);
 
 				break;
 
 			case 'update':
 				console.log('Received update message', message);
-
 				gameStore.updateStateSilently(message.value);
 
 				break;
