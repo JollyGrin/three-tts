@@ -1,7 +1,4 @@
-import { playerStore } from '$lib/store/playerStore.svelte';
-import type { DeckDTO } from '$lib/store/deckStore.svelte';
-import type { PlayerDTO } from '$lib/store/playerStore.svelte';
-import type { CardState as CardDTO } from '$lib/store/objectStore.svelte';
+import { gameActions } from '$lib/store/game/actions';
 
 export type ConnectedPlayer = {
 	id: string;
@@ -52,7 +49,7 @@ export async function connect(
 	}
 
 	isConnecting = true;
-	const player = playerStore.getMe();
+	const player = gameActions.getMe();
 
 	if (!player) {
 		console.error('No player found in store');
@@ -138,8 +135,8 @@ export async function joinLobby(
 		if (!connected) return false;
 	}
 
-	const player = playerStore.getMe();
-	if (!player) {
+	const playerId = gameActions.getMyId();
+	if (!playerId) {
 		console.error('No player found in store');
 		return false;
 	}
@@ -147,7 +144,7 @@ export async function joinLobby(
 	// Send join message
 	const joinMessage: WebSocketMessage = {
 		type: 'connect',
-		playerId: player.id,
+		playerId: playerId,
 		timestamp: Date.now()
 	};
 
@@ -160,7 +157,11 @@ export async function joinLobby(
  * @returns True if sent successfully
  */
 export function sendMessage(message: WebSocketMessage): boolean {
-	if (!socket || !isConnected) {
+	if (!socket) {
+		console.error('Cannot send message: no websocket server instance');
+		return false;
+	}
+	if (!isConnected) {
 		console.error('Cannot send message: not connected to websocket server');
 		return false;
 	}
