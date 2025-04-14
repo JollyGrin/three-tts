@@ -26,7 +26,6 @@ function addPlayer(_id?: string) {
 				seat: 0,
 				joinTimestamp: Date.now(),
 				tray: {},
-				deckIds: [],
 				metadata: {}
 			}
 		}
