@@ -51,7 +51,11 @@ type OverlayDTO = {
 	position: [number, number, number];
 	rotation: [number, number, number];
 	imageUrl: string;
+	/**
+	 * ratio of width/height
+	 * */
 	ratio: number;
+	scale: number;
 };
 
 export interface GameDTO {
