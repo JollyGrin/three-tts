@@ -20,15 +20,12 @@
 		if ($dragStore.isTrayHovered) {
 			console.log('Storing in hand:', id, faceImageUrl);
 			gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
-			// trayStore.updateCard(id, { position: [0, 0, 0], faceImageUrl });
-			// objectStore.removeCard(id);
 		}
 
 		if (!!$dragStore.isDeckHovered) {
 			const deckIdHovered = $dragStore.isDeckHovered;
 			console.log('Storing in deck', deckIdHovered);
 			gameActions.placeOnTopOfDeck(deckIdHovered, id);
-			// objectStore.removeCard(id);
 		}
 
 		dragEnd();
