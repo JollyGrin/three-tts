@@ -94,5 +94,8 @@ function updateState(update: PartialWithNull<GameDTO>) {
 
 export const gameStore = {
 	...game,
-	updateState
+	// NOTE: wrapped in storeIntegration.ts to broadcast messages
+	updateState,
+	// NOTE: silent used in websocket/index.ts to sync received messages without rebroadcasting
+	updateStateSilently: updateState
 };
