@@ -1,6 +1,10 @@
 <script lang="ts">
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { T } from '@threlte/core';
 	import { ImageMaterial } from '@threlte/extras';
+
+	let { id = '' }: { id: string } = $props();
+	const overlay = $derived($gameStore.overlays?.[id]);
 </script>
 
 <T.Group position.y={0.255}>

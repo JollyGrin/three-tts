@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
-	import { RigidBody, Collider } from '@threlte/rapier';
 	import * as THREE from 'three';
 	import { dragEnd, dragStore } from './store/dragStore.svelte';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
-	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { gameActions } from './store/game/actions';
-	import OverlaySorceryGrid from './table-overlay/OverlaySorceryGrid.svelte';
+	import { gameStore } from './store/game/gameStore.svelte';
+	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
@@ -98,7 +97,9 @@
 	});
 </script>
 
-<OverlaySorceryGrid />
+{#each Object.keys($gameStore?.overlays ?? {}) as overlayId (overlayId)}
+	<OverlayCustom id={overlayId} />
+{/each}
 
 <Grid
 	position.y={0.255}
