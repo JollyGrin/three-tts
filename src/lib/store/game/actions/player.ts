@@ -40,6 +40,11 @@ function getMe() {
 	if (!cacheId) return console.error('No player id found in localstorage');
 	return get(gameStore)?.players?.[cacheId];
 }
+function getMyId() {
+	const cacheId = handleLocalStorage.get();
+	if (!cacheId) return console.error('No player id found in localstorage');
+	return cacheId;
+}
 
 function setSeat(seat?: GameDTO['players'][string]['seat']) {
 	const myPlayerId = getMe()?.id;
@@ -69,6 +74,7 @@ export const playerActions = {
 	addPlayer,
 	getPlayer,
 	getMe,
+	getMyId,
 	setSeat,
 	getMySeat
 };
