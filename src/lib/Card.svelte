@@ -107,7 +107,7 @@
 	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
 		<ImageMaterial
-			url={faceImageUrl}
+			url={faceImageUrl ?? ''}
 			side={0}
 			radius={0.1}
 			monochromeColor={'#fff'}
