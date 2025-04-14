@@ -92,6 +92,8 @@ function setupMessageHandlers(): void {
 			case 'update':
 				console.log('Received update message', message);
 
+				gameStore.updateStateSilently(message.value);
+
 				break;
 
 			case 'error':
