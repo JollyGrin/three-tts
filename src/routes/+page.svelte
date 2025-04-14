@@ -9,6 +9,11 @@
 	import { deckStore } from '$lib/store/deckStore.svelte';
 	import { initWrappers } from '$lib/websocket/storeIntegration';
 	import { initWebsocket } from '$lib/websocket';
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
+
+	$inspect('cards:', $gameStore?.cards);
+	$inspect('players:', $gameStore?.players);
+	$inspect('decks:', $gameStore?.decks);
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
