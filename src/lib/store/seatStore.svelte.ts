@@ -26,4 +26,7 @@ function setSeat(seat?: 0 | 1 | 2 | 3) {
 	seatStore.set({ seat });
 }
 
+/**
+ * @deprecated replace with gameStore
+ * */
 export { seatStore, setSeat, degrees };

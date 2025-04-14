@@ -128,7 +128,13 @@ const unsubSeatStore = seatStore.subscribe((state) => {
 	});
 });
 
+/**
+ * @deprecated replace with gameStore
+ * */
 export type { PlayerDTO };
+/**
+ * @deprecated replace with gameStore
+ * */
 export const playerStore = {
 	...players,
 	getPlayer,

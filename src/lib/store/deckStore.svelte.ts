@@ -109,6 +109,9 @@ function getDeckLength(id: string) {
 	return get(decks)[id].cards.length;
 }
 
+/**
+ * @deprecated replace with gameStore
+ * */
 export const deckStore = {
 	...decks,
 	updateDeck,
