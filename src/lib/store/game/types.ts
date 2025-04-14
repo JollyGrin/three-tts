@@ -41,11 +41,6 @@ type PlayerDTO = SeatState & {
 	joinTimestamp: number;
 	tray: Record<string, Partial<CardDTO | null>>;
 	/**
-	 * The ids of the decks owned by player
-	 * reference in deckStore
-	 * */
-	deckIds: string[];
-	/**
 	 * extend for future use with life/resources
 	 * */
 	metadata: any;
