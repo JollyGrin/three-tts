@@ -58,9 +58,17 @@ function setSeat(seat?: GameDTO['players'][string]['seat']) {
 	return gameStore?.updateState({ players: { [myPlayerId]: { seat } } });
 }
 
+function getMySeat() {
+	const myPlayerId = getMe()?.id;
+	if (!myPlayerId) return 0;
+	const mySeat = get(gameStore)?.players?.[myPlayerId]?.seat ?? 0;
+	return mySeat;
+}
+
 export const playerActions = {
 	addPlayer,
 	getPlayer,
 	getMe,
-	setSeat
+	setSeat,
+	getMySeat
 };
