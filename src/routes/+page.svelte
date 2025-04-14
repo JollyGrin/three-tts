@@ -7,12 +7,15 @@
 	import { initWebsocket } from '$lib/websocket';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
+	import ModalConnection from '$lib/Settings/ModalConnection.svelte';
 
 	$inspect('cards:', $gameStore?.cards);
 	$inspect('players:', $gameStore?.players);
 	$inspect('decks:', $gameStore?.decks);
 
+	let isConnectionModalOpen = $state(false);
 	function handleKeyDown(event: KeyboardEvent) {
+		if (!isConnectionModalOpen) event.preventDefault();
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
 		if (event.code === 'KeyF') gameActions.flipCard();
 		if (event.code === 'KeyT') gameActions.tapCard();
@@ -44,10 +47,14 @@
 	<meta name="description" content="Tabletop Simulator but in the browser" />
 </svelte:head>
 
-<svelte:window on:keydown|preventDefault={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
+<svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
+
+{#if isConnectionModalOpen}
+	<ModalConnection onClose={() => (isConnectionModalOpen = false)} />
+{/if}
 
 <div
-	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"
+	class="fixed top-1 right-1 z-10 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"
 >
 	<button onclick={() => gameActions.setSeat()}>
 		<span class="bg-gray-400 px-2"
@@ -77,6 +84,10 @@
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> r </span>
 		<span class="text-white"> Reverse Tap card </span>
 	</button>
+
+	<button onclick={() => (isConnectionModalOpen = true)}>
+		<span class="text-white"> Settings </span>
+	</button>
 </div>
 
 <!-- <div class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"> -->
@@ -86,7 +97,7 @@
 
 {#if true && showInitDeck}
 	<button
-		class="fixed right-1 bottom-6 z-50 flex w-fit rounded bg-white p-2"
+		class="fixed right-1 bottom-6 z-10 flex w-fit rounded bg-white p-2"
 		onclick={() => {
 			gameActions.initDeck({
 				isFaceUp: false
