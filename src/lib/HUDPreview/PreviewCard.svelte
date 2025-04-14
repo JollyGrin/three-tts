@@ -1,12 +1,13 @@
 <script lang="ts">
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import type { GameDTO } from '$lib/store/game/types';
 	import { T } from '@threlte/core';
 	import { ImageMaterial, interactivity } from '@threlte/extras';
-	import { objectStore } from '$lib/store/objectStore.svelte';
 
 	interactivity();
 	let { id }: { id: string } = $props();
-	const card = $derived($objectStore[id]);
-	const isFlipped = $derived(card?.rotation[0] === 180);
+	const card = $derived($gameStore?.cards?.[id] as NonNullable<GameDTO['cards'][string]>);
+	const isFlipped = $derived((card?.rotation ?? [0])[0] === 180);
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
 </script>

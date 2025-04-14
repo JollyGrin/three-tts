@@ -36,6 +36,9 @@ function getCardState(id: string): CardState | undefined {
 	return get(cards)[id];
 }
 
+/**
+ * @deprecated replace with gameStore
+ * */
 export const objectStore = {
 	updateCard,
 	// NOTE: silent updated in storeIntegration.ts

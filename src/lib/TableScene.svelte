@@ -5,16 +5,16 @@
 	import { HUD, interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
-	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { objectStore } from '$lib/store/objectStore.svelte';
-	import type { CardState } from '$lib/store/objectStore.svelte';
 	import TableCamera from './TableCamera.svelte';
 	import Intersection from './Intersection.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
-	import { deckStore } from './store/deckStore.svelte';
+	import { dragStore } from '$lib/store/dragStore.svelte';
+	import { gameStore } from './store/game/gameStore.svelte';
+	import type { GameDTO } from './store/game/types';
+	type CardDTO = GameDTO['cards'][string];
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -32,9 +32,8 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				objectStore.updateCard($dragStore.isDragging as string, {
-					position: [x, 2.5, z]
-				});
+				const cardId = $dragStore.isDragging as string;
+				gameStore.updateState({ cards: { [cardId]: { position: [x, 2.5, z] } } });
 			}
 
 			state.pointer.update((p) => {
@@ -48,7 +47,7 @@
 		}
 	});
 
-	const cards = $derived(Object.entries($objectStore) as [string, CardState][]);
+	const cards = $derived(Object.entries($gameStore?.cards ?? {}) as [string, CardDTO][]);
 </script>
 
 <TableCamera />
@@ -67,7 +66,7 @@
 	<Intersection />
 	<Table bind:mesh />
 
-	{#each Object.entries($deckStore) as [id] (id)}
+	{#each Object.entries($gameStore?.decks ?? {}) as [id] (id)}
 		<Deck {id} />
 	{/each}
 

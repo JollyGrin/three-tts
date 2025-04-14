@@ -28,16 +28,18 @@ type DeckDTO = {
 	cards: CardInDeck[];
 };
 
-type PlayerDTO = {
+interface SeatState {
+	seat:
+		| 0 // 0deg
+		| 1 // 180deg
+		| 2 // 90deg
+		| 3; // 270deg
+}
+
+type PlayerDTO = SeatState & {
 	id: string;
 	joinTimestamp: number;
 	tray: Record<string, Partial<CardDTO | null>>;
-	seat: 0 | 1 | 2 | 3;
-	/**
-	 * The ids of the decks owned by player
-	 * reference in deckStore
-	 * */
-	deckIds: string[];
 	/**
 	 * extend for future use with life/resources
 	 * */

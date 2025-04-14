@@ -1,10 +1,12 @@
-import { deckStore } from '$lib/store/deckStore.svelte';
-import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
-import { playerStore } from '$lib/store/playerStore.svelte';
+import { gameStore } from '$lib/store/game/gameStore.svelte';
+import type { GameDTO } from '$lib/store/game/types';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 import { createWsMetaData } from '$lib/utils/transforms/websocket';
 import { sendMessage } from './connection';
 
+/**
+ * @deprecated
+ * */
 export function wsWrapperObjectUpdate(fn: Function) {
 	return function passArgs(...args: any[]) {
 		const [cardId, ...rest] = args;
@@ -31,6 +33,9 @@ export function wsWrapperObjectUpdate(fn: Function) {
 	};
 }
 
+/**
+ * @deprecated
+ * */
 export function wsWrapperPlayerUpdate(fn: Function) {
 	return function passArgs(...args: any[]) {
 		console.log('ws player: spread args:', args, ...args);
@@ -51,6 +56,9 @@ export function wsWrapperPlayerUpdate(fn: Function) {
 	};
 }
 
+/**
+ * @deprecated
+ * */
 export function wsWrapperUpdateDeck(fn: Function) {
 	return function passArgs(...args: any[]) {
 		console.log('ws deck: spread args', ...args);
@@ -76,16 +84,32 @@ export function wsWrapperUpdateDeck(fn: Function) {
 	};
 }
 
+export function wsWrapperUpdateGameState(fn: Function) {
+	return function passArgs(...args: any[]) {
+		console.log('ws update gamestate: spread args', ...args);
+		const metadata = createWsMetaData();
+		if (!metadata.playerId || metadata.playerId === '') {
+			console.warn(
+				'wsWrapperUpdateGameState: No playerId found when creating websocket metadata'
+			);
+			return fn(...args);
+		}
+
+		const [...[rest]] = args;
+
+		const payload = {
+			...createWsMetaData(),
+			value: { ...(rest as GameDTO) }
+		};
+		console.log('ws update gamestate payload:', payload);
+		sendMessage(payload);
+
+		return fn(...args);
+	};
+}
+
 export function initWrappers() {
-	const originalFnUpdateObject = objectStore.updateCard;
-	objectStore.updateCard = wsWrapperObjectUpdate(originalFnUpdateObject);
-	objectStore.silentUpdateCard = originalFnUpdateObject;
-
-	const originalFnUpdatePlayer = playerStore.updatePlayer;
-	playerStore.updatePlayer = wsWrapperPlayerUpdate(originalFnUpdatePlayer);
-	playerStore.silentUpdatePlayer = originalFnUpdatePlayer;
-
-	const originalFnUpdateDeck = deckStore.updateDeck;
-	deckStore.updateDeck = wsWrapperUpdateDeck(originalFnUpdateDeck);
-	deckStore.silentUpdateDeck = originalFnUpdateDeck;
+	const originalFn = gameStore.updateState;
+	gameStore.updateState = wsWrapperUpdateGameState(originalFn);
+	gameStore.updateStateSilently = originalFn;
 }

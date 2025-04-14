@@ -31,6 +31,9 @@ function getCardState(id: string): CardState | undefined {
 	return get(cards)[id];
 }
 
+/**
+ * @deprecated replace with gameStore
+ * */
 export const trayStore = {
 	updateCard,
 	removeCard,

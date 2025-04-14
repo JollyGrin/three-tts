@@ -2,35 +2,45 @@
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { dragStart, dragStore } from './store/dragStore.svelte';
-	import { objectStore } from './store/objectStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
-	import { degrees, seatStore } from './store/seatStore.svelte';
+	import { degrees } from '$lib/utils/constants-rotation';
+	import { gameStore } from './store/game/gameStore.svelte';
+	import type { GameDTO } from './store/game/types';
+	import { gameActions } from './store/game/actions';
+	type Vec3Array = [number, number, number];
 
 	let { id } = $props();
 
 	let card: THREE.Mesh | undefined = $state();
+	const initCardState: GameDTO['cards'][string] = {
+		faceImageUrl: '',
+		backImageUrl: '',
+		position: [0, 0, 0],
+		rotation: [0, 0, 0]
+	};
 
 	const isDragging = $derived($dragStore.isDragging === id);
-	const faceImageUrl = $derived($objectStore[id]?.faceImageUrl);
-	const backImageUrl = $derived($objectStore[id]?.backImageUrl);
+	const cardState = $derived($gameStore?.cards?.[id] ?? initCardState);
+	const faceImageUrl = $derived(cardState?.faceImageUrl);
+	const backImageUrl = $derived(cardState?.backImageUrl);
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
-	const height = new Spring($objectStore[id]?.position[1] ?? 0.26, {
+	const height = new Spring((cardState?.position as Vec3Array)[1] ?? 0.26, {
 		stiffness: 0.15,
 		damping: 0.7,
 		precision: 0.0001
 	});
 
-	const rotation = new Spring($objectStore[id]?.rotation[0] ?? 0, {
+	const rotation = new Spring((cardState?.rotation as Vec3Array)[0] ?? 0, {
 		stiffness: 0.1,
 		damping: 0.8,
 		precision: 0.001
 	});
 
-	const seatRotation = $derived(degrees[$seatStore.seat] / DEG2RAD);
+	const seatRotation = $derived(degrees[gameActions.getMySeat()] / DEG2RAD);
 	const rotationTap = new Spring(-seatRotation, {
 		stiffness: 0.1,
 		damping: 0.8,
@@ -38,8 +48,8 @@
 	});
 
 	// Get base position from store
-	const basePosition = $derived($objectStore[id]?.position ?? [0, 0, 0]);
-	const baseRotation = $derived($objectStore[id]?.rotation ?? [0, 0, 0]);
+	const basePosition = $derived(cardState?.position ?? [0, 0, 0]);
+	const baseRotation = $derived(cardState?.rotation ?? [0, 0, 0]);
 
 	// Create derived values for each component
 	const posX = $derived(basePosition[0]);
@@ -97,7 +107,7 @@
 	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
 		<ImageMaterial
-			url={faceImageUrl}
+			url={faceImageUrl ?? ''}
 			side={0}
 			radius={0.1}
 			monochromeColor={'#fff'}

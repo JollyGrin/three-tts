@@ -3,12 +3,10 @@
 	import { RigidBody, Collider } from '@threlte/rapier';
 	import * as THREE from 'three';
 	import { dragEnd, dragStore } from './store/dragStore.svelte';
-	import { trayStore } from './store/trayStore.svelte';
-	import { objectStore } from './store/objectStore.svelte';
-	import { deckStore } from './store/deckStore.svelte';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { gameActions } from './store/game/actions';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
@@ -17,19 +15,17 @@
 	function handleDragEnd() {
 		if (!$dragStore.isDragging) return;
 		const id = $dragStore.isDragging;
-		const { faceImageUrl } = $objectStore[$dragStore.isDragging];
+		const { faceImageUrl } = gameActions.getCardState($dragStore.isDragging) ?? {};
 
 		if ($dragStore.isTrayHovered) {
 			console.log('Storing in hand:', id, faceImageUrl);
-			trayStore.updateCard(id, { position: [0, 0, 0], faceImageUrl });
-			objectStore.removeCard(id);
+			gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
 		}
 
 		if (!!$dragStore.isDeckHovered) {
 			const deckIdHovered = $dragStore.isDeckHovered;
 			console.log('Storing in deck', deckIdHovered);
-			deckStore.placeOnTopOfDeck(deckIdHovered, id);
-			objectStore.removeCard(id);
+			gameActions.placeOnTopOfDeck(deckIdHovered, id);
 		}
 
 		dragEnd();

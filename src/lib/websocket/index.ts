@@ -6,12 +6,8 @@ import {
 	type WebSocketMessage,
 	type ConnectedPlayer
 } from './connection';
-import { playerStore } from '$lib/store/playerStore.svelte';
-import { deckStore } from '$lib/store/deckStore.svelte';
-import { objectStore, type CardState } from '$lib/store/objectStore.svelte';
-import { purgeUndefinedValues } from '$lib/utils/transforms/data';
-import { trayStore } from '$lib/store/trayStore.svelte';
-import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
+import { gameActions } from '$lib/store/game/actions';
+import { gameStore } from '$lib/store/game/gameStore.svelte';
 
 /**
  * Initialize websocket connection and join the default lobby
@@ -19,10 +15,10 @@ import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
  */
 export async function initWebsocket(): Promise<boolean> {
 	// Check if player exists, if not create a player
-	const player = playerStore.getMe();
+	const player = gameActions.getMe();
 	if (!player) {
 		console.log('No player found, creating a new player');
-		playerStore.addPlayer(undefined, true);
+		gameActions.addPlayer();
 	}
 
 	try {
@@ -73,9 +69,13 @@ function setupMessageHandlers(): void {
 				if (message.players && message.players.length > 0) {
 					// Update all players in the store
 					message.players.forEach((player: ConnectedPlayer) => {
-						playerStore.updatePlayer(player.id, {
-							id: player.id,
-							joinTimestamp: player.joinTimestamp
+						gameStore?.updateStateSilently({
+							players: {
+								[player.id]: {
+									id: player.id,
+									joinTimestamp: player.joinTimestamp
+								}
+							}
 						});
 					});
 				}
@@ -83,53 +83,13 @@ function setupMessageHandlers(): void {
 
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
-				console.log('xxxxx sync state', message);
-
-				if ('objects' in message.value) {
-					objectStore.silentUpdateCard(message.value.objects);
-				}
-
-				if ('decks' in message.value) {
-					deckStore.silentUpdateDeck(message.value.decks);
-				}
-
-				if ('players' in message.value) {
-					const myId = playerStore.getMe()?.id;
-
-					if ('seat' in message.value.players?.[myId]) {
-						setSeat(message.value.players[myId]?.seat);
-					}
-
-					if ('trayCards' in message.value.players?.[myId]) {
-						const cards = Object.entries(
-							message.value.players[myId]?.trayCards
-						);
-						console.log('xxxxxx', { cards });
-						cards.forEach(([cardId, payload]: [string, any]) => {
-							payload === undefined
-								? trayStore.removeCard(cardId)
-								: trayStore.updateCard(cardId, payload);
-						});
-					}
-
-					// BUG: tray store and seat store are subscribed in playerStore. But updating playerstore does not update the tray/seatstore
-					playerStore.silentUpdatePlayer(message.value.players);
-				}
+				gameStore.updateStateSilently(message.value);
 
 				break;
 
 			case 'update':
 				console.log('Received update message', message);
-
-				if ('objects' in message.value) {
-					console.log('updating objects', message.value.objects);
-					objectStore.silentUpdateCard(message.value.objects);
-				}
-
-				if ('decks' in message.value) {
-					console.log('updating decks', message.value.decks);
-					deckStore.silentUpdateDeck(message.value.decks);
-				}
+				gameStore.updateStateSilently(message.value);
 
 				break;
 
