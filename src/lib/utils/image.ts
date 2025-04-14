@@ -8,7 +8,7 @@
  *
  * */
 export function getStaticResourceUrl(path: string) {
-	const basePath = import.meta.env.MODE === 'production' ? '/three-tts' : '';
+	const basePath = import.meta.env.MODE === 'production' ? '' : '';
 	const resourceUrl = basePath + path;
 	return resourceUrl;
 }

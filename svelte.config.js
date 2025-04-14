@@ -12,7 +12,7 @@ const config = {
 		paths: {
 			// Set the base path for GitHub Pages
 			// base: '/tts'
-			base: process.argv.includes('dev') ? '' : '/three-tts'
+			base: process.argv.includes('dev') ? '' : ''
 		}
 	}
 };
