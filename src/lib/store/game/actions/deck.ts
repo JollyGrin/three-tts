@@ -6,10 +6,19 @@ import { getStaticResourceUrl } from '$lib/utils/image';
 import { get } from 'svelte/store';
 import type { GameDTO } from '../types';
 
+function getMyDecks() {
+	const myPlayerId = gameActions.getMe()?.id;
+	const decks = get(gameStore)?.decks ?? {};
+	return Object.entries(decks).filter(([key]) =>
+		key.startsWith(`deck:${myPlayerId}:`)
+	);
+}
+
 function initDeck(props: { isFaceUp?: boolean }) {
 	const { id, seat = 0 } = gameActions.getMe() ?? {};
 	if (!id) return console.error('Cannot init deck without a playerId');
-	const deckId = `deck:${id}:debugdeck`;
+	const myDecks = getMyDecks();
+	const deckId = `deck:${id}:${myDecks.length}`; // will choose next available deckId
 	const mod = props.isFaceUp ? 2 : 0;
 	const positions = [
 		[8.5 + mod, 0.4, 4.5],
@@ -93,8 +102,9 @@ function getDeckLength(id: string) {
 }
 
 export const deckActions = {
-	initDeck,
 	drawFromTop,
+	getDeckLength,
+	initDeck,
 	placeOnTopOfDeck,
-	getDeckLength
+	getMyDecks
 };
