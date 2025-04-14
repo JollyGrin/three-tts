@@ -60,7 +60,7 @@ function initDeck(props: { isFaceUp?: boolean }) {
  * When facedown (like a deck of cards), the top card = cards.length - 1
  * When faceup (like a visible discard pile), the top card = cards[0]
  *
- * returns the card drawn. Recommended to store it in objectStore (table) or trayStore (hand) after receiving
+ * returns the card drawn.
  * */
 function drawFromTop(id: string) {
 	const { cards, isFaceUp } = get(gameStore)?.decks?.[id] ?? {};
