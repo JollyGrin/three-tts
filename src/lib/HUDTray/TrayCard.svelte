@@ -2,11 +2,11 @@
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
 	import { ImageMaterial, interactivity } from '@threlte/extras';
-	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { getStaticResourceUrl } from '$lib/utils/image';
+	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
 
