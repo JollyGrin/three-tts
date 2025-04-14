@@ -4,7 +4,7 @@
 	import * as THREE from 'three';
 	import { useViewport, interactivity } from '@threlte/extras';
 	import TrayCard from './TrayCard.svelte';
-	import type { CardState } from '$lib/store/objectStore.svelte';
+	import type { GameDTO } from '$lib/store/game/types';
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 
@@ -22,7 +22,10 @@
 
 	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
 	const cards = $derived(
-		Object.entries($gameStore?.players?.[myPlayerId]?.tray ?? {}) as [string, CardState][]
+		Object.entries($gameStore?.players?.[myPlayerId]?.tray ?? {}) as [
+			string,
+			GameDTO['cards'][string]
+		][]
 	);
 </script>
 
