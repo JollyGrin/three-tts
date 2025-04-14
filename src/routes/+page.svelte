@@ -1,15 +1,12 @@
 <script lang="ts">
 	import { Canvas } from '@threlte/core';
 	import TableScene from '$lib/TableScene.svelte';
-	import { cardTransforms } from '$lib/utils/transforms/card';
-	import { seatStore, setSeat } from '$lib/store/seatStore.svelte';
-	import { playerStore } from '$lib/store/playerStore.svelte';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 	import { onMount } from 'svelte';
-	import { deckStore } from '$lib/store/deckStore.svelte';
 	import { initWrappers } from '$lib/websocket/storeIntegration';
 	import { initWebsocket } from '$lib/websocket';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { gameActions } from '$lib/store/game/actions';
 
 	$inspect('cards:', $gameStore?.cards);
 	$inspect('players:', $gameStore?.players);
@@ -17,9 +14,9 @@
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
-		if (event.code === 'KeyF') cardTransforms.flip();
-		if (event.code === 'KeyT') cardTransforms.tap();
-		if (event.code === 'KeyR') cardTransforms.tap(true);
+		if (event.code === 'KeyF') gameActions.flipCard();
+		if (event.code === 'KeyT') gameActions.tapCard();
+		if (event.code === 'KeyR') gameActions.tapCard(true);
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
@@ -29,15 +26,12 @@
 	initWrappers();
 
 	onMount(() => {
-		if (playerStore.getMe() !== undefined) return;
-		playerStore.addPlayer(undefined, true); // generate new player with random id and assign as me
-
+		if (gameActions.getMe() === undefined) return gameActions.addPlayer(); // generate new player with random id and assign as me
 		initWebsocket();
 	});
 
-	const showInitDeck = $derived($playerStore[playerStore.getMe()?.id]?.deckIds.length === 0);
+	const showInitDeck = $derived(gameActions.getMyDecks().length === 0);
 
-	let deckInput = $state('');
 	async function fetchDeck() {
 		const response = await fetch(
 			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
@@ -57,8 +51,10 @@
 <div
 	class="fixed top-1 right-1 z-50 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"
 >
-	<button onclick={() => setSeat()}>
-		<span class="bg-gray-400 px-2">{$seatStore.seat}</span>
+	<button onclick={() => gameActions.setSeat()}>
+		<span class="bg-gray-400 px-2"
+			>{$gameStore?.players?.[gameActions?.getMe()?.id ?? 0]?.seat}</span
+		>
 		<span class="text-white"> Next Seat </span>
 	</button>
 
@@ -69,36 +65,36 @@
 		<span class="text-white"> Preview hovered card </span>
 	</button>
 
-	<button onclick={cardTransforms.flip}>
+	<button onclick={() => gameActions.flipCard()}>
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> f </span>
 		<span class="text-white"> Flip card </span>
 	</button>
 
-	<button onclick={() => cardTransforms.tap()}>
+	<button onclick={() => gameActions.tapCard()}>
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> t </span>
 		<span class="text-white"> Tap card </span>
 	</button>
 
-	<button onclick={() => cardTransforms.tap(true)}>
+	<button onclick={() => gameActions?.tapCard(true)}>
 		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> r </span>
 		<span class="text-white"> Reverse Tap card </span>
 	</button>
 </div>
 
-<div class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2">
-	<input />
-	<button onclick={fetchDeck}>init deck</button>
-</div>
+<!-- <div class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"> -->
+<!-- 	<input /> -->
+<!-- 	<button onclick={fetchDeck}>init deck</button> -->
+<!-- </div> -->
 
 {#if true && showInitDeck}
 	<button
-		class="fixed right-1 bottom-16 z-50 flex w-fit rounded bg-white p-2"
+		class="fixed right-1 bottom-6 z-50 flex w-fit rounded bg-white p-2"
 		onclick={() => {
-			deckStore.initDeck({
+			gameActions.initDeck({
 				isFaceUp: false
 			});
 
-			deckStore.initDeck({
+			gameActions.initDeck({
 				isFaceUp: true
 			});
 		}}>init deck</button
