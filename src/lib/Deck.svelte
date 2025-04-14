@@ -44,12 +44,6 @@
 				}
 			}
 		});
-		// objectStore.updateCard(card.id, {
-		// 	position: [x, 2.5, z],
-		// 	rotation: [rotX, rotY, rotZ],
-		// 	faceImageUrl: card.faceImageUrl,
-		// 	backImageUrl: card.backImageUrl ?? deckBackImage
-		// });
 
 		dragStart(card.id, 2.5);
 	}
