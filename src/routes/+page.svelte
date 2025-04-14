@@ -24,16 +24,7 @@
 	}
 
 	initWrappers();
-
 	onMount(() => {
-		const myId = gameActions?.getMyId() ?? '';
-		const players = $gameStore?.players;
-		if (players?.[myId] === undefined) {
-			gameActions?.addPlayer();
-			initWebsocket();
-			return;
-		}
-		gameActions.addPlayer(); // generate new player with random id and assign as me
 		initWebsocket();
 	});
 
