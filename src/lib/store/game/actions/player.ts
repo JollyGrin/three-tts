@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { gameStore } from '../gameStore.svelte';
 import { get } from 'svelte/store';
+import type { GameDTO } from '../types';
 
 /**
  * Fetch and set playerId to localStorage
@@ -41,8 +42,26 @@ function getMe() {
 	return get(gameStore)?.players?.[cacheId];
 }
 
+function setSeat(seat?: GameDTO['players'][string]['seat']) {
+	const myPlayerId = getMe()?.id;
+	if (!myPlayerId) return console.error('No player id found in localstorage');
+
+	const mySeat = get(gameStore)?.players?.[myPlayerId]?.seat ?? 0;
+	if (seat === undefined)
+		return gameStore.updateState({
+			players: {
+				[myPlayerId]: {
+					seat: ((mySeat + 1) % 4) as GameDTO['players'][string]['seat']
+				}
+			}
+		});
+
+	return gameStore?.updateState({ players: { [myPlayerId]: { seat } } });
+}
+
 export const playerActions = {
 	addPlayer,
 	getPlayer,
-	getMe
+	getMe,
+	setSeat
 };
