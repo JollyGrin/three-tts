@@ -32,13 +32,13 @@
 
 	const showInitDeck = $derived(gameActions.getMyDecks().length === 0);
 
-	async function fetchDeck() {
-		const response = await fetch(
-			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
-		);
-		const data = await response.json();
-		console.log('res deck:', response, data);
-	}
+	// async function fetchDeck() {
+	// 	const response = await fetch(
+	// 		'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
+	// 	);
+	// 	const data = await response.json();
+	// 	console.log('res deck:', response, data);
+	// }
 </script>
 
 <svelte:head>
