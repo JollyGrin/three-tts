@@ -109,16 +109,12 @@
 	infiniteGrid
 />
 <T.Group position={[0, 0, 0]}>
-	<RigidBody type="fixed">
-		<Collider shape="cuboid" args={[30, 0.256, 15]} friction={1} restitution={1}>
-			<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
-				<T.BoxGeometry args={[60, 0.5, 30]} />
-				{#if feltMaterial}
-					<T is={feltMaterial} />
-				{:else}
-					<T.MeshStandardMaterial color="#35654d" />
-				{/if}
-			</T.Mesh>
-		</Collider>
-	</RigidBody>
+	<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
+		<T.BoxGeometry args={[60, 0.5, 30]} />
+		{#if feltMaterial}
+			<T is={feltMaterial} />
+		{:else}
+			<T.MeshStandardMaterial color="#35654d" />
+		{/if}
+	</T.Mesh>
 </T.Group>
