@@ -23,9 +23,11 @@
 	});
 </script>
 
-<T.Group position={overlay?.position ?? [0, FLOOR_HEIGHT, 0]}>
+<T.Group position={overlay?.position ?? [0, FLOOR_HEIGHT, 0]} rotation={overlay?.rotation}>
 	<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} scale={overlay?.scale}>
 		<T.PlaneGeometry args={size} />
-		<ImageMaterial url={overlay?.imageUrl ?? ''} side={0} radius={0.1} />
+		{#key overlay?.imageUrl}
+			<ImageMaterial url={overlay?.imageUrl ?? ''} side={0} radius={0.1} />
+		{/key}
 	</T.Mesh>
 </T.Group>
