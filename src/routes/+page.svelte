@@ -3,7 +3,7 @@
 
 <svelte:head>
 	<title>table place: browser tabletop</title>
-	<meta name="description" content="Tabletop Simulator but in the browser" />
+	<meta name="description" content="A tabletop simulator in the browser" />
 </svelte:head>
 
 <div class="grid h-screen w-screen place-items-center bg-emerald-50">
