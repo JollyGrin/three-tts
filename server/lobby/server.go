@@ -29,6 +29,11 @@ func (srv *Lobbies) Router() http.Handler {
 	defer srv.lobbiesMu.RUnlock()
 
 	mux := chi.NewRouter()
+	// Health check endpoint for Railway
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
 	mux.HandleFunc("/{lobby}/debug", srv.debug)
 	mux.HandleFunc("/ws", srv.handleWebsocket)
 
