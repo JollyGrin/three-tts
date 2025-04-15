@@ -25,6 +25,13 @@ func main() {
 		log.Info().Msg("Debug logging enabled")
 	}
 
+	// Check if PORT environment variable is set (used by Railway)
+	port := os.Getenv("PORT")
+	if port != "" {
+		*addr = ":" + port
+		log.Info().Msgf("Using PORT from environment: %s", port)
+	}
+
 	srv := lobby.New()
 	mux := srv.Router()
 
