@@ -16,7 +16,8 @@ export type WebSocketMessage = {
 
 // Config
 const CACHE_SERVER_URL = localStorage.getItem('serverurl') ?? 'localhost:8080';
-const WS_SERVER_URL = `wss://${CACHE_SERVER_URL}/ws`;
+const SECURITY = CACHE_SERVER_URL.includes('localhost') ? 'ws' : 'wss';
+const WS_SERVER_URL = `${SECURITY}://${CACHE_SERVER_URL}/ws`;
 const DEFAULT_LOBBY = 'default';
 
 // State
