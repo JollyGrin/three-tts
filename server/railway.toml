@@ -1,5 +1,5 @@
 [build]
-dockerfilePath = "./Dockerfile"
+builder= "DOCKERFILE"
 context = "."
 
 [deploy]
