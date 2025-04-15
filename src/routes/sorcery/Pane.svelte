@@ -65,7 +65,7 @@
 	<Folder title="Load Deck">
 		<Element>
 			<div class="font-sans text-xs text-white uppercase opacity-30">
-				<span> Load a url from Curiosa </span>
+				<span class="animate-pulse"> Load a url from Curiosa </span>
 			</div>
 		</Element>
 		<Text label="Deck URL" value="" />
