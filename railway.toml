@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+buildCommand = "echo 'Building monorepo'"
+
+[deploy]
+startCommand = "echo 'This is the root and should not be deployed directly'"
+restartPolicyType = "never"
