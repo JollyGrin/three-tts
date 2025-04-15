@@ -8,10 +8,12 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
 	import ModalConnection from '$lib/Settings/ModalConnection.svelte';
+	import Pane from './Pane.svelte';
+	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 
 	let isConnectionModalOpen = $state(false);
 	function handleKeyDown(event: KeyboardEvent) {
-		if (!isConnectionModalOpen) event.preventDefault();
+		// if (!isConnectionModalOpen) event.preventDefault();
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
 		if (event.code === 'KeyF') gameActions.flipCard();
 		if (event.code === 'KeyT') gameActions.tapCard();
@@ -27,28 +29,8 @@
 		initWebsocket();
 
 		// Add playmat overlay on table
-		gameStore.updateState({
-			overlays: {
-				sorcery: {
-					id: 'sorcery',
-					imageUrl: '/sorcery-grid.png',
-					position: [0, 0.255, 0],
-					scale: 0.015,
-					ratio: 1.24
-				}
-			}
-		});
+		gameStore.updateState({ overlays: OVERLAY_SORCERY_DEFAULT });
 	});
-
-	const showInitDeck = $derived(gameActions.getMyDecks().length === 0);
-
-	// async function fetchDeck() {
-	// 	const response = await fetch(
-	// 		'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
-	// 	);
-	// 	const data = await response.json();
-	// 	console.log('res deck:', response, data);
-	// }
 </script>
 
 <svelte:head>
@@ -62,62 +44,7 @@
 	<ModalConnection onClose={() => (isConnectionModalOpen = false)} />
 {/if}
 
-<div
-	class="fixed top-1 right-1 z-10 flex w-fit scale-80 gap-4 rounded bg-gray-50/10 px-2 py-[2px] text-xs opacity-30 md:top-4 md:right-4 md:scale-100"
->
-	<button onclick={() => gameActions.setSeat()}>
-		<span class="bg-gray-400 px-2"
-			>{$gameStore?.players?.[gameActions?.getMe()?.id ?? 0]?.seat}</span
-		>
-		<span class="text-white"> Next Seat </span>
-	</button>
-
-	<button onclick={cameraTransforms.resetView}>
-		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2 text-gray-400">
-			spacebar
-		</span>
-		<span class="text-white"> Preview hovered card </span>
-	</button>
-
-	<button onclick={() => gameActions.flipCard()}>
-		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> f </span>
-		<span class="text-white"> Flip card </span>
-	</button>
-
-	<button onclick={() => gameActions.tapCard()}>
-		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> t </span>
-		<span class="text-white"> Tap card </span>
-	</button>
-
-	<button onclick={() => gameActions?.tapCard(true)}>
-		<span class="rounded border-b-[2px] border-b-gray-700 bg-gray-200 px-2"> r </span>
-		<span class="text-white"> Reverse Tap card </span>
-	</button>
-
-	<button onclick={() => (isConnectionModalOpen = true)}>
-		<span class="text-white"> Settings </span>
-	</button>
-</div>
-
-<!-- <div class="fixed right-1 bottom-1 z-50 flex w-fit rounded bg-white p-2"> -->
-<!-- 	<input /> -->
-<!-- 	<button onclick={fetchDeck}>init deck</button> -->
-<!-- </div> -->
-
-{#if true && showInitDeck}
-	<button
-		class="fixed right-1 bottom-6 z-10 flex w-fit rounded bg-white p-2"
-		onclick={() => {
-			gameActions.initDeck({
-				isFaceUp: false
-			});
-
-			gameActions.initDeck({
-				isFaceUp: true
-			});
-		}}>init deck</button
-	>
-{/if}
+<Pane />
 
 <div class="h-screen w-screen overflow-clip">
 	<Canvas>
