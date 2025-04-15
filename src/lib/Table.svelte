@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
-	import { RigidBody, Collider } from '@threlte/rapier';
 	import * as THREE from 'three';
 	import { dragEnd, dragStore } from './store/dragStore.svelte';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
-	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { gameActions } from './store/game/actions';
+	import { gameStore } from './store/game/gameStore.svelte';
+	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
@@ -97,24 +97,9 @@
 	});
 </script>
 
-<T.Group position.x={-0.5}>
-	<T.Mesh position.y={0.259} position.x={9.5} rotation.x={-DEG2RAD * 90} side={0}>
-		<T.PlaneGeometry args={[3, 12]} />
-		<T.MeshBasicMaterial color="#35654d" />
-	</T.Mesh>
-
-	<Grid
-		scale={3}
-		fadeDistance={1000}
-		fadeStrength={0}
-		position.y={0.2569}
-		position.x={2}
-		cellSize={1}
-		cellThickness={3}
-		gridSize={[6, 4]}
-		sectionSize={0}
-	/>
-</T.Group>
+{#each Object.keys($gameStore?.overlays ?? {}) as overlayId (overlayId)}
+	<OverlayCustom id={overlayId} />
+{/each}
 
 <Grid
 	position.y={0.255}
@@ -125,16 +110,12 @@
 	infiniteGrid
 />
 <T.Group position={[0, 0, 0]}>
-	<RigidBody type="fixed">
-		<Collider shape="cuboid" args={[30, 0.256, 15]} friction={1} restitution={1}>
-			<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
-				<T.BoxGeometry args={[60, 0.5, 30]} />
-				{#if feltMaterial}
-					<T is={feltMaterial} />
-				{:else}
-					<T.MeshStandardMaterial color="#35654d" />
-				{/if}
-			</T.Mesh>
-		</Collider>
-	</RigidBody>
+	<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
+		<T.BoxGeometry args={[60, 0.5, 30]} />
+		{#if feltMaterial}
+			<T is={feltMaterial} />
+		{:else}
+			<T.MeshStandardMaterial color="#35654d" />
+		{/if}
+	</T.Mesh>
 </T.Group>
