@@ -4,19 +4,21 @@
 		Button,
 		Pane,
 		Point,
-		TabGroup,
-		TabPage,
 		Wheel,
 		Text,
 		AutoValue,
 		Folder,
-		Element
+		Element,
+		List,
+		type ListOptions
 	} from 'svelte-tweakpane-ui';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 	import type { GameDTO } from '$lib/store/game/types';
 	import { gameActions } from '$lib/store/game/actions';
+	import { onMount } from 'svelte';
+	import { connectionStore } from '$lib/store/connectionStore.svelte';
 
 	// async function fetchDeck() {
 	// 	const response = await fetch(
@@ -34,6 +36,19 @@
 	let scale = $state($gameStore?.overlays?.sorcery?.scale ?? 1);
 	let point3d = $state({ x: 0, y: 0 });
 	let imageUrl = $state($gameStore?.overlays?.sorcery?.imageUrl ?? '');
+	let options: ListOptions<string> = {
+		['api.table.place']: 'api.table.place',
+		['localhost']: 'localhost:8080'
+	};
+	let serverSelection: string = $state(options['api.table.place']);
+
+	onMount(() => {
+		connectionStore.initStore();
+	});
+
+	$effect(() => {
+		connectionStore.setServerUrl(serverSelection);
+	});
 
 	$effect(() => {
 		console.log('rotx', rot);
@@ -53,7 +68,8 @@
 
 <Pane position="draggable" title="Settings" expanded={true}>
 	<Folder title="Connection" expanded={false}>
-		<Text label="Server Url" value="localhost:8080" disabled />
+		<List label="Server Url" bind:value={serverSelection} {options} />
+		<Text label="Using:" value={$connectionStore.serverUrl} disabled />
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
 		<Button title="Reset to default" on:click={resetOverlayToDefault} />
