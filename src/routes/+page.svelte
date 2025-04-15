@@ -2,7 +2,7 @@
 </script>
 
 <svelte:head>
-	<title>table place: browser tabletop</title>
+	<title>table place</title>
 	<meta name="description" content="A tabletop simulator in the browser" />
 </svelte:head>
 
