@@ -85,6 +85,7 @@ export function wsWrapperUpdateDeck(fn: Function) {
 }
 
 export function wsWrapperUpdateGameState(fn: Function) {
+	let lastSentTime = 0; // track the last time a message was sent
 	return function passArgs(...args: any[]) {
 		console.log('ws update gamestate: spread args', ...args);
 		const metadata = createWsMetaData();
@@ -101,8 +102,25 @@ export function wsWrapperUpdateGameState(fn: Function) {
 			...createWsMetaData(),
 			value: { ...(rest as GameDTO) }
 		};
-		console.log('ws update gamestate payload:', payload);
-		sendMessage(payload);
+
+		// NOTE: This is a hacky way to check if there are any position updates
+		// Adds a debounce if so
+		const hasPositionUpdate = Object.values(payload.value.cards || {}).some(
+			(card: any) => 'position' in card
+		);
+		const now = Date.now();
+		if (hasPositionUpdate) {
+			if (now - lastSentTime >= 50) {
+				lastSentTime = now;
+				console.log('Debounced (position): sending payload', payload);
+				sendMessage(payload);
+			} else {
+				console.log('Debounced (position): skipped due to 200ms limit');
+			}
+		} else {
+			console.log('Immediate (non-position): sending payload', payload);
+			sendMessage(payload);
+		}
 
 		return fn(...args);
 	};

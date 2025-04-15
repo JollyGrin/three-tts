@@ -6,7 +6,7 @@ type ConnectionDTO = {
 
 const key = 'serverurl';
 const connection = writable<ConnectionDTO>({
-	serverUrl: 'http://localhost:8080'
+	serverUrl: 'localhost:8080'
 });
 
 connection.subscribe((value) => {
@@ -19,7 +19,7 @@ export const connectionStore = {
 		connection.set({ serverUrl: url });
 	},
 	initStore: () => {
-		const serverUrl = localStorage.getItem(key) ?? 'https://api.table.place';
+		const serverUrl = localStorage.getItem(key);
 		if (serverUrl) connection.set({ serverUrl });
 	}
 };

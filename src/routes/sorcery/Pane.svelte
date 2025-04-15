@@ -20,38 +20,37 @@
 	import { onMount } from 'svelte';
 	import { connectionStore } from '$lib/store/connectionStore.svelte';
 
-	// async function fetchDeck() {
-	// 	const response = await fetch(
-	// 		'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
-	// 	);
-	// 	const data = await response.json();
-	// 	console.log('res deck:', response, data);
-	// }
+	async function fetchDeck() {
+		const response = await fetch(
+			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
+		);
+		const data = await response.json();
+		console.log('res deck:', response, data);
+	}
 
 	function resetOverlayToDefault() {
 		gameStore.updateState({ overlays: OVERLAY_SORCERY_DEFAULT });
 	}
 
 	let rot = $state(0);
-	let scale = $state($gameStore?.overlays?.sorcery?.scale ?? 1);
+	let scale = $state($gameStore?.overlays?.sorcery?.scale ?? 0.015 * 100);
 	let point3d = $state({ x: 0, y: 0 });
 	let imageUrl = $state($gameStore?.overlays?.sorcery?.imageUrl ?? '');
 	let options: ListOptions<string> = {
-		['api.table.place']: 'api.table.place',
-		['localhost']: 'localhost:8080'
+		['localhost']: 'localhost:8080',
+		['api.table.place']: 'xapi.table.place'
 	};
-	let serverSelection: string = $state(options['api.table.place']);
+	let serverSelection = $state('localhost:8080');
 
 	onMount(() => {
 		connectionStore.initStore();
 	});
 
-	$effect(() => {
-		connectionStore.setServerUrl(serverSelection);
-	});
+	// $effect(() => {
+	// 	if (serverSelection) connectionStore.setServerUrl(serverSelection);
+	// });
 
 	$effect(() => {
-		console.log('rotx', rot);
 		const _imageUrl = imageUrl === '' ? undefined : imageUrl;
 		gameStore.updateState({
 			overlays: {
@@ -68,6 +67,7 @@
 
 <Pane position="draggable" title="Settings" expanded={true}>
 	<Folder title="Connection" expanded={false}>
+		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
 		<List label="Server Url" bind:value={serverSelection} {options} />
 		<Text label="Using:" value={$connectionStore.serverUrl} disabled />
 	</Folder>
@@ -88,6 +88,7 @@
 		<Button
 			title="Load Deck"
 			on:click={() => {
+				fetchDeck();
 				gameActions.initDeck({
 					isFaceUp: false
 				});
