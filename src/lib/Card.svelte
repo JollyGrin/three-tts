@@ -28,13 +28,13 @@
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
-	const height = new Spring((cardState?.position as Vec3Array)[1] ?? 0.26, {
+	const height = new Spring((cardState?.position as Vec3Array)?.[1] ?? 0.26, {
 		stiffness: 0.15,
 		damping: 0.7,
 		precision: 0.0001
 	});
 
-	const rotation = new Spring((cardState?.rotation as Vec3Array)[0] ?? 0, {
+	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
 		stiffness: 0.1,
 		damping: 0.8,
 		precision: 0.001
