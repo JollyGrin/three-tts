@@ -36,19 +36,6 @@
 	let scale = $state($gameStore?.overlays?.sorcery?.scale ?? 0.015 * 100);
 	let point3d = $state({ x: 0, y: 0 });
 	let imageUrl = $state($gameStore?.overlays?.sorcery?.imageUrl ?? '');
-	let options: ListOptions<string> = {
-		['localhost']: 'localhost:8080',
-		['api.table.place']: 'xapi.table.place'
-	};
-	let serverSelection = $state('localhost:8080');
-
-	onMount(() => {
-		connectionStore.initStore();
-	});
-
-	// $effect(() => {
-	// 	if (serverSelection) connectionStore.setServerUrl(serverSelection);
-	// });
 
 	$effect(() => {
 		const _imageUrl = imageUrl === '' ? undefined : imageUrl;
@@ -68,8 +55,7 @@
 <Pane position="draggable" title="Settings" expanded={true}>
 	<Folder title="Connection" expanded={false}>
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
-		<List label="Server Url" bind:value={serverSelection} {options} />
-		<Text label="Using:" value={$connectionStore.serverUrl} disabled />
+		<Text label="Using:" bind:value={$connectionStore.serverUrl} />
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
 		<Button title="Reset to default" on:click={resetOverlayToDefault} />

@@ -6,7 +6,7 @@ type ConnectionDTO = {
 
 const key = 'serverurl';
 const connection = writable<ConnectionDTO>({
-	serverUrl: 'localhost:8080'
+	serverUrl: localStorage.getItem(key) ?? ''
 });
 
 connection.subscribe((value) => {
