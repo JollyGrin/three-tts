@@ -4,13 +4,13 @@ import (
 	"context"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/jollygrin/tts-server/game"
 	"github.com/rs/zerolog/log"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	"golang.org/x/time/rate"
 )
 
 // Lobby represents a game room
@@ -76,10 +76,16 @@ func (l *Lobby) AddClient(id string, conn *websocket.Conn) *Client {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Create a rate limiter: disconnects after {messageLimit} messages per {messageWindowInSeconds} seconds
-	messageLimit := 20
-	messageWindowInSeconds := 3
-	rateLimiter := NewRateLimiter(messageLimit, time.Duration(messageWindowInSeconds)*time.Second)
+	// Create a rate limiter using leaky bucket strategy.
+	// Each message from a client costs 1 token.
+	// Each client is given a bucket of tokens to spend from. The size of
+	// the bucket is {messageBucket}. They are given {messageRate} tokens per
+	// second to refill their bucket as they use it.
+	//
+	// In simple terms, a client can send {messageRate} msgs/s with a burst of up to {messageBucket}
+	messageRate := rate.Limit(7.0) // per second
+	messageBucket := 70            // max burst
+	rateLimiter := rate.NewLimiter(messageRate, messageBucket)
 
 	client := &Client{
 		ID:          id,
@@ -95,48 +101,6 @@ func (l *Lobby) AddClient(id string, conn *websocket.Conn) *Client {
 	return client
 }
 
-// RateLimiter tracks message rates to prevent spam
-type RateLimiter struct {
-	maxMessages    int           // Maximum messages allowed in the time window
-	timeWindow     time.Duration // Time window for rate limiting
-	messageTimes   []time.Time   // Timestamps of recent messages
-	messageTimesMu sync.Mutex    // Mutex to protect messageTimes
-}
-
-// NewRateLimiter creates a new rate limiter with specified parameters
-func NewRateLimiter(maxMessages int, timeWindow time.Duration) *RateLimiter {
-	return &RateLimiter{
-		maxMessages:  maxMessages,
-		timeWindow:   timeWindow,
-		messageTimes: make([]time.Time, 0, maxMessages),
-	}
-}
-
-// CheckLimit checks if the rate limit has been exceeded
-// Returns true if limit is exceeded (should disconnect), false otherwise
-func (r *RateLimiter) CheckLimit() bool {
-	r.messageTimesMu.Lock()
-	defer r.messageTimesMu.Unlock()
-
-	now := time.Now()
-
-	// Add current message time
-	r.messageTimes = append(r.messageTimes, now)
-
-	// Remove messages outside the time window
-	cutoff := now.Add(-r.timeWindow)
-	var validTimes []time.Time
-	for _, t := range r.messageTimes {
-		if t.After(cutoff) {
-			validTimes = append(validTimes, t)
-		}
-	}
-	r.messageTimes = validTimes
-
-	// Check if we've exceeded the limit
-	return len(r.messageTimes) > r.maxMessages
-}
-
 // Client represents a websocket client
 type Client struct {
 	ID string
@@ -146,7 +110,7 @@ type Client struct {
 	// The player in the game state
 	Player *game.Player
 	// Rate limiter to prevent spam
-	RateLimiter *RateLimiter
+	RateLimiter *rate.Limiter
 
 	close sync.Once
 }
@@ -161,21 +125,14 @@ func (l *Lobby) clientRead(ctx context.Context, c *Client) {
 			break
 		}
 
-		// Check if client has exceeded rate limit
-		if c.RateLimiter.CheckLimit() {
-			log.Warn().Str("player", c.ID).Msg("Rate limit exceeded, disconnecting player")
+		if !c.RateLimiter.Allow() {
+			log.Error().Str("player", c.ID).Msg("Rate limit exceeded, disconnecting player")
 			_ = c.Conn.Close(websocket.StatusPolicyViolation, "rate limit exceeded")
+			l.unsubscribe(c)
 			break
 		}
 
 		l.state.HandleMessage(c.Player, msg)
-
-		// TODO: Uh no, let the game handle messages
-		//l.mu.Lock()
-		//l.State = msg.State
-		//l.mu.Unlock()
-
-		//c.Lobby.Broadcast(msg)
 	}
 }
 
