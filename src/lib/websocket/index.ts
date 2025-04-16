@@ -14,7 +14,10 @@ import toast from 'svelte-french-toast';
  * Initialize websocket connection and join the default lobby
  * @returns Promise that resolves when connected and joined
  */
-export async function initWebsocket(_lobbyId?: string): Promise<boolean> {
+export async function initWebsocket(
+	_lobbyId?: string,
+	serverUrl?: string
+): Promise<boolean> {
 	const lobbyId = _lobbyId ?? 'default';
 	// Check if player exists, if not create a player
 	const player = gameActions.getMe();
@@ -25,7 +28,7 @@ export async function initWebsocket(_lobbyId?: string): Promise<boolean> {
 
 	try {
 		// Connect to the default lobby
-		const connected = await connect(lobbyId);
+		const connected = await connect(lobbyId, serverUrl);
 		if (!connected) {
 			console.error('Failed to connect to websocket server');
 			return false;

@@ -39,7 +39,8 @@ const messageCallbacks: MessageCallback[] = [];
  * @returns Promise that resolves when connected
  */
 export async function connect(
-	lobbyId: string = DEFAULT_LOBBY
+	lobbyId: string = DEFAULT_LOBBY,
+	serverUrl?: string
 ): Promise<boolean> {
 	if (isConnected) {
 		console.log('Already connected to websocket server');
@@ -61,7 +62,12 @@ export async function connect(
 	}
 
 	const playerId = player.id;
-	const wsUrl = `${WS_SERVER_URL}?lobby=${lobbyId}&player=${playerId}`;
+	let wsUrl = `${WS_SERVER_URL}?lobby=${lobbyId}&player=${playerId}`;
+	if (serverUrl) {
+		const security = serverUrl.includes('localhost') ? 'ws' : 'wss';
+		const wsServerUrl = `${security}://${serverUrl}/ws`;
+		wsUrl = `${wsServerUrl}?lobby=${lobbyId}&player=${playerId}`;
+	}
 
 	console.log(`Connecting to websocket server at ${wsUrl}`);
 	return new Promise((resolve) => {
