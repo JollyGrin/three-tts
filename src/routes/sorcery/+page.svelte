@@ -45,7 +45,11 @@
 
 <Pane />
 
-<div class="h-screen w-screen overflow-clip bg-gray-800">
+<div
+	class="h-screen w-screen overflow-clip transition-all"
+	class:bg-gray-800={!isConnected}
+	class:bg-gray-700={isConnected}
+>
 	<Canvas>
 		{#if isConnected}
 			<TableScene />
