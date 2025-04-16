@@ -39,6 +39,7 @@ export async function initWebsocket(_lobbyId?: string): Promise<boolean> {
 		}
 
 		console.log('Successfully connected and joined default lobby');
+		toast('Successfully connected and joined lobby: ' + lobbyId);
 
 		// Set up event listeners for incoming messages
 		setupMessageHandlers();
@@ -98,6 +99,7 @@ function setupMessageHandlers(): void {
 
 			case 'error':
 				console.error('Received error message:', message.value);
+				toast('Connection Error:', message.value);
 				break;
 
 			default:

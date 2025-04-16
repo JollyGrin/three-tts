@@ -73,7 +73,6 @@ export async function connect(
 					'Connected to websocket server. Reconnection attempts:',
 					reconnectAttempts
 				);
-				toast.success('Connected to websocket lobby: ' + lobbyId);
 				isConnected = true;
 				isConnecting = false;
 				reconnectAttempts = 0;
@@ -84,14 +83,8 @@ export async function connect(
 				console.log(
 					`Websocket connection closed: ${event.code} ${event.reason}`
 				);
-				toast.error(
-					`Websocket connection closed: ${event.code} ${event.reason}`
-				);
-				if (reconnectAttempts > 3) {
-					toast.error(
-						`Reconnected ${reconnectAttempts} times, refresh the page to fix`
-					);
-				}
+				toast(`Websocket connection closed: ${event.code} ${event.reason}`);
+
 				isConnected = false;
 				isConnecting = false;
 
