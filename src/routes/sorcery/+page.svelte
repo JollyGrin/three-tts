@@ -9,6 +9,7 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import Pane from './Pane.svelte';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
+	import { page } from '$app/state';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		// if (!isConnectionModalOpen) event.preventDefault();
@@ -23,11 +24,15 @@
 	}
 
 	initWrappers();
+	let isConnected = $state(false);
 	onMount(() => {
-		initWebsocket();
-
-		// Add playmat overlay on table
-		gameStore.updateState({ overlays: OVERLAY_SORCERY_DEFAULT });
+		const connected = initWebsocket(page?.url?.searchParams?.get('lobby') ?? undefined);
+		connected.then((res) => {
+			isConnected = res;
+			// Add playmat overlay on table
+			if (!$gameStore?.overlays?.sorcery?.imageUrl)
+				gameStore.updateState({ overlays: OVERLAY_SORCERY_DEFAULT });
+		});
 	});
 </script>
 
@@ -40,8 +45,10 @@
 
 <Pane />
 
-<div class="h-screen w-screen overflow-clip">
+<div class="h-screen w-screen overflow-clip bg-gray-800">
 	<Canvas>
-		<TableScene />
+		{#if isConnected}
+			<TableScene />
+		{/if}
 	</Canvas>
 </div>
