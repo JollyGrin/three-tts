@@ -8,7 +8,8 @@
 		Text,
 		AutoValue,
 		Folder,
-		Element
+		Element,
+		FpsGraph
 	} from 'svelte-tweakpane-ui';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
@@ -16,6 +17,8 @@
 	import type { GameDTO } from '$lib/store/game/types';
 	import { gameActions } from '$lib/store/game/actions';
 	import { connectionStore } from '$lib/store/connectionStore.svelte';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 
 	async function fetchDeck() {
 		const response = await fetch(
@@ -47,12 +50,23 @@
 			}
 		});
 	});
+
+	const urlLobbyParam = $derived(page.url.searchParams.get('lobby') ?? '');
+	let lobbyId = $state(page.url.searchParams.get('lobby') ?? '');
 </script>
 
 <Pane position="draggable" title="Settings" expanded={true} y={0} x={0}>
+	<FpsGraph />
 	<Folder title="Connection" expanded={false}>
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
-		<Text label="Using:" bind:value={$connectionStore.serverUrl} />
+		<Text label="Server:" bind:value={$connectionStore.serverUrl} />
+		<Text label="Lobby:" bind:value={lobbyId} />
+		{#if urlLobbyParam !== lobbyId}
+			<Button
+				title="Join lobby: {lobbyId}"
+				on:click={() => goto(`/sorcery?lobby=${lobbyId}`, { invalidateAll: true })}
+			/>
+		{/if}
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
 		<Button title="Reset to default" on:click={resetOverlayToDefault} />
@@ -63,7 +77,7 @@
 	</Folder>
 	<Folder title="Load Deck">
 		<Element>
-			<div class="font-sans text-xs text-white uppercase opacity-30">
+			<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
 				<span class="animate-pulse"> Load a url from Curiosa </span>
 			</div>
 		</Element>

@@ -9,14 +9,14 @@
 	import { getStaticResourceUrl } from './utils/image';
 
 	const { load } = useLoader(RGBELoader);
-	const promise = load(getStaticResourceUrl('/rock-hill2.hdr'), {
-		transform(texture) {
-			texture.mapping = EquirectangularReflectionMapping;
-			return texture;
-		}
-	});
+	// const promise = load(getStaticResourceUrl('/rock-hill2.hdr'), {
+	// 	transform(texture) {
+	// 		texture.mapping = EquirectangularReflectionMapping;
+	// 		return texture;
+	// 	}
+	// });
 </script>
 
-{#await promise then texture}
-	<Environment {texture} isBackground ground={{ height: 3, radius: 40 }} />
-{/await}
+<!-- {#await promise then texture} -->
+<!-- 	<Environment {texture} isBackground ground={{ height: 3, radius: 40 }} /> -->
+<!-- {/await} -->
