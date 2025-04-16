@@ -106,16 +106,19 @@ export function wsWrapperUpdateGameState(fn: Function) {
 		// NOTE: This is a hacky way to check if there are any position updates
 		// Adds a debounce if so
 		const hasPositionUpdate = Object.values(payload.value.cards || {}).some(
-			(card: any) => 'position' in card
+			(card: any) => !!card && Object.keys(card ?? {}).includes('position')
 		);
 		const now = Date.now();
+		const limitMs = 200;
 		if (hasPositionUpdate) {
-			if (now - lastSentTime >= 50) {
+			if (now - lastSentTime >= limitMs) {
 				lastSentTime = now;
 				console.log('Debounced (position): sending payload', payload);
 				sendMessage(payload);
 			} else {
-				console.log('Debounced (position): skipped due to 200ms limit');
+				console.log(
+					'Debounced (position): skipped due to limit in ms: ' + limitMs
+				);
 			}
 		} else {
 			console.log('Immediate (non-position): sending payload', payload);
