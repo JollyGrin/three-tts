@@ -26,7 +26,9 @@
 	initWrappers();
 	let isConnected = $state(false);
 	onMount(() => {
-		const connected = initWebsocket(page?.url?.searchParams?.get('lobby') ?? undefined);
+		const lobbyId = page?.url?.searchParams?.get('lobby') ?? undefined;
+		const serverUrl = page?.url?.searchParams?.get('server') ?? undefined;
+		const connected = initWebsocket(lobbyId, serverUrl);
 		connected.then((res) => {
 			isConnected = res;
 			// Add playmat overlay on table

@@ -19,6 +19,7 @@
 	import { connectionStore } from '$lib/store/connectionStore.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import toast from 'svelte-french-toast';
 
 	async function fetchDeck() {
 		const response = await fetch(
@@ -51,8 +52,10 @@
 		});
 	});
 
-	const urlLobbyParam = $derived(page.url.searchParams.get('lobby') ?? '');
 	let lobbyId = $state(page.url.searchParams.get('lobby') ?? '');
+	const lobbyUrl = $derived(
+		new URLSearchParams({ server: $connectionStore.serverUrl, lobby: lobbyId }).toString()
+	);
 </script>
 
 <Pane position="draggable" title="Settings" expanded={true} y={0} x={0}>
@@ -61,12 +64,16 @@
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
 		<Text label="Server:" bind:value={$connectionStore.serverUrl} />
 		<Text label="Lobby:" bind:value={lobbyId} />
-		{#if urlLobbyParam !== lobbyId}
-			<Button
-				title="Join lobby: {lobbyId}"
-				on:click={() => goto(`/sorcery?lobby=${lobbyId}`, { invalidateAll: true })}
-			/>
-		{/if}
+		<Button
+			title="Share lobby: {lobbyId}"
+			on:click={() => {
+				goto(`/sorcery?${lobbyUrl}`, { invalidateAll: true });
+				const hostUrl = page.url.host ?? '';
+				const url = `${hostUrl}/sorcery?${lobbyUrl}`;
+				navigator.clipboard.writeText(url);
+				toast(`Copied to clipboard: ` + url);
+			}}
+		/>
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
 		<Button title="Reset to default" on:click={resetOverlayToDefault} />
