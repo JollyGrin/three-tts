@@ -1,4 +1,5 @@
 import { gameActions } from '$lib/store/game/actions';
+import toast from 'svelte-french-toast';
 
 export type ConnectedPlayer = {
 	id: string;
@@ -63,13 +64,15 @@ export async function connect(
 	const wsUrl = `${WS_SERVER_URL}?lobby=${lobbyId}&player=${playerId}`;
 
 	console.log(`Connecting to websocket server at ${wsUrl}`);
-
 	return new Promise((resolve) => {
 		try {
 			socket = new WebSocket(wsUrl);
 
 			socket.onopen = () => {
-				console.log('Connected to websocket server');
+				console.log(
+					'Connected to websocket server. Reconnection attempts:',
+					reconnectAttempts
+				);
 				isConnected = true;
 				isConnecting = false;
 				reconnectAttempts = 0;
@@ -80,6 +83,8 @@ export async function connect(
 				console.log(
 					`Websocket connection closed: ${event.code} ${event.reason}`
 				);
+				toast(`Websocket connection closed: ${event.code} ${event.reason}`);
+
 				isConnected = false;
 				isConnecting = false;
 

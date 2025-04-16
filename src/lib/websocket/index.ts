@@ -8,6 +8,7 @@ import {
 } from './connection';
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
+import toast from 'svelte-french-toast';
 
 /**
  * Initialize websocket connection and join the default lobby
@@ -38,6 +39,7 @@ export async function initWebsocket(_lobbyId?: string): Promise<boolean> {
 		}
 
 		console.log('Successfully connected and joined default lobby');
+		toast('Successfully connected and joined lobby: ' + lobbyId);
 
 		// Set up event listeners for incoming messages
 		setupMessageHandlers();
@@ -57,6 +59,7 @@ function setupMessageHandlers(): void {
 		switch (message.type) {
 			case 'connect':
 				console.log(`Player ${message.playerId} connected`);
+				toast(`Player ${message.playerId} connected`);
 				break;
 
 			case 'disconnect':
@@ -96,6 +99,7 @@ function setupMessageHandlers(): void {
 
 			case 'error':
 				console.error('Received error message:', message.value);
+				toast('Connection Error:', message.value);
 				break;
 
 			default:

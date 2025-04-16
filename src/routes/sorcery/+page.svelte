@@ -7,11 +7,9 @@
 	import { initWebsocket } from '$lib/websocket';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
-	import ModalConnection from '$lib/Settings/ModalConnection.svelte';
 	import Pane from './Pane.svelte';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 
-	let isConnectionModalOpen = $state(false);
 	function handleKeyDown(event: KeyboardEvent) {
 		// if (!isConnectionModalOpen) event.preventDefault();
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
@@ -39,10 +37,6 @@
 </svelte:head>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
-
-{#if isConnectionModalOpen}
-	<ModalConnection onClose={() => (isConnectionModalOpen = false)} />
-{/if}
 
 <Pane />
 
