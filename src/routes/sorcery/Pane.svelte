@@ -8,7 +8,8 @@
 		Text,
 		AutoValue,
 		Folder,
-		Element
+		Element,
+		FpsGraph
 	} from 'svelte-tweakpane-ui';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
@@ -16,6 +17,7 @@
 	import type { GameDTO } from '$lib/store/game/types';
 	import { gameActions } from '$lib/store/game/actions';
 	import { connectionStore } from '$lib/store/connectionStore.svelte';
+	import { page } from '$app/state';
 
 	async function fetchDeck() {
 		const response = await fetch(
@@ -47,12 +49,19 @@
 			}
 		});
 	});
+
+	let lobbyId = $state(page.url.searchParams.get('lobby') ?? '');
+	$effect(() => {
+		page.url.searchParams.set('lobby', lobbyId);
+	});
 </script>
 
 <Pane position="draggable" title="Settings" expanded={true} y={0} x={0}>
+	<FpsGraph />
 	<Folder title="Connection" expanded={false}>
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
-		<Text label="Using:" bind:value={$connectionStore.serverUrl} />
+		<Text label="Server:" bind:value={$connectionStore.serverUrl} />
+		<Text label="Lobby:" bind:value={lobbyId} />
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
 		<Button title="Reset to default" on:click={resetOverlayToDefault} />
