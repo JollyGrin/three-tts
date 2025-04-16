@@ -73,6 +73,7 @@ export async function connect(
 					'Connected to websocket server. Reconnection attempts:',
 					reconnectAttempts
 				);
+				toast(`Connected to lobby: ${lobbyId}`);
 				isConnected = true;
 				isConnecting = false;
 				reconnectAttempts = 0;
