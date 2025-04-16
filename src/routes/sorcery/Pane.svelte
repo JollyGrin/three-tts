@@ -8,16 +8,13 @@
 		Text,
 		AutoValue,
 		Folder,
-		Element,
-		List,
-		type ListOptions
+		Element
 	} from 'svelte-tweakpane-ui';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 	import type { GameDTO } from '$lib/store/game/types';
 	import { gameActions } from '$lib/store/game/actions';
-	import { onMount } from 'svelte';
 	import { connectionStore } from '$lib/store/connectionStore.svelte';
 
 	async function fetchDeck() {
@@ -52,7 +49,7 @@
 	});
 </script>
 
-<Pane position="draggable" title="Settings" expanded={true}>
+<Pane position="draggable" title="Settings" expanded={true} y={0} x={0}>
 	<Folder title="Connection" expanded={false}>
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
 		<Text label="Using:" bind:value={$connectionStore.serverUrl} />
