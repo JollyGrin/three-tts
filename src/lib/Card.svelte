@@ -40,7 +40,6 @@
 		const newY = cardState?.position?.[1] ?? 0.26;
 		if (!isDragging && height.current !== newY) height.target = newY;
 	});
-	$inspect('debug height:', cardState?.position as Vec3Array, height);
 
 	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
 		stiffness: 0.1,
