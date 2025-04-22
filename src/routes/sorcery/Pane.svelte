@@ -50,7 +50,14 @@
 	);
 </script>
 
-<Pane position="draggable" title="Settings" expanded={true} y={0} x={0}>
+<Pane
+	position="draggable"
+	title="Settings"
+	expanded={true}
+	y={0}
+	x={0}
+	localStoreId="sorcery-settings"
+>
 	<FpsGraph />
 	<Folder title="Connection" expanded={false}>
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />

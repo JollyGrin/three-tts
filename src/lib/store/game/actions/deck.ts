@@ -54,6 +54,45 @@ function initDeck(props: { isFaceUp?: boolean }) {
 	});
 }
 
+function addDeck(
+	props: GameDTO['decks']['string'] & {
+		deckId?: string;
+		position?: [number, number, number];
+		rotation?: [number, number, number];
+	}
+) {
+	const { id, seat = 0 } = gameActions.getMe() ?? {};
+	if (!id) return console.error('Cannot init deck without a playerId');
+	const myDecks = getMyDecks();
+	const deckId = props?.deckId ?? `deck:${id}:${myDecks.length}`; // will choose next available deckId
+	const mod = props.isFaceUp ? 2 : 0;
+	const positions = [
+		[8.5 + mod, 0.4, 4.5],
+		[8.5 + mod, 0.4, -4.7]
+	];
+
+	const rotations = [
+		[0, 0, 0],
+		[0, DEG2RAD * 180, 0]
+	];
+	gameStore.updateState({
+		decks: {
+			[deckId]: {
+				id: deckId,
+				isFaceUp: props.isFaceUp ?? false,
+				deckBackImageUrl: props.deckBackImageUrl,
+				position:
+					props?.position ??
+					(positions[seat % positions.length] as [number, number, number]),
+				rotation:
+					props.rotation ??
+					(rotations[seat % rotations.length] as [number, number, number]),
+				cards: props.cards
+			}
+		}
+	});
+}
+
 /**
  * Draws from the top of the deck
  * Follows LIFO (Last In First Out)
@@ -105,6 +144,7 @@ export const deckActions = {
 	drawFromTop,
 	getDeckLength,
 	initDeck,
+	addDeck,
 	placeOnTopOfDeck,
 	getMyDecks
 };
