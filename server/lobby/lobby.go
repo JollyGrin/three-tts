@@ -83,8 +83,9 @@ func (l *Lobby) AddClient(id string, conn *websocket.Conn) *Client {
 	// second to refill their bucket as they use it.
 	//
 	// In simple terms, a client can send {messageRate} msgs/s with a burst of up to {messageBucket}
-	messageRate := rate.Limit(7.0) // per second
-	messageBucket := 70            // max burst
+	// Extremely aggressive rate limiting to disconnect users sending sustained messages
+	messageRate := rate.Limit(4) // per second (only 1 message every 2 seconds on average)
+	messageBucket := 8           // minimal burst capacity (disconnect after just X rapid messages)
 	rateLimiter := rate.NewLimiter(messageRate, messageBucket)
 
 	client := &Client{
