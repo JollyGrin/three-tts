@@ -10,10 +10,14 @@
 		Object.keys($gameStore?.decks ?? {}).filter((key) => key.split(':').includes(playerId ?? ''))
 	);
 
-	async function fetchDeck() {
+	const PRECON_AIR_ALPHA = 'clqfhk28d0028ip242l6tp11m';
+	async function fetchDeck(_curiosaId: string = PRECON_AIR_ALPHA) {
+		let curiosaId = _curiosaId;
+		if (_curiosaId.includes('/')) curiosaId = _curiosaId.split('/').pop() ?? PRECON_AIR_ALPHA;
+
 		const { seat = 0 } = gameActions.getMe() ?? {};
 		const response = await fetch(
-			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
+			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/' + curiosaId
 		);
 		const data = await response.json();
 		console.log('res deck:', response, data);
@@ -51,6 +55,8 @@
 			rotation: [0, DEG2RAD * (isFirst ? 0 : 180), 0]
 		});
 	}
+
+	let curiosaDeckIdInput = $state('');
 </script>
 
 <Pane position="draggable" title="Decks" expanded={true} y={0} x={350} localStoreId="sorcery-deck">
@@ -59,11 +65,11 @@
 			<span class="animate-pulse"> Load a url from Curiosa </span>
 		</div>
 	</Element>
-	<Text label="Deck URL" value="" />
+	<Text label="Deck URL" bind:value={curiosaDeckIdInput} />
 	<Button
 		title="Load Deck"
 		on:click={() => {
-			fetchDeck();
+			fetchDeck(curiosaDeckIdInput);
 		}}
 	/>
 	<TabGroup>

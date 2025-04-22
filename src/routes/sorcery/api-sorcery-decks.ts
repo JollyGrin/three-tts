@@ -37,9 +37,9 @@ type DeckResponse = {
 	sideboard: Card[];
 };
 
-export async function fetchDeck() {
+export async function fetchDeck(curiosaId:string) {
 	const response = await fetch(
-		'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
+		'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/'+curiosaId
 	);
 	const data = (await response.json()) as DeckResponse;
 	console.log('res deck:', response, data);
