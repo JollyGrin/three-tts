@@ -40,6 +40,7 @@ The backend server is a Go websocket server. To run it locally:
 ```bash
 # from the project root
 cd server
+go build -o tts-server .
 ./run.sh
 ```
 
