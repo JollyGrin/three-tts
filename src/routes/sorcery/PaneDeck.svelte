@@ -1,14 +1,5 @@
 <script lang="ts">
-	import {
-		Button,
-		Pane,
-		Text,
-		Folder,
-		Element,
-		TabGroup,
-		TabPage,
-		Point
-	} from 'svelte-tweakpane-ui';
+	import { Button, Pane, Text, Element, TabGroup, TabPage, Point } from 'svelte-tweakpane-ui';
 	import { gameActions } from '$lib/store/game/actions';
 	import { convertDeckToGameDTO } from './api-sorcery-decks';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
@@ -21,6 +12,7 @@
 	$inspect({ myDecks });
 
 	async function fetchDeck() {
+		const { seat = 0 } = gameActions.getMe() ?? {};
 		const response = await fetch(
 			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
 		);
@@ -29,12 +21,14 @@
 
 		const convertedDeck = convertDeckToGameDTO(data);
 		console.log('convertedDeck', convertedDeck);
+		const isFirst = seat === 0;
 
 		gameActions.addDeck({
 			...convertedDeck.spellbook,
 			deckId: `deck:${playerId}:spellbook`,
 			id: `deck:${playerId}:spellbook`,
-			position: [8.5, 0.4, 4.5],
+			position: [8.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
+			rotation: [0, DEG2RAD * (isFirst ? 0 : 180), 0],
 			deckBackImageUrl: '/s-back.jpg'
 		});
 
@@ -42,8 +36,8 @@
 			...convertedDeck.atlas,
 			deckId: `deck:${playerId}:atlas`,
 			id: `deck:${playerId}:atlas`,
-			position: [10.5, 0.4, 4.5],
-			rotation: [0, DEG2RAD * 90, 0],
+			position: [10.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
+			rotation: [0, DEG2RAD * 90 * (isFirst ? 1 : -1), 0],
 			deckBackImageUrl: '/a-back.png'
 		});
 
@@ -52,7 +46,8 @@
 			isFaceUp: true,
 			deckId: `deck:${playerId}:cemetary`,
 			id: `deck:${playerId}:cemetary`,
-			position: [12.5, 0.4, 4.5]
+			position: [12.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
+			rotation: [0, DEG2RAD * (isFirst ? 0 : 180), 0]
 		});
 	}
 </script>
@@ -85,7 +80,6 @@
 					label="position"
 					value={[position[0], position[2]]}
 					on:change={(e) => {
-						console.log('DEBUG POS', e);
 						//@ts-expect-error: does exist
 						const x = e.detail.value?.x ?? position[0];
 						//@ts-expect-error: does exist
@@ -95,7 +89,6 @@
 						});
 					}}
 				/>
-				<Button title="title" label="label" />
 			</TabPage>
 		{/each}
 	</TabGroup>
