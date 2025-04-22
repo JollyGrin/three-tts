@@ -2,52 +2,21 @@
 Recreating table top simulator in the browser using threejs (threlte)
 
 # Notes:
-- debugging websocket. Adding the send broadcast in storeIntegrations by wrapping the store functions
-- working with partial and full update in path (see notes in file)
-- need to have this update the client and prevent feedback loops
+- currently debugging server to avoid infinite loops
+- need to rely on self-hosting server to avoid a crazy bill
+- need to fix feedback loops to host easily
 
 --- 
 
-# sv
+## client
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you've seen this, you've probably already done this step. Congrats!
+To run the frontend:
 
 ```bash
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
+bun run dev
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```bash
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
-
-## Prerequisites
+## Backend Prerequisites
 
 To run the backend server you need Go installed:
 
@@ -78,7 +47,7 @@ By default, the server listens on port 8080 (or uses the $PORT environment varia
 
 ### Exposing via ngrok
 
-To expose the server to the internet and get a public URL:
+The frontend accepts any server connection. To expose the server to the internet for free and get a public URL:
 
 ```bash
 ngrok http 8080
