@@ -60,18 +60,20 @@
 </script>
 
 <Pane position="draggable" title="Decks" expanded={true} y={0} x={350} localStoreId="sorcery-deck">
-	<Element>
-		<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
-			<span class="animate-pulse"> Load a url from Curiosa </span>
-		</div>
-	</Element>
-	<Text label="Deck URL" bind:value={curiosaDeckIdInput} />
-	<Button
-		title="Load Deck"
-		on:click={() => {
-			fetchDeck(curiosaDeckIdInput);
-		}}
-	/>
+	{#if myDecks.length === 0}
+		<Element>
+			<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
+				<span class="animate-pulse"> Load a url from Curiosa </span>
+			</div>
+		</Element>
+		<Text label="Deck URL" bind:value={curiosaDeckIdInput} />
+		<Button
+			title="Load Deck"
+			on:click={() => {
+				fetchDeck(curiosaDeckIdInput);
+			}}
+		/>
+	{/if}
 	<TabGroup>
 		{#each myDecks as deckId}
 			{@const position = $gameStore?.decks?.[deckId]?.position ?? [0, 0, 0]}
