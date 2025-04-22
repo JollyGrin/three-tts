@@ -21,14 +21,6 @@
 	import { goto } from '$app/navigation';
 	import toast from 'svelte-french-toast';
 
-	async function fetchDeck() {
-		const response = await fetch(
-			'https://corsproxy.innkeeper1.workers.dev/?url=https://curiosa.io/api/decks/clso3lngx007lhb600v843gd7'
-		);
-		const data = await response.json();
-		console.log('res deck:', response, data);
-	}
-
 	function resetOverlayToDefault() {
 		gameStore.updateState({ overlays: OVERLAY_SORCERY_DEFAULT });
 	}
@@ -81,27 +73,6 @@
 		<Point bind:value={point3d} label="Position" />
 		<AutoValue label="Scale" bind:value={scale} />
 		<Wheel label="Rotation" bind:value={rot} format={(v) => `${(Math.abs(v) % 360).toFixed(0)}°`} />
-	</Folder>
-	<Folder title="Load Deck">
-		<Element>
-			<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
-				<span class="animate-pulse"> Load a url from Curiosa </span>
-			</div>
-		</Element>
-		<Text label="Deck URL" value="" />
-		<Button
-			title="Load Deck"
-			on:click={() => {
-				fetchDeck();
-				gameActions.initDeck({
-					isFaceUp: false
-				});
-
-				gameActions.initDeck({
-					isFaceUp: true
-				});
-			}}
-		/>
 	</Folder>
 	<Folder title="Keybinds">
 		<Button

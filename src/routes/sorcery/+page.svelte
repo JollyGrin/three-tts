@@ -10,6 +10,7 @@
 	import Pane from './Pane.svelte';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 	import { page } from '$app/state';
+	import PaneDeck from './PaneDeck.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		// if (!isConnectionModalOpen) event.preventDefault();
@@ -46,6 +47,7 @@
 <svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
 <Pane />
+<PaneDeck />
 
 <div
 	class="h-screen w-screen overflow-clip transition-all"
