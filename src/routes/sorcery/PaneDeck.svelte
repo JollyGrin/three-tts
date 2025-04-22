@@ -9,7 +9,6 @@
 	const myDecks = $derived(
 		Object.keys($gameStore?.decks ?? {}).filter((key) => key.split(':').includes(playerId ?? ''))
 	);
-	$inspect({ myDecks });
 
 	async function fetchDeck() {
 		const { seat = 0 } = gameActions.getMe() ?? {};
