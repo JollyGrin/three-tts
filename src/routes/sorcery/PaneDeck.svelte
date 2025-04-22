@@ -1,12 +1,24 @@
 <script lang="ts">
-	import { Button, Pane, Text, Folder, Element } from 'svelte-tweakpane-ui';
+	import {
+		Button,
+		Pane,
+		Text,
+		Folder,
+		Element,
+		TabGroup,
+		TabPage,
+		Point
+	} from 'svelte-tweakpane-ui';
 	import { gameActions } from '$lib/store/game/actions';
-	import toast from 'svelte-french-toast';
 	import { convertDeckToGameDTO } from './api-sorcery-decks';
-	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
 
 	const playerId = gameActions.getMyId();
+	const myDecks = $derived(
+		Object.keys($gameStore?.decks ?? {}).filter((key) => key.split(':').includes(playerId ?? ''))
+	);
+	$inspect({ myDecks });
 
 	async function fetchDeck() {
 		const response = await fetch(
@@ -65,4 +77,26 @@
 			fetchDeck();
 		}}
 	/>
+	<TabGroup>
+		{#each myDecks as deckId}
+			{@const position = $gameStore?.decks?.[deckId]?.position ?? [0, 0, 0]}
+			<TabPage title={deckId?.split(':')?.[2] ?? 'Deck'}>
+				<Point
+					label="position"
+					value={[position[0], position[2]]}
+					on:change={(e) => {
+						console.log('DEBUG POS', e);
+						//@ts-expect-error: does exist
+						const x = e.detail.value?.x ?? position[0];
+						//@ts-expect-error: does exist
+						const y = e.detail.value?.y ?? position[2];
+						gameStore.updateState({
+							decks: { [deckId]: { position: [x, position[1], y] } }
+						});
+					}}
+				/>
+				<Button title="title" label="label" />
+			</TabPage>
+		{/each}
+	</TabGroup>
 </Pane>
