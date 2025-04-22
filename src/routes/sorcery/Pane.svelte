@@ -91,5 +91,7 @@
 		<Text label="Tap card" value="T" disabled />
 		<Text label="Reverse Tap card" value="R" disabled />
 		<Text label="Flip card" value="F" disabled />
+		<Text label="Nudge card higher" value="Arrow Up" disabled />
+		<Text label="Nudge card lower" value="Arrow Up" disabled />
 	</Folder>
 </Pane>

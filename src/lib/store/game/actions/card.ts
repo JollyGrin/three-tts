@@ -44,9 +44,35 @@ function tapCard(isReverse?: boolean, cardId?: string) {
 	});
 }
 
+function incrementHeight(increment: number, cardId?: string) {
+	const { isHovered, isDragging } = get(dragStore);
+	const hoveredId = isHovered || isDragging;
+	let id = cardId ?? hoveredId;
+	if (!id) return console.error('No cardId provided to increment');
+
+	const card = get(gameStore)?.cards?.[id]; // grab card on table
+	const [x = 0, y = 0, z = 0] = card?.position ?? []; // get current rotation
+	// todo: if y above 0.5, assume y = 0.26
+	const ceiling = Math.min(0.5, y);
+	const _y = ceiling === 0.5 ? 0.26 : ceiling;
+	const mod = Math.max(0.26, _y + increment);
+	console.table({
+		debug: true,
+		y,
+		increment,
+		min: Math.min(0.5, y)
+	});
+	gameStore.updateState({
+		cards: {
+			[id as string]: { position: [x, mod, z] }
+		}
+	});
+}
+
 export const cardActions = {
 	getCardState,
 	removeCard,
 	flipCard,
-	tapCard
+	tapCard,
+	incrementHeight
 };

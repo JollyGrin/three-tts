@@ -34,6 +34,13 @@
 		precision: 0.0001
 	});
 
+	// BUG: this stays floating when enabled, but its neeeded for height
+	// HACK: got this working by updating gamestate on the timeout of isDragging
+	$effect(() => {
+		if (!isDragging) height.target = cardState?.position?.[1] ?? 0.26;
+	});
+	$inspect('debug height:', cardState?.position as Vec3Array, height);
+
 	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
 		stiffness: 0.1,
 		damping: 0.8,
@@ -72,7 +79,11 @@
 		if (!isDragging) {
 			// elevate the card if on the table to prevent clipping through
 			height.target = 1.5;
-			setTimeout(() => (height.target = 0.26), 350);
+			// HACK: double check if this creates a feedback loop
+			setTimeout(() => {
+				// height.target = 0.26;
+				gameStore.updateState({ cards: { [id]: { position: [posX, 0.26, posZ] } } });
+			}, 350);
 		}
 	});
 
