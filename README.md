@@ -14,7 +14,7 @@ Everything you need to build a Svelte project, powered by [`sv`](https://github.
 
 ## Creating a project
 
-If you're seeing this, you've probably already done this step. Congrats!
+If you've seen this, you've probably already done this step. Congrats!
 
 ```bash
 # create a new project in the current directory
@@ -46,3 +46,36 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Running the server
+
+The backend server is a Go websocket server. To run it locally:
+
+```bash
+# from the project root
+cd server
+./run.sh
+```
+
+By default, the server listens on port 8080 (or uses the $PORT environment variable if set).
+
+### Exposing via ngrok
+
+To expose the server to the internet and get a public URL:
+
+```bash
+ngrok http 8080
+```
+
+This will display a forwarding URL (for example https://<your-ngrok-id>.ngrok.io) which you can use in the client to connect over WebSocket.
+
+### Client configuration
+
+In the app Settings pane (Settings > Connection), set the **Server** field to your server address _without_ `http://` or `https://`, for example:
+
+```text
+localhost:8080
+<your-ngrok-id>.ngrok.io
+```
+
+The client reads this value from `localStorage.serverurl` and automatically prefixes `ws://` for local addresses or `wss://` for secure hosts, then connects at `/ws`.
