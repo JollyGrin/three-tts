@@ -69,6 +69,8 @@ ngrok http 8080
 
 This will display a forwarding URL (for example https://<your-ngrok-id>.ngrok.io) which you can use in the client to connect over WebSocket.
 
+**Ensure your server is running on `localhost:8080` before starting ngrok. After running ngrok, copy and share the forwarding URL with other players so they can connect to your lobby.**
+
 ### Client configuration
 
 In the app Settings pane (Settings > Connection), set the **Server** field to your server address _without_ `http://` or `https://`, for example:
