@@ -47,6 +47,23 @@ You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
 
+## Prerequisites
+
+To run the backend server you need Go installed:
+
+- Visit https://go.dev/doc/install for platform-specific instructions.
+- On macOS, use Homebrew:
+
+```bash
+brew install go
+```
+
+Verify installation:
+
+```bash
+go version
+```
+
 ## Running the server
 
 The backend server is a Go websocket server. To run it locally:
