@@ -53,14 +53,7 @@
 	}
 </script>
 
-<Pane
-	position="draggable"
-	title="Load Deck"
-	expanded={true}
-	y={0}
-	x={350}
-	localStoreId="sorcery-deck"
->
+<Pane position="draggable" title="Decks" expanded={true} y={0} x={350} localStoreId="sorcery-deck">
 	<Element>
 		<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
 			<span class="animate-pulse"> Load a url from Curiosa </span>
