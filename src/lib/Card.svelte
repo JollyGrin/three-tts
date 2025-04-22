@@ -28,6 +28,8 @@
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
+	$inspect('DEBUG cardstate', cardState);
+
 	const height = new Spring((cardState?.position as Vec3Array)?.[1] ?? 0.26, {
 		stiffness: 0.15,
 		damping: 0.7,
@@ -117,13 +119,15 @@
 >
 	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
-		<ImageMaterial
-			url={faceImageUrl ?? ''}
-			side={0}
-			radius={0.1}
-			monochromeColor={'#fff'}
-			monochromeStrength={emissiveIntensity}
-		/>
+		{#key faceImageUrl}
+			<ImageMaterial
+				url={faceImageUrl ?? ''}
+				side={0}
+				radius={0.1}
+				monochromeColor={'#fff'}
+				monochromeStrength={emissiveIntensity}
+			/>
+		{/key}
 	</T.Mesh>
 
 	{#if backImageUrl}
