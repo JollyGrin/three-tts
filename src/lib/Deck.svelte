@@ -13,8 +13,11 @@
 
 	let { id = '' }: { id: string } = $props();
 
-	const deckBackImage = getStaticResourceUrl('/s-back.jpg');
+	// const deckBackImage = getStaticResourceUrl('/s-back.jpg');
 	const deck = $derived($gameStore?.decks?.[id] ?? {});
+	const deckBackImage = $derived(
+		$gameStore?.decks?.[id].deckBackImageUrl ?? getStaticResourceUrl('/s-back.jpg')
+	);
 
 	const cards = $derived($gameStore?.decks?.[id]?.cards ?? []);
 	const position: [number, number, number] = $derived(deck.position ?? [0, 0, 0]);
