@@ -25,6 +25,7 @@
 
 		gameActions.addDeck({
 			...convertedDeck.spellbook,
+			cards: gameActions.shuffleCards(convertedDeck.spellbook.cards ?? []) ?? [],
 			deckId: `deck:${playerId}:spellbook`,
 			id: `deck:${playerId}:spellbook`,
 			position: [8.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
@@ -34,6 +35,7 @@
 
 		gameActions.addDeck({
 			...convertedDeck.atlas,
+			cards: gameActions.shuffleCards(convertedDeck.atlas.cards ?? []) ?? [],
 			deckId: `deck:${playerId}:atlas`,
 			id: `deck:${playerId}:atlas`,
 			position: [10.5, 0.4, 4.5 * (isFirst ? 1 : -1)],

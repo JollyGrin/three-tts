@@ -140,6 +140,15 @@ function getDeckLength(id: string) {
 	return get(gameStore)?.decks?.[id]?.cards?.length ?? 0;
 }
 
+function shuffleCards(cards: any[]) {
+	if (!cards || cards.length === 0) return console.error('No cards to shuffle');
+	for (let i = cards.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[cards[i], cards[j]] = [cards[j], cards[i]];
+	}
+	return cards;
+}
+
 //   /**
 //    * Shuffle deck using the Fisher-Yates shuffle
 //    */
@@ -147,12 +156,11 @@ export function shuffleDeck(deckId: string) {
 	const deck = get(gameStore)?.decks?.[deckId];
 	const cards = deck?.cards;
 	if (!cards || cards.length === 0) return console.error('No cards to shuffle');
-	for (let i = cards.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[cards[i], cards[j]] = [cards[j], cards[i]];
-	}
+	const shuffledCards = shuffleCards(cards);
+	if (!shuffledCards || shuffledCards.length === 0)
+		return console.log('Error shuffling');
 	return gameStore.updateState({
-		decks: { [deckId]: { cards } }
+		decks: { [deckId]: { cards: shuffledCards } }
 	});
 }
 
@@ -163,5 +171,6 @@ export const deckActions = {
 	getMyDecks,
 	initDeck,
 	placeOnTopOfDeck,
-	shuffleDeck
+	shuffleDeck,
+	shuffleCards
 };
