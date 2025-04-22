@@ -37,7 +37,8 @@
 	// BUG: this stays floating when enabled, but its neeeded for height
 	// HACK: got this working by updating gamestate on the timeout of isDragging
 	$effect(() => {
-		if (!isDragging) height.target = cardState?.position?.[1] ?? 0.26;
+		const newY = cardState?.position?.[1] ?? 0.26;
+		if (!isDragging && height.current !== newY) height.target = newY;
 	});
 	$inspect('debug height:', cardState?.position as Vec3Array, height);
 
@@ -81,7 +82,7 @@
 			height.target = 1.5;
 			// HACK: double check if this creates a feedback loop
 			setTimeout(() => {
-				// height.target = 0.26;
+				height.target = 0.26;
 				gameStore.updateState({ cards: { [id]: { position: [posX, 0.26, posZ] } } });
 			}, 350);
 		}
