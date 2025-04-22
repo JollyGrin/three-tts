@@ -76,6 +76,7 @@
 		{#each myDecks as deckId}
 			{@const position = $gameStore?.decks?.[deckId]?.position ?? [0, 0, 0]}
 			<TabPage title={deckId?.split(':')?.[2] ?? 'Deck'}>
+				<Button title="Shuffle {deckId}" on:click={() => gameActions.shuffleDeck(deckId)} />
 				<Point
 					label="position"
 					value={[position[0], position[2]]}
