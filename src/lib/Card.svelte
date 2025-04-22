@@ -36,10 +36,10 @@
 
 	// BUG: this stays floating when enabled, but its neeeded for height
 	// HACK: got this working by updating gamestate on the timeout of isDragging
-	$effect(() => {
-		const newY = cardState?.position?.[1] ?? 0.26;
-		if (!isDragging && height.current !== newY) height.target = newY;
-	});
+	// $effect(() => {
+	// 	const newY = cardState?.position?.[1] ?? 0.26;
+	// 	if (!isDragging && height.current !== newY) height.target = newY;
+	// });
 
 	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
 		stiffness: 0.1,
@@ -82,7 +82,7 @@
 			// HACK: double check if this creates a feedback loop
 			setTimeout(() => {
 				height.target = 0.26;
-				gameStore.updateState({ cards: { [id]: { position: [posX, 0.26, posZ] } } });
+				// gameStore.updateState({ cards: { [id]: { position: [posX, 0.26, posZ] } } });
 			}, 350);
 		}
 	});
