@@ -19,5 +19,8 @@ export const TOKEN_IDS = [
 	'foot_soldier',
 	'frog',
 	'rubble',
-	'wildfire_path'
+	'wildfire_path',
+  'tawny',
+  'bruin',
+  'lance'
 ];
