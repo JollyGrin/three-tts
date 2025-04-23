@@ -11,6 +11,7 @@
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 	import { page } from '$app/state';
 	import PaneDeck from './PaneDeck.svelte';
+	import PaneStats from './PaneStats.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		// if (!isConnectionModalOpen) event.preventDefault();
@@ -51,6 +52,7 @@
 
 <Pane />
 <PaneDeck />
+<PaneStats />
 
 <div
 	class="h-screen w-screen overflow-clip transition-all"
