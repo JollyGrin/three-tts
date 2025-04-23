@@ -1,9 +1,27 @@
 <script lang="ts">
-	import { Button, Pane, Text, Element, TabGroup, TabPage, Point } from 'svelte-tweakpane-ui';
+	import {
+		Button,
+		Pane,
+		Text,
+		Element,
+		TabGroup,
+		TabPage,
+		Point,
+		List,
+		Separator
+	} from 'svelte-tweakpane-ui';
 	import { gameActions } from '$lib/store/game/actions';
 	import { convertDeckToGameDTO } from './api-sorcery-decks';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { TOKEN_IDS } from './constants';
+	import { getSorceryCardImage } from '$lib/utils/mock/cards';
+
+	export const tokens: Record<string, string> = Object.fromEntries(
+		TOKEN_IDS.map((id) => [id, id])
+	) as Record<string, string>;
+	let selectedToken: string = $state(tokens[TOKEN_IDS[0]]);
+	$inspect('dddd', tokens);
 
 	const playerId = gameActions.getMyId();
 	const myDecks = $derived(
@@ -104,4 +122,21 @@
 			</TabPage>
 		{/each}
 	</TabGroup>
+	<Separator />
+	<List label="Select token" bind:value={selectedToken} options={tokens} />
+	<Button
+		label="Spawn token"
+		title="Spawn {selectedToken}"
+		on:click={() => {
+			gameStore.updateState({
+				cards: {
+					[`card:${selectedToken}:${(Math.random() * 1000000).toFixed(0)}`]: {
+						position: [0, 0.5, 0],
+						faceImageUrl: getSorceryCardImage(selectedToken),
+						backImageUrl: '/s-back.jpg'
+					}
+				}
+			});
+		}}
+	/>
 </Pane>

@@ -10,3 +10,14 @@ export const OVERLAY_SORCERY_DEFAULT: GameDTO['overlays'] = {
 		ratio: 1.24
 	}
 };
+
+export const TOKEN_IDS = [
+	'burned',
+	'disabled',
+	'engulfed',
+	'flooded',
+	'foot_soldier',
+	'frog',
+	'rubble',
+	'wildfire_path'
+];

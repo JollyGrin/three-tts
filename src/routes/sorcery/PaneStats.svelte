@@ -1,16 +1,5 @@
 <script lang="ts">
-	import {
-		Button,
-		Pane,
-		Text,
-		Element,
-		TabGroup,
-		TabPage,
-		Point,
-		Folder,
-		Stepper,
-		IntervalSlider
-	} from 'svelte-tweakpane-ui';
+	import { Button, Pane, Text, Folder, Stepper, IntervalSlider } from 'svelte-tweakpane-ui';
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 
