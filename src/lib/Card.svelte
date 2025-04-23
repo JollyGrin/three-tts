@@ -11,7 +11,7 @@
 	import { gameActions } from './store/game/actions';
 	type Vec3Array = [number, number, number];
 
-	let { id } = $props();
+	let { id }: { id: string } = $props();
 
 	let card: THREE.Mesh | undefined = $state();
 	const initCardState: GameDTO['cards'][string] = {
@@ -34,12 +34,11 @@
 		precision: 0.0001
 	});
 
-	// BUG: this stays floating when enabled, but its neeeded for height
-	// HACK: got this working by updating gamestate on the timeout of isDragging
-	// $effect(() => {
-	// 	const newY = cardState?.position?.[1] ?? 0.26;
-	// 	if (!isDragging && height.current !== newY) height.target = newY;
-	// });
+	$effect(() => {
+		const newY = cardState?.position?.[1];
+		if (!newY) return;
+		if (!isDragging && height.current !== newY) height.target = newY;
+	});
 
 	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
 		stiffness: 0.1,
@@ -82,7 +81,6 @@
 			// HACK: double check if this creates a feedback loop
 			setTimeout(() => {
 				height.target = 0.26;
-				// gameStore.updateState({ cards: { [id]: { position: [posX, 0.26, posZ] } } });
 			}, 350);
 		}
 	});
@@ -117,13 +115,15 @@
 >
 	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
-		<ImageMaterial
-			url={faceImageUrl ?? ''}
-			side={0}
-			radius={0.1}
-			monochromeColor={'#fff'}
-			monochromeStrength={emissiveIntensity}
-		/>
+		{#key faceImageUrl}
+			<ImageMaterial
+				url={faceImageUrl ?? ''}
+				side={0}
+				radius={0.1}
+				monochromeColor={'#fff'}
+				monochromeStrength={emissiveIntensity}
+			/>
+		{/key}
 	</T.Mesh>
 
 	{#if backImageUrl}

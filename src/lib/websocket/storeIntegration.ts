@@ -86,6 +86,8 @@ export function wsWrapperUpdateDeck(fn: Function) {
 
 export function wsWrapperUpdateGameState(fn: Function) {
 	let lastSentTime = 0; // track the last time a message was sent
+	let positionTimeout: ReturnType<typeof setTimeout> | null = null;
+	let pendingPayload: any = null;
 	return function passArgs(...args: any[]) {
 		console.log('ws update gamestate: spread args', ...args);
 		const metadata = createWsMetaData();
@@ -104,7 +106,6 @@ export function wsWrapperUpdateGameState(fn: Function) {
 		};
 
 		// NOTE: This is a hacky way to check if there are any position updates
-		// Adds a debounce if so
 		const hasPositionUpdate = Object.values(payload.value.cards || {}).some(
 			(card: any) => !!card && Object.keys(card ?? {}).includes('position')
 		);
@@ -112,13 +113,23 @@ export function wsWrapperUpdateGameState(fn: Function) {
 		const limitMs = 200;
 		if (hasPositionUpdate) {
 			if (now - lastSentTime >= limitMs) {
+				// Leading send
 				lastSentTime = now;
-				console.log('Debounced (position): sending payload', payload);
+				console.log('Position update: sending payload', payload);
 				sendMessage(payload);
 			} else {
-				console.log(
-					'Debounced (position): skipped due to limit in ms: ' + limitMs
-				);
+				// Schedule trailing send
+				pendingPayload = payload;
+				const remaining = limitMs - (now - lastSentTime);
+				if (!positionTimeout) {
+					positionTimeout = setTimeout(() => {
+						lastSentTime = Date.now();
+						console.log('Position update: sending trailing payload', pendingPayload);
+						sendMessage(pendingPayload);
+						positionTimeout = null;
+						pendingPayload = null;
+					}, remaining);
+				}
 			}
 		} else {
 			console.log('Immediate (non-position): sending payload', payload);

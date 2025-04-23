@@ -28,6 +28,10 @@
 			gameActions.placeOnTopOfDeck(deckIdHovered, id);
 		}
 
+		const card = gameActions.getCardState(id);
+		const [x, y, z] = card?.position ?? [];
+		if (x && z) gameStore.updateState({ cards: { [id]: { position: [x, 0.26, z] } } });
+
 		dragEnd();
 	}
 
