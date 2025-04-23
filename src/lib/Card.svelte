@@ -28,16 +28,12 @@
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
-	$inspect('DEBUG cardstate', cardState);
-
 	const height = new Spring((cardState?.position as Vec3Array)?.[1] ?? 0.26, {
 		stiffness: 0.15,
 		damping: 0.7,
 		precision: 0.0001
 	});
 
-	// BUG: this stays floating when enabled, but its neeeded for height
-	// HACK: got this working by updating gamestate on the timeout of isDragging
 	$effect(() => {
 		const newY = cardState?.position?.[1];
 		if (!newY) return;
