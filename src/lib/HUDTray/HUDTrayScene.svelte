@@ -13,7 +13,7 @@
 
 	const viewport = useViewport();
 
-	const trayWidth = $derived($viewport.width / 2);
+	const trayWidth = $derived($viewport.width / 1);
 	const trayHeight = $derived($viewport.height / 6); // Adjust height as needed
 	const trayX = $derived(-$viewport.width / 2 + trayWidth / 2);
 	const trayY = $derived(-$viewport.height / 2 + trayHeight / 2);
