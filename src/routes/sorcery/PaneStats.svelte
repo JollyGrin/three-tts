@@ -49,7 +49,7 @@
 	position="draggable"
 	title="Game Stats"
 	expanded={true}
-	y={110}
+	y={160}
 	x={310}
 	width={300}
 	localStoreId="sorcery-deck"
