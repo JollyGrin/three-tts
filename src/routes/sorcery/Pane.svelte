@@ -54,6 +54,7 @@
 	position="draggable"
 	title="Settings"
 	expanded={true}
+	width={300}
 	y={0}
 	x={0}
 	localStoreId="sorcery-settings"

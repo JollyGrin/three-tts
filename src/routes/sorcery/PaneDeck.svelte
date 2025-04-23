@@ -25,13 +25,14 @@
 		const convertedDeck = convertDeckToGameDTO(data);
 		console.log('convertedDeck', convertedDeck);
 		const isFirst = seat === 0;
+		const negativeMod = isFirst ? 1 : -1;
 
 		gameActions.addDeck({
 			...convertedDeck.spellbook,
 			cards: gameActions.shuffleCards(convertedDeck.spellbook.cards ?? []) ?? [],
 			deckId: `deck:${playerId}:spellbook`,
 			id: `deck:${playerId}:spellbook`,
-			position: [8.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
+			position: [8.5 * negativeMod, 0.4, 4.5 * negativeMod],
 			rotation: [0, DEG2RAD * (isFirst ? 0 : 180), 0],
 			deckBackImageUrl: '/s-back.jpg'
 		});
@@ -41,8 +42,8 @@
 			cards: gameActions.shuffleCards(convertedDeck.atlas.cards ?? []) ?? [],
 			deckId: `deck:${playerId}:atlas`,
 			id: `deck:${playerId}:atlas`,
-			position: [10.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
-			rotation: [0, DEG2RAD * 90 * (isFirst ? 1 : -1), 0],
+			position: [10.5 * negativeMod, 0.4, 4.5 * negativeMod],
+			rotation: [0, DEG2RAD * 90 * negativeMod, 0],
 			deckBackImageUrl: '/a-back.png'
 		});
 
@@ -51,15 +52,23 @@
 			isFaceUp: true,
 			deckId: `deck:${playerId}:cemetary`,
 			id: `deck:${playerId}:cemetary`,
-			position: [12.5, 0.4, 4.5 * (isFirst ? 1 : -1)],
+			position: [12.5 * negativeMod, 0.4, 4.5 * negativeMod],
 			rotation: [0, DEG2RAD * (isFirst ? 0 : 180), 0]
 		});
 	}
 
-	let curiosaDeckIdInput = $state('');
+	let curiosaDeckIdInput = $state(PRECON_AIR_ALPHA);
 </script>
 
-<Pane position="draggable" title="Decks" expanded={true} y={0} x={350} localStoreId="sorcery-deck">
+<Pane
+	position="draggable"
+	title="Decks"
+	expanded={true}
+	y={0}
+	x={310}
+	width={300}
+	localStoreId="sorcery-deck"
+>
 	{#if myDecks.length === 0}
 		<Element>
 			<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
