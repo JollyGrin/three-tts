@@ -9,7 +9,8 @@
 		AutoValue,
 		Folder,
 		Element,
-		FpsGraph
+		FpsGraph,
+		Textarea
 	} from 'svelte-tweakpane-ui';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { OVERLAY_SORCERY_DEFAULT } from './constants';
@@ -73,6 +74,10 @@
 				navigator.clipboard.writeText(url);
 				toast(`Copied to clipboard: ` + url);
 			}}
+		/>
+		<Textarea
+			disabled
+			value={`Enter the server and lobby names. Then click share to copy to clipboard. Then refresh page to join.`}
 		/>
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
