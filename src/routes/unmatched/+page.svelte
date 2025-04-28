@@ -41,7 +41,8 @@
 					cards: {
 						mockcard: {
 							position: [0, 0.5, 0],
-							faceImageUrl: 'https://picsum.photos/400'
+							faceImageUrl: 'https://picsum.photos/400',
+							backImageUrl: '/s-back.jpg'
 						}
 					}
 				});

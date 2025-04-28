@@ -37,9 +37,25 @@
 	const cardTypeColor = cardTypeColors[card.type as keyof typeof cardTypeColors] || '#4aa46a';
 </script>
 
-<HTML transform pointerEvents="all" position={[0, 0.05, 0]} scale={0.01}>
-	<div style="width: {htmlWidth}px; height: {htmlHeight}px; overflow: hidden; user-select: none;">
-		<svg preserveAspectRatio="xMinYMin meet" viewBox="0 0 63 88" width="100%" height="100%">
+<HTML
+	transform
+	occlude
+	pointerEvents="all"
+	position={[0, 0, 0.02]}
+	scale={0.01}
+	resolutionScale={1.5}
+	transmissionScale={1}
+	zIndexRange={[100, 0]}
+>
+	<div
+		style="width: {htmlWidth}px; height: {htmlHeight}px; overflow: hidden; user-select: none; transform: translate3d(0,0,0); backface-visibility: hidden;"
+	>
+		<svg
+			preserveAspectRatio="xMinYMin meet"
+			viewBox="0 0 63 88"
+			width="{htmlWidth}px"
+			height="{htmlHeight}px"
+		>
 			<!-- Clipping paths -->
 			<clipPath id="innerBorder-{id}">
 				<rect
