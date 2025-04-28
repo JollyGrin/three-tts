@@ -36,7 +36,15 @@
 			isConnected = res;
 			// Add playmat overlay on table
 			if (!$gameStore?.overlays?.unmatched?.imageUrl)
-				gameStore.updateState({ overlays: OVERLAY_UNMATCHED_DEFAULT });
+				gameStore.updateState({
+					overlays: OVERLAY_UNMATCHED_DEFAULT,
+					cards: {
+						mockcard: {
+							position: [0, 0.5, 0],
+							faceImageUrl: 'https://picsum.photos/400'
+						}
+					}
+				});
 		});
 	});
 </script>
