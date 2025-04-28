@@ -8,7 +8,6 @@
 		Text,
 		AutoValue,
 		Folder,
-		Element,
 		FpsGraph,
 		Textarea
 	} from 'svelte-tweakpane-ui';
@@ -77,7 +76,7 @@
 		/>
 		<Textarea
 			disabled
-			value={`Enter the server and lobby names. Then click share to copy to clipboard. Then refresh page to join.`}
+			value="Enter the server and lobby names. Then click share to copy to clipboard. Then refresh page to join."
 		/>
 	</Folder>
 	<Folder title="Overlays" expanded={false}>
