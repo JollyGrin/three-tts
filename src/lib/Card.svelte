@@ -9,9 +9,10 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import type { GameDTO } from './store/game/types';
 	import { gameActions } from './store/game/actions';
+	import CardHtmlUnmatched from './patch/unmatched/card/CardHTMLUnmatched.svelte';
 	type Vec3Array = [number, number, number];
 
-	let { id }: { id: string } = $props();
+	let { id, isUnmatched = false }: { id: string; isUnmatched?: boolean } = $props();
 
 	let card: THREE.Mesh | undefined = $state();
 	const initCardState: GameDTO['cards'][string] = {
@@ -94,7 +95,7 @@
 	}
 
 	function handlePointerEnter() {
-		if (!!$dragStore.isDragging) return;
+		if ($dragStore.isDragging) return;
 		isHovered = true;
 		$dragStore.isHovered = id;
 	}
@@ -115,15 +116,19 @@
 >
 	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
 		<T.PlaneGeometry args={[1.4, 2]} />
-		{#key faceImageUrl}
-			<ImageMaterial
-				url={faceImageUrl ?? ''}
-				side={0}
-				radius={0.1}
-				monochromeColor={'#fff'}
-				monochromeStrength={emissiveIntensity}
-			/>
-		{/key}
+		{#if isUnmatched}
+			<CardHtmlUnmatched {id} />
+		{:else}
+			{#key faceImageUrl}
+				<ImageMaterial
+					url={faceImageUrl ?? ''}
+					side={0}
+					radius={0.1}
+					monochromeColor="#fff"
+					monochromeStrength={emissiveIntensity}
+				/>
+			{/key}
+		{/if}
 	</T.Mesh>
 
 	{#if backImageUrl}
@@ -133,7 +138,7 @@
 				url={backImageUrl}
 				side={0}
 				radius={0.1}
-				monochromeColor={'#fff'}
+				monochromeColor="#fff"
 				monochromeStrength={emissiveIntensity}
 			/>
 		</T.Mesh>

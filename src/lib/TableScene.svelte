@@ -14,6 +14,7 @@
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import type { GameDTO } from './store/game/types';
+	import { page } from '$app/state';
 	type CardDTO = GameDTO['cards'][string];
 
 	const isDragging = $derived($dragStore.isDragging !== null);
@@ -48,6 +49,7 @@
 	});
 
 	const cards = $derived(Object.entries($gameStore?.cards ?? {}) as [string, CardDTO][]);
+	const isUnmatched = $derived(page.url.toString()?.split('/').includes('unmatched'));
 </script>
 
 <TableCamera />
@@ -71,6 +73,6 @@
 	{/each}
 
 	{#each cards as [id] (id)}
-		<Card {id} />
+		<Card {id} {isUnmatched} />
 	{/each}
 </World>
