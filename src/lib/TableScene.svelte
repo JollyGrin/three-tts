@@ -56,11 +56,11 @@
 <T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
 
 <HUD>
-	<HudTrayScene />
+	<HudTrayScene {isUnmatched} />
 </HUD>
 
 <HUD>
-	<HudPreviewScene />
+	<HudPreviewScene {isUnmatched} />
 </HUD>
 
 <World>

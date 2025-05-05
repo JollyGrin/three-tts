@@ -7,7 +7,7 @@
 	let { id, cardData } = $props<{ id: string; cardData?: DeckImportCardType }>();
 
 	// Convert card data from deck to match DeckImportCardType
-	const defaultCard = UNMATCHED_DECK_THRALL.deck_data.cards[1];
+	const defaultCard = UNMATCHED_DECK_THRALL.deck_data.cards[11];
 	const defaultCardTyped: DeckImportCardType = {
 		id: 'default',
 		title: defaultCard.title,
@@ -45,7 +45,6 @@
 	scale={0.01}
 	resolutionScale={1.5}
 	transmissionScale={1}
-	zIndexRange={[100, 0]}
 >
 	<div
 		style="width: {htmlWidth}px; height: {htmlHeight}px; overflow: hidden; user-select: none; transform: translate3d(0,0,0); backface-visibility: hidden;"

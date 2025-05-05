@@ -9,13 +9,15 @@
 	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
+	import CardHtmlUnmatched from '$lib/patch/unmatched/card/CardHTMLUnmatched.svelte';
 
 	interactivity();
 	let {
 		id,
 		index = 0,
-		trayWidth = 0
-	}: { id: string; index: number; trayWidth?: number } = $props();
+		trayWidth = 0,
+		isUnmatched = false
+	}: { id: string; index: number; trayWidth?: number; isUnmatched?: boolean } = $props();
 
 	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
 	const card = $derived($gameStore?.players?.[myPlayerId]?.tray?.[id] ?? {});
@@ -82,11 +84,15 @@
 	onpointerdown={handleDragStart}
 >
 	<T.PlaneGeometry args={cardSize} />
-	<ImageMaterial
-		url={card.faceImageUrl ?? ''}
-		side={2}
-		radius={0.1}
-		transparent={true}
-		opacity={0.9}
-	/>
+	{#if isUnmatched}
+		<CardHtmlUnmatched {id} />
+	{:else}
+		<ImageMaterial
+			url={card.faceImageUrl ?? ''}
+			side={2}
+			radius={0.1}
+			transparent={true}
+			opacity={0.9}
+		/>
+	{/if}
 </T.Mesh>

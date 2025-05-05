@@ -9,7 +9,7 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 
 	interactivity();
-	let {}: {} = $props();
+	let { isUnmatched = false }: { isUnmatched?: boolean } = $props();
 
 	const viewport = useViewport();
 
@@ -49,6 +49,6 @@
 	</T.Mesh>
 
 	{#each cards as [id], index (id)}
-		<TrayCard {id} {index} {trayWidth} />
+		<TrayCard {id} {index} {trayWidth} {isUnmatched} />
 	{/each}
 </T.Group>
