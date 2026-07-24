@@ -56,8 +56,13 @@ function openDb(): Promise<IDBDatabase | null> {
 		req.onerror = () => resolve(null);
 	});
 }
+/** never let a wedged IndexedDB open hang the whole art pipeline */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+	return Promise.race([promise, new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
+}
+
 const dbPromise: Promise<IDBDatabase | null> | null =
-	typeof indexedDB !== 'undefined' ? openDb() : null;
+	typeof indexedDB !== 'undefined' ? withTimeout(openDb(), 1500, null) : null;
 
 async function idbGet(key: string): Promise<string | null> {
 	const db = await (dbPromise ?? Promise.resolve(null));

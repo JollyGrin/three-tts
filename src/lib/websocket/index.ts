@@ -93,7 +93,13 @@ function setupMessageHandlers(): void {
 				gameStore.updateStateSilently(message.value);
 				// resolve all sheet refs in the synced state, then force one
 				// re-render sweep so everything repaints deterministically
-				prewarmGameState(message.value, () => gameStore.updateStateSilently({}));
+				prewarmGameState(message.value, ({ total, failed }) => {
+					gameStore.updateStateSilently({});
+					toast(
+						failed > 0 ? `Card art: ${total - failed}/${total} loaded` : `Card art ready (${total})`,
+						{ duration: 3000 }
+					);
+				});
 				break;
 
 			case 'update':
