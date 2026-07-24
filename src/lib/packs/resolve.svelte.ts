@@ -7,7 +7,6 @@
  *   Only the tiny ref string ever touches the store/wire — never image data —
  *   so every client resolves the same ref to the same deterministic image.
  */
-import { SvelteMap } from 'svelte/reactivity';
 import { sliceCell } from '$lib/tts/slice';
 import { namedCardImage } from './placeholder';
 import { CARD_BACK_DEFAULT } from './standard52';
@@ -233,17 +232,25 @@ type SheetRefPayload = {
 	back?: boolean;
 };
 
-const sheetResults = new SvelteMap<string, string>();
+const sheetResults = new Map<string, string>();
 const sheetPending = new Set<string>();
+
+// $state version counter: incremented whenever any slice result lands.
+// Every resolveSheet call reads it, so all callers ($derived in components)
+// re-run and pick up their result — regardless of Map reactivity semantics.
+let sheetVersion = $state(0);
+
+function commitSheetResult(ref: string, url: string) {
+	sheetResults.set(ref, url);
+	sheetVersion++;
+}
 
 export function makeSheetRef(payload: SheetRefPayload): string {
 	return `sheet:${JSON.stringify(payload)}`;
 }
 
 function resolveSheet(ref: string): string {
-	// structural dependency: guarantees callers re-run when ANY result lands,
-	// even if reading a missing key didn't register a per-key signal
-	void sheetResults.size;
+	void sheetVersion; // reactive dependency: re-run when any result lands
 	const cached = sheetResults.get(ref);
 	if (cached !== undefined) return cached;
 
@@ -254,7 +261,7 @@ function resolveSheet(ref: string): string {
 			payload = JSON.parse(ref.slice('sheet:'.length)) as SheetRefPayload;
 		} catch (error) {
 			console.warn('[resolve] unparseable sheet ref', ref.slice(0, 120), error);
-			sheetResults.set(ref, '');
+			commitSheetResult(ref, '');
 		}
 		if (payload) {
 			const fallback = () =>
@@ -263,15 +270,15 @@ function resolveSheet(ref: string): string {
 				.then((url) => {
 					if (url === null)
 						console.warn('[resolve] sheet unreachable, using fallback:', payload?.url);
-					sheetResults.set(ref, url ?? fallback());
+					commitSheetResult(ref, url ?? fallback());
 				})
 				.catch((error) => {
 					console.warn('[resolve] slice failed, using fallback:', payload?.url, error);
-					sheetResults.set(ref, fallback());
+					commitSheetResult(ref, fallback());
 				});
 		}
 	}
-	return ''; // pending — reactive map update re-triggers callers
+	return ''; // pending — version bump re-triggers callers when the slice lands
 }
 
 /** Resolve a face ref to something ImageMaterial can load. Unknown refs pass through. */

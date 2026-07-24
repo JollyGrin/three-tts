@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { STANDARD_52, STANDARD_52_CARDS, SUITS, RANKS } from '../standard52';
-import { resolveCardImage } from '../resolve';
+import { resolveCardImage } from '../resolve.svelte';
 
 describe('STANDARD_52 pack', () => {
 	it('contains exactly 52 unique cards', () => {

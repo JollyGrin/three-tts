@@ -6,7 +6,7 @@
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { CARD_BACK_DEFAULT } from '$lib/packs';
-import { makeSheetRef } from '$lib/packs/resolve';
+import { makeSheetRef } from '$lib/packs/resolve.svelte';
 import { CARD_REST_Y } from '$lib/utils/constants-cards';
 import { parseSavedObject, type ParsedCard } from './parse';
 import { sliceCell } from './slice';
