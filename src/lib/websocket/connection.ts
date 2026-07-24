@@ -23,7 +23,11 @@ function normalizeServerHost(url: string): string {
 		.replace(/^(https?|wss?):\/\//, '')
 		.replace(/\/+$/, '');
 }
-const CACHE_SERVER_URL = normalizeServerHost(localStorage.getItem('serverurl') ?? 'localhost:8080');
+// Default to the public server so a first-time visitor gets real multiplayer;
+// a non-empty localStorage.serverurl (set in Settings) always wins. `||` (not ??)
+// because connectionStore writes '' to localStorage before a server is ever set.
+const CACHE_SERVER_URL =
+	normalizeServerHost(localStorage.getItem('serverurl') ?? '') || 'api.table.place';
 const SECURITY = CACHE_SERVER_URL.includes('localhost') ? 'ws' : 'wss';
 const WS_SERVER_URL = `${SECURITY}://${CACHE_SERVER_URL}/ws`;
 
