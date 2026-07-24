@@ -84,6 +84,34 @@ export function wsWrapperUpdateDeck(fn: Function) {
 	};
 }
 
+/**
+ * Merge a new update payload into a pending (throttled) one so coalescing
+ * NEVER drops entities. Two levels: collection (cards/decks/pieces/…) →
+ * entity id → shallow field merge. Drag streams still coalesce correctly
+ * (same id, latest position wins); bursts of distinct entities (imports!)
+ * all survive to the server instead of only the last one.
+ */
+function mergePendingValue(pending: any, incoming: any) {
+	const merged = { ...pending };
+	for (const collection of Object.keys(incoming ?? {})) {
+		const incomingEntities = incoming[collection];
+		if (!incomingEntities || typeof incomingEntities !== 'object') {
+			merged[collection] = incomingEntities;
+			continue;
+		}
+		const target = { ...(merged[collection] ?? {}) };
+		for (const id of Object.keys(incomingEntities)) {
+			const entity = incomingEntities[id];
+			target[id] =
+				entity && typeof entity === 'object' && target[id] && typeof target[id] === 'object'
+					? { ...target[id], ...entity }
+					: entity;
+		}
+		merged[collection] = target;
+	}
+	return merged;
+}
+
 export function wsWrapperUpdateGameState(fn: Function) {
 	let lastSentTime = 0; // track the last time a message was sent
 	let positionTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -122,8 +150,11 @@ export function wsWrapperUpdateGameState(fn: Function) {
 				console.log('Position update: sending payload', payload);
 				sendMessage(payload);
 			} else {
-				// Schedule trailing send
-				pendingPayload = payload;
+				// Schedule trailing send — MERGE into pending, never replace
+				// (replacing dropped every entity between first and last of a burst)
+				pendingPayload = pendingPayload
+					? { ...payload, value: mergePendingValue(pendingPayload.value, payload.value) }
+					: payload;
 				const remaining = limitMs - (now - lastSentTime);
 				if (!positionTimeout) {
 					positionTimeout = setTimeout(() => {
