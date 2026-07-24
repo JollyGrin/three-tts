@@ -131,6 +131,30 @@ describe('PlayerHud', () => {
 		expect(container.textContent).toContain('2 players · 1 open');
 	});
 
+	it('reveals a peer once their join re-publish lands', async () => {
+		const { container } = render(PlayerHud);
+		// what a peer's client holds before the re-publish: seat/tray/presence
+		// patches only — the join row itself was dropped pre-connect
+		gameStore.set({
+			players: {
+				me: state.players!.me,
+				peer: { seat: 1, tray: {}, connected: true }
+			}
+		} as Partial<GameDTO>);
+		await Promise.resolve();
+		expect(container.textContent).not.toContain('peer');
+
+		// the re-publish arrives as an ordinary update merge patch
+		gameStore.updateStateSilently({ players: { peer: { id: 'peer', joinTimestamp: 123 } } });
+		await Promise.resolve();
+		expect(container.textContent).toContain('peer');
+		// the presence that arrived before the row completed still shows
+		const dot = container
+			.querySelector('[title="peer"]')
+			?.parentElement?.querySelector('[data-connected]');
+		expect(dot?.getAttribute('data-connected')).toBe('true');
+	});
+
 	it('lets pointer events through everywhere but the HUD box', () => {
 		const { container } = render(PlayerHud);
 		const wrapper = container.querySelector('div');
