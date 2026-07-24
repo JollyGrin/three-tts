@@ -33,28 +33,31 @@ func (g *Game) HandleMessage(from *Player, msg Message) {
 		Exclude: from.ID,
 		Content: data,
 	}
-
-	return
 }
 
 func (g *Game) SyncPlayerState(id string) {
+	// marshal under the lock, send after releasing it — sending to a possibly
+	// full channel while holding the state mutex can deadlock the lobby
 	g.mu.Lock()
-	cpy := make(json.RawMessage, len(g.Data))
-	copy(cpy, g.Data)
+	data, err := json.Marshal(g.Data)
+	g.mu.Unlock()
+	if err != nil {
+		log.Err(err).Msg("Failed to marshal state for sync")
+		return
+	}
 
 	returnMsg := &Message{
 		Type:      "sync",
 		PlayerID:  id, // TODO: should be a server id or something
 		Timestamp: time.Now().UnixMilli(),
-		Value:     cpy,
+		Value:     data,
 	}
-	data, _ := json.Marshal(returnMsg)
+	payload, _ := json.Marshal(returnMsg)
 
 	g.out <- &PlayerMessage{
 		To:      []string{id},
-		Content: data,
+		Content: payload,
 	}
-	defer g.mu.Unlock()
 }
 
 func (g *Game) DisconnectPlayer(p *Player) {
@@ -100,6 +103,7 @@ func (g *Game) BroadcastPlayerChange(playerID, changeType string, timestamp int6
 func (g *Game) ConnectPlayer(playerID string) *Player {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	g.LastActivity = time.Now()
 
 	existing, ok := g.Players[playerID]
 	if ok {
@@ -125,15 +129,16 @@ func (g *Game) update(msg Message) {
 		return
 	}
 
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	// Apply the update based on the path
-	newData, err := jsonmerge.Patch(g.Data, msg.Value)
-	if err != nil {
-		// TODO: Message client the error?
-		log.Err(err).Msgf("Failed to apply update: %v", err)
+	// decode outside the lock; only the merge itself needs exclusivity
+	var patch map[string]any
+	if err := json.Unmarshal(msg.Value, &patch); err != nil {
+		log.Err(err).Msg("Failed to decode update value")
 		return
 	}
-	g.Data = newData
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.Data = jsonmerge.MergeMaps(g.Data, patch)
+	g.Updates++
+	g.LastActivity = time.Now()
 }

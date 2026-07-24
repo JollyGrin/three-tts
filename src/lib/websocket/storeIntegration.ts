@@ -167,8 +167,21 @@ export function wsWrapperUpdateGameState(fn: Function) {
 				}
 			}
 		} else {
-			console.log('Immediate (non-position): sending payload', payload);
-			sendMessage(payload);
+			// Flush any queued trailing position send INTO this message instead of
+			// letting it fire afterwards: a stale position arriving after a
+			// structural update (card → tray/deck) re-creates the entity on remote
+			// clients as a position-only ghost with no art.
+			if (positionTimeout) {
+				clearTimeout(positionTimeout);
+				positionTimeout = null;
+			}
+			const outgoing = pendingPayload
+				? { ...payload, value: mergePendingValue(pendingPayload.value, payload.value) }
+				: payload;
+			if (pendingPayload) lastSentTime = now;
+			pendingPayload = null;
+			console.log('Immediate (non-position): sending payload', outgoing);
+			sendMessage(outgoing);
 		}
 
 		return fn(...args);

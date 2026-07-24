@@ -1,3 +1,12 @@
+<script lang="ts" module>
+	import { writable } from 'svelte/store';
+
+	// Single shared hover owner across all tray cards. Expanded cards overlap
+	// their neighbors, so per-card enter/leave flags could leave two cards
+	// expanded at once — the latest pointerenter claims hover, collapsing the rest.
+	const hoveredTrayCard = writable<string | null>(null);
+</script>
+
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
@@ -21,11 +30,24 @@
 	const card = $derived($gameStore?.players?.[myPlayerId]?.tray?.[id] ?? {});
 	const trayUrl = $derived(resolveCardImage(card.faceImageUrl, $sheetRefCache));
 
-	let isCardHovered = $state(false);
+	const isCardHovered = $derived($hoveredTrayCard === id);
 	let emissiveIntensity = $state(0);
 
 	$effect(() => {
 		emissiveIntensity = isCardHovered ? 0.05 : 0;
+	});
+
+	// expansion follows the shared hover owner, not raw enter/leave events
+	$effect(() => {
+		if (isCardHovered) {
+			cardScale.target = 1.5;
+			cardY.target = 1.5;
+			cardZ = 1;
+		} else {
+			cardScale.target = 0.55;
+			cardY.target = 0;
+			cardZ = 0;
+		}
 	});
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
@@ -42,16 +64,12 @@
 	});
 
 	function handlePointerEnter() {
-		isCardHovered = true;
-		cardScale.target = 1.5;
-		cardY.target = 1.5;
-		cardZ = 1;
+		hoveredTrayCard.set(id);
 	}
 	function handlePointerLeave() {
-		isCardHovered = false;
-		cardScale.target = 0.55;
-		cardY.target = 0;
-		cardZ = 0;
+		// guard: a stale leave (fired after a neighbor claimed hover) must not
+		// clear the neighbor's expansion
+		hoveredTrayCard.update((current) => (current === id ? null : current));
 	}
 	function handleDragStart() {
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
@@ -62,7 +80,8 @@
 				[id]: {
 					...movedCard,
 					position: [x, 2.5, z],
-					rotation: [0, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
+					// 180 on x = facedown (matches flipCard convention) — cards leave the hand hidden
+					rotation: [180, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
 					faceImageUrl: movedCard?.faceImageUrl ?? card?.faceImageUrl,
 					backImageUrl: movedCard?.backImageUrl ?? card.backImageUrl ?? CARD_BACK_DEFAULT // TODO: update this with its actual cardback
 				}

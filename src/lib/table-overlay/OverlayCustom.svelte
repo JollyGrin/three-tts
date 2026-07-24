@@ -5,6 +5,10 @@
 	import { loadTextureImage } from '$lib/utils/image-cors';
 
 	const FLOOR_HEIGHT = 0.255;
+	// lift the map plane above the table Grid (also at 0.255) — coplanar surfaces
+	// z-fight. Applied on the mesh, not the group, so it also fixes overlays whose
+	// synced position already stores y = 0.255. Stays below card rest height (0.26).
+	const GRID_CLEARANCE = 0.003;
 
 	let { id = '' }: { id: string } = $props();
 	const overlay = $derived($gameStore.overlays?.[id]);
@@ -34,7 +38,7 @@
 
 {#if resolvedUrl}
 	<T.Group position={overlay?.position ?? [0, FLOOR_HEIGHT, 0]} rotation={overlay?.rotation}>
-		<T.Mesh receiveShadow rotation.x={-Math.PI / 2} scale={worldScale}>
+		<T.Mesh receiveShadow rotation.x={-Math.PI / 2} position.y={GRID_CLEARANCE} scale={worldScale}>
 			<T.PlaneGeometry args={[ratio, 1]} />
 			<ImageMaterial url={resolvedUrl} side={0} radius={0.02} />
 		</T.Mesh>

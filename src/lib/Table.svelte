@@ -113,12 +113,18 @@
 	<OverlayCustom id={overlayId} />
 {/each}
 
+<!-- fadeOrigin pinned to table center (default follows the camera, which kept
+     the grid strong ~100 units out). Radial fade: solid over the felt, gone
+     ~20 units past the long edge. -->
 <Grid
 	position.y={0.255}
 	cellColor="#fff"
 	sectionColor="#fff"
 	sectionThickness={0}
 	cellThickness={0.5}
+	fadeOrigin={[0, 0.255, 0]}
+	fadeDistance={50}
+	fadeStrength={0.5}
 	infiniteGrid
 />
 <T.Group position={[0, 0, 0]}>

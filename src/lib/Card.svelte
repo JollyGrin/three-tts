@@ -65,10 +65,34 @@
 	const basePosition = $derived(cardState?.position ?? [0, 0, 0]);
 	const baseRotation = $derived(cardState?.rotation ?? [0, 0, 0]);
 
+	// 180 on x = facedown (flipCard convention). The face plane stays mounted so
+	// its texture never unloads, but is not rendered — no peeking under the card.
+	// Asymmetric on purpose: flipping DOWN keeps the face until the spring passes
+	// 90° (edge-on, so the hide is invisible); flipping UP shows it immediately
+	// so the art is there for the whole reveal.
+	const isFacedown = $derived(baseRotation[0] === 180 && rotation.current > 90);
+
+	// Horizontal glide: remote drags only arrive every ~200ms (network throttle),
+	// so x/z spring toward the store position instead of teleporting between
+	// ticks. Local drags snap instantly — a spring there reads as input lag.
+	const planar = new Spring(
+		{
+			x: (cardState?.position as Vec3Array)?.[0] ?? 0,
+			z: (cardState?.position as Vec3Array)?.[2] ?? 0
+		},
+		{ stiffness: 0.15, damping: 0.8, precision: 0.0001 }
+	);
+
+	$effect(() => {
+		const [x = 0, , z = 0] = cardState?.position ?? [];
+		if (isDragging) planar.set({ x, z }, { instant: true });
+		else planar.target = { x, z };
+	});
+
 	// Create derived values for each component
-	const posX = $derived(basePosition[0]);
+	const posX = $derived(planar.current.x);
 	const posY = $derived(height.current);
-	const posZ = $derived(basePosition[2]);
+	const posZ = $derived(planar.current.z);
 
 	// Combine components into position array
 	const position: [number, number, number] = $derived([posX, posY, posZ]);
@@ -125,6 +149,7 @@
 			castShadow
 			receiveShadow
 			bind:ref={card}
+			visible={!isFacedown}
 			rotation.x={-Math.PI / 2}
 			position.y={CARD_THICKNESS / 2}
 		>

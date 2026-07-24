@@ -23,6 +23,9 @@ type Lobby struct {
 	gameEvents <-chan *game.PlayerMessage
 	mu         sync.Mutex
 	cancel     context.CancelFunc
+	// called (outside l.mu) whenever the last client leaves — used by Lobbies
+	// to garbage-collect idle lobbies
+	onEmpty func()
 }
 
 func newLobby(id string) *Lobby {
@@ -54,7 +57,16 @@ func (l *Lobby) run(ctx context.Context) {
 			l.mu.Lock()
 			for client := range l.clients {
 				if msg.Exclude != client.Player.ID && (len(msg.To) == 0 || slices.Contains(msg.To, client.ID)) {
-					client.Send <- msg.Content
+					select {
+					case client.Send <- msg.Content:
+					default:
+						// slow consumer with a full buffer: dropping beats
+						// blocking the whole lobby on one stalled client
+						log.Warn().
+							Str("lobby", l.ID).
+							Str("player", client.ID).
+							Msg("send buffer full, dropping message")
+					}
 				}
 			}
 			l.mu.Unlock()
@@ -163,10 +175,23 @@ func (l *Lobby) clientWrite(ctx context.Context, c *Client) {
 func (l *Lobby) unsubscribe(c *Client) {
 	c.close.Do(func() {
 		l.mu.Lock()
-		defer l.mu.Unlock()
-
 		l.state.DisconnectPlayer(c.Player)
 		_ = c.Conn.Close(websocket.StatusInternalError, "unsubscribing")
 		delete(l.clients, c)
+		// safe: run() only sends to clients still in the map, under this same
+		// lock — closing lets the clientWrite goroutine exit instead of leaking
+		close(c.Send)
+		empty := len(l.clients) == 0
+		l.mu.Unlock()
+
+		if empty && l.onEmpty != nil {
+			l.onEmpty()
+		}
 	})
+}
+
+func (l *Lobby) clientCount() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.clients)
 }

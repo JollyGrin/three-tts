@@ -24,5 +24,14 @@
 		<a href="/play" class="block rounded bg-emerald-400 py-2 text-center font-medium text-white"
 			>Open Table</a
 		>
+		<a
+			href="/setup"
+			class="mt-2 block rounded border border-emerald-400 py-2 text-center font-medium text-emerald-600"
+			>Scenario Setup</a
+		>
+		<p class="mt-2 text-sm text-gray-500">
+			Build a reusable game setup locally — import decks for both seats, place the map, then seed a
+			lobby with it from the table's Settings → Scenarios.
+		</p>
 	</div>
 </div>

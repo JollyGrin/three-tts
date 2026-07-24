@@ -31,10 +31,24 @@
 		height.target = piece?.position?.[1] ?? REST_Y;
 	});
 
+	// Horizontal glide: remote drags only arrive every ~200ms (network throttle),
+	// so x/z spring toward the store position instead of teleporting between
+	// ticks. Local drags snap instantly — a spring there reads as input lag.
+	const planar = new Spring(
+		{ x: piece?.position?.[0] ?? 0, z: piece?.position?.[2] ?? 0 },
+		{ stiffness: 0.15, damping: 0.8, precision: 0.0001 }
+	);
+
+	$effect(() => {
+		const [x = 0, , z = 0] = piece?.position ?? [];
+		if (isDragging) planar.set({ x, z }, { instant: true });
+		else planar.target = { x, z };
+	});
+
 	const position: [number, number, number] = $derived([
-		piece?.position?.[0] ?? 0,
+		planar.current.x,
 		height.current,
-		piece?.position?.[2] ?? 0
+		planar.current.z
 	]);
 
 	function handlePointerDown(e: { nativeEvent?: PointerEvent } & PointerEvent) {

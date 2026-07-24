@@ -55,11 +55,22 @@ async function resolveCard(card: ParsedCard): Promise<{
 	};
 }
 
+export type ImportOptions = {
+	/** entity owner id — defaults to the local player (scenario editor passes placeholder seat ids) */
+	ownerId?: string;
+	/** spawn on the far side of the table, rotated to face that seat (seat 1 setups) */
+	mirror?: boolean;
+};
+
 /** Import a TTS Saved Object JSON string; spawns onto the current table. */
-export async function importTtsFile(text: string): Promise<ImportReport> {
+export async function importTtsFile(
+	text: string,
+	opts: ImportOptions = {}
+): Promise<ImportReport> {
 	const parsed = parseSavedObject(JSON.parse(text));
-	const playerId = gameActions.getMyId();
+	const playerId = opts.ownerId ?? gameActions.getMyId();
 	if (!playerId) throw new Error('No player id — join a lobby first');
+	const m = opts.mirror ? -1 : 1;
 
 	const report: ImportReport = {
 		decks: 0,
@@ -96,7 +107,9 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 			isFaceUp: false,
 			deckBackImageUrl: deckBackRef,
 			cards,
-			position: [8.5 - deckIndex * 2.5, 0.4, 4.5]
+			position: [(8.5 - deckIndex * 2.5) * m, 0.4, 4.5 * m],
+			// deck rotation is radians; face the owning seat
+			rotation: [0, opts.mirror ? Math.PI : 0, 0]
 		});
 		report.decks += 1;
 	}
@@ -108,8 +121,9 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 		gameStore.updateState({
 			cards: {
 				[`card:${playerId}:loose-${slugify(c.name, String(i))}-${i}`]: {
-					position: [4 - i * 1.6, CARD_REST_Y, 1.5],
-					rotation: [0, 0, 0],
+					position: [(4 - i * 1.6) * m, CARD_REST_Y, 1.5 * m],
+					// card rotation is in degrees (tap convention); z=180 reads upright from the far seat
+					rotation: [0, 0, opts.mirror ? 180 : 0],
 					faceImageUrl: c.faceImageUrl,
 					backImageUrl: c.backImageUrl
 				}
@@ -134,7 +148,7 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 					radius: piece.radius,
 					maxValue: piece.maxValue,
 					value: piece.maxValue,
-					position: [piece.position[0] + offsetX, PIECE_REST_Y, piece.position[1]],
+					position: [(piece.position[0] + offsetX) * m, PIECE_REST_Y, piece.position[1] * m],
 					rotation: [0, 0, 0]
 				}
 			}

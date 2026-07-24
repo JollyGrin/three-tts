@@ -32,6 +32,7 @@ const DEFAULT_LOBBY = 'default';
 let socket: WebSocket | null = null;
 let isConnected = false;
 let isConnecting = false;
+let manualDisconnect = false; // deliberate disconnect() — suppress auto-reconnect
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000; // 2 seconds
@@ -60,6 +61,7 @@ export async function connect(
 	}
 
 	isConnecting = true;
+	manualDisconnect = false;
 	const player = gameActions.getMe();
 
 	if (!player) {
@@ -98,15 +100,17 @@ export async function connect(
 				console.log(
 					`Websocket connection closed: ${event.code} ${event.reason} (server: ${target})`
 				);
-				toast(
-					`Connection to ${target} closed (${event.code}). Check Settings → Connection → Server.`
-				);
+				if (!manualDisconnect) {
+					toast(
+						`Connection to ${target} closed (${event.code}). Check Settings → Connection → Server.`
+					);
+				}
 
 				isConnected = false;
 				isConnecting = false;
 
 				// Attempt to reconnect (keep the same server, not the cached fallback)
-				if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+				if (!manualDisconnect && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
 					reconnectAttempts++;
 					setTimeout(() => {
 						console.log(
@@ -229,6 +233,7 @@ function handleMessage(message: WebSocketMessage): void {
  * Disconnect from the websocket server
  */
 export function disconnect(): void {
+	manualDisconnect = true;
 	if (socket) {
 		socket.close();
 		socket = null;

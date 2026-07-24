@@ -7,9 +7,12 @@
 	import { initWrappers } from '$lib/websocket/storeIntegration';
 	import { initWebsocket } from '$lib/websocket';
 	import { gameActions } from '$lib/store/game/actions';
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { claimSeat, seatPlaceholderId, type SeatIndex } from '$lib/scenario/scenario';
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
 	import PaneDecks from './PaneDecks.svelte';
+	import toast from 'svelte-french-toast';
 
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
@@ -27,12 +30,34 @@
 
 	initWrappers();
 	let isConnected = $state(false);
+
+	// ?seat=N invite links: once the sync delivers a scenario with that seat's
+	// placeholder still open, claim it automatically for the joining player
+	function autoClaimSeat(seatParam: string | null) {
+		const seat = Number(seatParam) as SeatIndex;
+		if (seatParam === null || ![0, 1, 2, 3].includes(seat)) return;
+		let claimed = false;
+		const stop = gameStore.subscribe((s) => {
+			if (claimed || !s?.players?.[seatPlaceholderId(seat)]) return;
+			claimed = true;
+			// claim outside the store notification cycle
+			queueMicrotask(() => {
+				if (claimSeat(seat)) toast(`Seat ${seat} claimed — your decks are ready`);
+				stop();
+			});
+		});
+		// stop waiting if no scenario ever shows up
+		setTimeout(() => stop(), 20000);
+	}
+
 	onMount(() => {
 		const lobbyId = page?.url?.searchParams?.get('lobby') ?? undefined;
 		const serverUrl = page?.url?.searchParams?.get('server') ?? undefined;
+		const seatParam = page?.url?.searchParams?.get('seat');
 		const connected = initWebsocket(lobbyId, serverUrl);
 		connected.then((res) => {
 			isConnected = res;
+			if (res) autoClaimSeat(seatParam);
 		});
 	});
 </script>
