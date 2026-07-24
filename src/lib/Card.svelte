@@ -14,7 +14,8 @@
 		CARD_HEIGHT,
 		CARD_THICKNESS,
 		CARD_REST_Y,
-		CARD_DRAG_Y
+		CARD_DRAG_Y,
+		cardBodyGeometry
 	} from '$lib/utils/constants-cards';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	type Vec3Array = [number, number, number];
@@ -144,9 +145,13 @@
 	onpointerleave={handlePointerLeave}
 	onpointerenter={handlePointerEnter}
 >
-	<!-- card body: visible paper edge between the two faces (unlit so side faces never go black) -->
+	<!-- card body: visible paper edge between the two faces (unlit so side faces
+	     never go black). Rounded to match the face's corner radius — a square box
+	     pokes white nubs past the ImageMaterial's alpha-cutout arc. The geometry
+	     is shared across all cards: dispose={false} keeps one card's unmount from
+	     destroying it for everyone. -->
 	<T.Mesh castShadow>
-		<T.BoxGeometry args={[CARD_WIDTH - 0.04, CARD_THICKNESS * 0.92, CARD_HEIGHT - 0.04]} />
+		<T is={cardBodyGeometry} attach="geometry" dispose={false} />
 		<T.MeshBasicMaterial color="#d9d6c9" />
 	</T.Mesh>
 	<!-- key the MESH, not the material: threlte 8.5 material swaps on a live
