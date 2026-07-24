@@ -7,9 +7,9 @@
 	import { gameActions } from './store/game/actions';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
+	import { resolveStackHeight } from './utils/transforms/stacking';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
-	let feltMaterial: THREE.MeshStandardMaterial | undefined = $state();
 
 	// Handle the tray & deck drop actions here
 	function handleDragEnd() {
@@ -30,13 +30,18 @@
 
 		const card = gameActions.getCardState(id);
 		const [x, y, z] = card?.position ?? [];
-		if (x && z) gameStore.updateState({ cards: { [id]: { position: [x, 0.26, z] } } });
+		if (x && z) {
+			const restY = resolveStackHeight($gameStore?.cards, id, x, z);
+			gameStore.updateState({ cards: { [id]: { position: [x, restY, z] } } });
+		}
 
 		dragEnd();
 	}
 
-	// Create procedural felt texture
-	$effect(() => {
+	// Create procedural felt texture. Built synchronously: this component only
+	// mounts client-side (inside <Canvas>, behind isConnected), so the material
+	// is born with its map — no null→texture swap, no shader-recompile timing.
+	function createFeltTexture(): THREE.CanvasTexture {
 		// Create canvas for procedural texture
 		const canvas = document.createElement('canvas');
 		canvas.width = 512;
@@ -80,28 +85,17 @@
 		const texture = new THREE.CanvasTexture(canvas);
 		texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
 		texture.repeat.set(4, 2);
+		return texture;
+	}
 
-		// Create material with felt-like properties
-		feltMaterial = new THREE.MeshStandardMaterial({
-			map: texture,
-			roughness: 0.9,
-			metalness: 0.0,
-			bumpMap: texture,
-			bumpScale: 0.02,
-			side: THREE.DoubleSide
-		});
-	});
+	const feltTexture = createFeltTexture();
 
 	onDestroy(() => {
-		if (feltMaterial) {
-			feltMaterial.map?.dispose();
-			feltMaterial.bumpMap?.dispose();
-			feltMaterial.dispose();
-		}
+		feltTexture.dispose();
 	});
 </script>
 
-{#each Object.keys($gameStore?.overlays ?? {}) as overlayId (overlayId)}
+{#each Object.keys($gameStore?.overlays ?? {}).filter((key) => $gameStore?.overlays?.[key]) as overlayId (overlayId)}
 	<OverlayCustom id={overlayId} />
 {/each}
 
@@ -116,10 +110,15 @@
 <T.Group position={[0, 0, 0]}>
 	<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
 		<T.BoxGeometry args={[60, 0.5, 30]} />
-		{#if feltMaterial}
-			<T is={feltMaterial} />
-		{:else}
-			<T.MeshStandardMaterial color="#35654d" />
-		{/if}
+		<!-- one stable material with its map from birth.
+		     (swapping whole materials via {#if}+<T is> detaches without reattaching in threlte 8.5) -->
+		<T.MeshStandardMaterial
+			map={feltTexture}
+			roughness={0.9}
+			metalness={0}
+			bumpMap={feltTexture}
+			bumpScale={0.02}
+			side={THREE.DoubleSide}
+		/>
 	</T.Mesh>
 </T.Group>

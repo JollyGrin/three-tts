@@ -15,14 +15,14 @@
 		<ol class="mb-4 list-inside list-decimal">
 			<li>Run the backend: <code>cd server && ./run.sh</code></li>
 			<li>(Optional) Expose with ngrok: <code>ngrok http 8080</code></li>
-			<li>Click <strong>Play Sorcery</strong> (more coming soon-ish)</li>
+			<li>Click <strong>Open Table</strong> and spawn a deck of cards</li>
 		</ol>
 		<p class="mb-4">
 			In the Settings pane (⚙️), set the Server to <code>localhost:8080</code> or your ngrok URL, and
 			enter a Lobby ID.
 		</p>
-		<a href="/sorcery" class="block rounded bg-emerald-400 py-2 text-center font-medium text-white"
-			>Play Sorcery</a
+		<a href="/play" class="block rounded bg-emerald-400 py-2 text-center font-medium text-white"
+			>Open Table</a
 		>
 	</div>
 </div>

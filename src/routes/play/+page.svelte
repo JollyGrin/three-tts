@@ -1,21 +1,17 @@
 <script lang="ts">
 	import { Canvas } from '@threlte/core';
+	import { ACESFilmicToneMapping } from 'three';
 	import TableScene from '$lib/TableScene.svelte';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 	import { onMount } from 'svelte';
 	import { initWrappers } from '$lib/websocket/storeIntegration';
 	import { initWebsocket } from '$lib/websocket';
-	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
 	import Pane from './Pane.svelte';
-	import { OVERLAY_SORCERY_DEFAULT } from './constants';
 	import { page } from '$app/state';
-	import PaneDeck from './PaneDeck.svelte';
-	import PaneStats from './PaneStats.svelte';
+	import PaneDecks from './PaneDecks.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
-		// if (!isConnectionModalOpen) event.preventDefault();
-		// console.log('KEY', event.code);
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(true);
 		if (event.code === 'KeyF') gameActions.flipCard();
 		if (event.code === 'KeyT') gameActions.tapCard();
@@ -36,30 +32,27 @@
 		const connected = initWebsocket(lobbyId, serverUrl);
 		connected.then((res) => {
 			isConnected = res;
-			// Add playmat overlay on table
-			if (!$gameStore?.overlays?.sorcery?.imageUrl)
-				gameStore.updateState({ overlays: OVERLAY_SORCERY_DEFAULT });
 		});
 	});
 </script>
 
 <svelte:head>
-	<title>Sorcery: lobbyid</title>
-	<meta name="description" content="Tabletop Simulator but in the browser" />
+	<title>table.place</title>
+	<meta name="description" content="A browser-based tabletop simulator" />
 </svelte:head>
 
 <svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
 <Pane />
-<PaneDeck />
-<PaneStats />
+<PaneDecks />
 
 <div
 	class="h-screen w-screen overflow-clip transition-all"
 	class:bg-gray-800={!isConnected}
 	class:bg-gray-700={isConnected}
 >
-	<Canvas>
+	<!-- threlte 8.5 changed the default to AgX, which desaturates the felt to gray -->
+	<Canvas toneMapping={ACESFilmicToneMapping}>
 		{#if isConnected}
 			<TableScene />
 		{/if}

@@ -16,7 +16,14 @@ export type WebSocketMessage = {
 };
 
 // Config
-const CACHE_SERVER_URL = localStorage.getItem('serverurl') ?? 'localhost:8080';
+/** Accepts 'localhost:8080', 'http://localhost:8080/', 'wss://host' etc. → bare host:port */
+function normalizeServerHost(url: string): string {
+	return url
+		.trim()
+		.replace(/^(https?|wss?):\/\//, '')
+		.replace(/\/+$/, '');
+}
+const CACHE_SERVER_URL = normalizeServerHost(localStorage.getItem('serverurl') ?? 'localhost:8080');
 const SECURITY = CACHE_SERVER_URL.includes('localhost') ? 'ws' : 'wss';
 const WS_SERVER_URL = `${SECURITY}://${CACHE_SERVER_URL}/ws`;
 const DEFAULT_LOBBY = 'default';
@@ -64,9 +71,9 @@ export async function connect(
 	const playerId = player.id;
 	let wsUrl = `${WS_SERVER_URL}?lobby=${lobbyId}&player=${playerId}`;
 	if (serverUrl) {
-		const security = serverUrl.includes('localhost') ? 'ws' : 'wss';
-		const wsServerUrl = `${security}://${serverUrl}/ws`;
-		wsUrl = `${wsServerUrl}?lobby=${lobbyId}&player=${playerId}`;
+		const host = normalizeServerHost(serverUrl);
+		const security = host.includes('localhost') ? 'ws' : 'wss';
+		wsUrl = `${security}://${host}/ws?lobby=${lobbyId}&player=${playerId}`;
 	}
 
 	console.log(`Connecting to websocket server at ${wsUrl}`);
@@ -87,22 +94,25 @@ export async function connect(
 			};
 
 			socket.onclose = (event) => {
+				const target = serverUrl ?? CACHE_SERVER_URL;
 				console.log(
-					`Websocket connection closed: ${event.code} ${event.reason}`
+					`Websocket connection closed: ${event.code} ${event.reason} (server: ${target})`
 				);
-				toast(`Websocket connection closed: ${event.code} ${event.reason}`);
+				toast(
+					`Connection to ${target} closed (${event.code}). Check Settings → Connection → Server.`
+				);
 
 				isConnected = false;
 				isConnecting = false;
 
-				// Attempt to reconnect
+				// Attempt to reconnect (keep the same server, not the cached fallback)
 				if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
 					reconnectAttempts++;
 					setTimeout(() => {
 						console.log(
 							`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`
 						);
-						connect(lobbyId);
+						connect(lobbyId, serverUrl);
 					}, RECONNECT_DELAY);
 				}
 

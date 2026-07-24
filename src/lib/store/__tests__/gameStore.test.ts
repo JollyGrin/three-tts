@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { objectStore } from '../objectStore.svelte';
 import type { GameDTO } from '../game/types';
 import { gameStore } from '../game/gameStore.svelte';
 import { get } from 'svelte/store';

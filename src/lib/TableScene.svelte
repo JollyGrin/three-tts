@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
-	import { World } from '@threlte/rapier';
 	import { HUD, interactivity } from '@threlte/extras';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
@@ -52,6 +51,8 @@
 
 <TableCamera />
 <T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
+<!-- soft fill so vertical faces (card edges, deck sides) aren't pitch black -->
+<T.AmbientLight intensity={0.5} />
 
 <HUD>
 	<HudTrayScene />
@@ -61,16 +62,14 @@
 	<HudPreviewScene />
 </HUD>
 
-<World>
-	<Hdr />
-	<Intersection />
-	<Table bind:mesh />
+<Hdr />
+<Intersection />
+<Table bind:mesh />
 
-	{#each Object.entries($gameStore?.decks ?? {}) as [id] (id)}
-		<Deck {id} />
-	{/each}
+{#each Object.entries($gameStore?.decks ?? {}) as [id] (id)}
+	<Deck {id} />
+{/each}
 
-	{#each cards as [id] (id)}
-		<Card {id} />
-	{/each}
-</World>
+{#each cards as [id] (id)}
+	<Card {id} />
+{/each}

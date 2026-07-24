@@ -1,6 +1,7 @@
 import { get } from 'svelte/store';
 import { gameStore } from '../gameStore.svelte';
 import { dragStore } from '$lib/store/dragStore.svelte';
+import { CARD_REST_Y } from '$lib/utils/constants-cards';
 
 function getCardState(cardId: string) {
 	return get(gameStore)?.cards?.[cardId];
@@ -52,10 +53,10 @@ function incrementHeight(increment: number, cardId?: string) {
 
 	const card = get(gameStore)?.cards?.[id]; // grab card on table
 	const [x = 0, y = 0, z = 0] = card?.position ?? []; // get current rotation
-	// todo: if y above 0.5, assume y = 0.26
+	// todo: if y above 0.5, assume y = CARD_REST_Y
 	const ceiling = Math.min(0.5, y);
-	const _y = ceiling === 0.5 ? 0.26 : ceiling;
-	const mod = Math.max(0.26, _y + increment);
+	const _y = ceiling === 0.5 ? CARD_REST_Y : ceiling;
+	const mod = Math.max(CARD_REST_Y, _y + increment);
 	console.table({
 		debug: true,
 		y,

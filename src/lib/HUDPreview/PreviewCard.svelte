@@ -3,6 +3,7 @@
 	import type { GameDTO } from '$lib/store/game/types';
 	import { T } from '@threlte/core';
 	import { ImageMaterial, interactivity } from '@threlte/extras';
+	import { resolveCardImage } from '$lib/packs';
 
 	interactivity();
 	let { id }: { id: string } = $props();
@@ -16,7 +17,7 @@
 	<T.Mesh scale={2.75} position.y={1}>
 		<T.PlaneGeometry args={cardSize} />
 		<ImageMaterial
-			url={isFlipped ? (card.backImageUrl as string) : (card.faceImageUrl as string)}
+			url={resolveCardImage(isFlipped ? card.backImageUrl : card.faceImageUrl)}
 			side={0}
 			radius={0.3}
 			opacity={1}

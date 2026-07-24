@@ -19,7 +19,15 @@
 	const seat = $derived($gameStore?.players?.[myId]?.seat ?? 0);
 </script>
 
-<T.PerspectiveCamera makeDefault position={seating[seat] as [number, number, number]} fov={35}>
+<!-- near/far bound tightly to the orbit range (min 1 / max 40): depth precision
+     is proportional to near/far ratio, and card faces are only 0.02 apart -->
+<T.PerspectiveCamera
+	makeDefault
+	position={seating[seat] as [number, number, number]}
+	fov={35}
+	near={0.5}
+	far={200}
+>
 	<OrbitControls
 		enableRotate={!isDragging}
 		enableDamping

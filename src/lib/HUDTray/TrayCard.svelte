@@ -5,7 +5,7 @@
 	import { Spring } from 'svelte/motion';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
-	import { getStaticResourceUrl } from '$lib/utils/image';
+	import { resolveCardImage, CARD_BACK_DEFAULT } from '$lib/packs';
 	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
@@ -63,8 +63,7 @@
 					position: [x, 2.5, z],
 					rotation: [0, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
 					faceImageUrl: movedCard?.faceImageUrl ?? card?.faceImageUrl,
-					backImageUrl:
-						movedCard?.backImageUrl ?? card.backImageUrl ?? getStaticResourceUrl('/s-back.jpg') // TODO: update this with its actual cardback
+					backImageUrl: movedCard?.backImageUrl ?? card.backImageUrl ?? CARD_BACK_DEFAULT // TODO: update this with its actual cardback
 				}
 			}
 		});
@@ -83,7 +82,7 @@
 >
 	<T.PlaneGeometry args={cardSize} />
 	<ImageMaterial
-		url={card.faceImageUrl ?? ''}
+		url={resolveCardImage(card.faceImageUrl)}
 		side={2}
 		radius={0.1}
 		transparent={true}

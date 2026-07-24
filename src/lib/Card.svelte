@@ -9,6 +9,8 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import type { GameDTO } from './store/game/types';
 	import { gameActions } from './store/game/actions';
+	import { CARD_WIDTH, CARD_HEIGHT, CARD_THICKNESS, CARD_REST_Y } from '$lib/utils/constants-cards';
+	import { resolveCardImage } from '$lib/packs';
 	type Vec3Array = [number, number, number];
 
 	let { id }: { id: string } = $props();
@@ -23,21 +25,27 @@
 
 	const isDragging = $derived($dragStore.isDragging === id);
 	const cardState = $derived($gameStore?.cards?.[id] ?? initCardState);
-	const faceImageUrl = $derived(cardState?.faceImageUrl);
-	const backImageUrl = $derived(cardState?.backImageUrl);
+	const faceImageUrl = $derived(resolveCardImage(cardState?.faceImageUrl));
+	const backImageUrl = $derived(resolveCardImage(cardState?.backImageUrl));
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 
-	const height = new Spring((cardState?.position as Vec3Array)?.[1] ?? 0.26, {
-		stiffness: 0.15,
+	// stiffer than the rotation spring so the card is already airborne when the flip starts
+	const height = new Spring((cardState?.position as Vec3Array)?.[1] ?? CARD_REST_Y, {
+		stiffness: 0.28,
 		damping: 0.7,
 		precision: 0.0001
 	});
 
+	// Single source of truth for resting height: stays lifted while a flip is
+	// mid-rotation (so the card can't clip the table), settles to the store's
+	// stack height once the rotation completes. Replaces the old setTimeout
+	// settle hack and the per-frame sync effect that fought it.
 	$effect(() => {
-		const newY = cardState?.position?.[1];
-		if (!newY) return;
-		if (!isDragging && height.current !== newY) height.target = newY;
+		if (isDragging) return; // drag handlers own the height while dragging
+		const flipping = Math.abs(rotation.current - rotation.target) > 2;
+		const restY = cardState?.position?.[1] ?? CARD_REST_Y;
+		height.target = flipping ? Math.max(1.5, restY) : restY;
 	});
 
 	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
@@ -70,19 +78,10 @@
 		emissiveIntensity = isHovered ? 0.1 : 0;
 	});
 
-	// Tap card
+	// Flip / tap rotation targets
 	$effect(() => {
 		rotation.target = baseRotation[0];
 		rotationTap.target = baseRotation[2];
-
-		if (!isDragging) {
-			// elevate the card if on the table to prevent clipping through
-			height.target = 1.5;
-			// HACK: double check if this creates a feedback loop
-			setTimeout(() => {
-				height.target = 0.26;
-			}, 350);
-		}
 	});
 
 	function handleDragStart() {
@@ -107,28 +106,42 @@
 
 <T.Group
 	{position}
-	rotation.x={rotation.current * DEG2RAD}
+	rotation.z={rotation.current * DEG2RAD}
 	rotation.y={rotationTap.current * -DEG2RAD}
 	onpointerdown={handleDragStart}
 	onpointerleave={handlePointerLeave}
 	onpointerenter={handlePointerEnter}
 >
-	<T.Mesh castShadow receiveShadow bind:ref={card} rotation.x={-Math.PI / 2}>
-		<T.PlaneGeometry args={[1.4, 2]} />
-		{#key faceImageUrl}
-			<ImageMaterial
-				url={faceImageUrl ?? ''}
-				side={0}
-				radius={0.1}
-				monochromeColor={'#fff'}
-				monochromeStrength={emissiveIntensity}
-			/>
-		{/key}
+	<!-- card body: visible paper edge between the two faces (unlit so side faces never go black) -->
+	<T.Mesh castShadow>
+		<T.BoxGeometry args={[CARD_WIDTH - 0.04, CARD_THICKNESS * 0.92, CARD_HEIGHT - 0.04]} />
+		<T.MeshBasicMaterial color="#d9d6c9" />
+	</T.Mesh>
+	<T.Mesh
+		castShadow
+		receiveShadow
+		bind:ref={card}
+		rotation.x={-Math.PI / 2}
+		position.y={CARD_THICKNESS / 2}
+	>
+		<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+		<ImageMaterial
+			url={faceImageUrl ?? ''}
+			side={0}
+			radius={0.1}
+			monochromeColor={'#fff'}
+			monochromeStrength={emissiveIntensity}
+		/>
 	</T.Mesh>
 
 	{#if backImageUrl}
-		<T.Mesh castShadow receiveShadow rotation.x={-DEG2RAD * 270} position.y={-0.002}>
-			<T.PlaneGeometry args={[1.4, 2]} />
+		<T.Mesh
+			castShadow
+			receiveShadow
+			rotation.x={-DEG2RAD * 270}
+			position.y={-CARD_THICKNESS / 2}
+		>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<ImageMaterial
 				url={backImageUrl}
 				side={0}
@@ -138,8 +151,8 @@
 			/>
 		</T.Mesh>
 	{:else}
-		<T.Mesh rotation.x={Math.PI / 2} position.y={-0.002} sides={0}>
-			<T.PlaneGeometry args={[1.4, 2]} />
+		<T.Mesh rotation.x={Math.PI / 2} position.y={-CARD_THICKNESS / 2}>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<T.MeshBasicMaterial color="white" />
 		</T.Mesh>
 	{/if}

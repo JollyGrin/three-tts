@@ -5,26 +5,23 @@
 	import { dragStart, dragStore, setDeckHover } from '$lib/store/dragStore.svelte';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
-	import { getStaticResourceUrl } from './utils/image';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
+	import { resolveCardImage, CARD_BACK_DEFAULT } from '$lib/packs';
 
 	interactivity();
 
 	let { id = '' }: { id: string } = $props();
 
-	// const deckBackImage = getStaticResourceUrl('/s-back.jpg');
 	const deck = $derived($gameStore?.decks?.[id] ?? {});
-	const deckBackImage = $derived(
-		$gameStore?.decks?.[id].deckBackImageUrl ?? getStaticResourceUrl('/s-back.jpg')
-	);
+	const deckBackImage = $derived($gameStore?.decks?.[id].deckBackImageUrl ?? CARD_BACK_DEFAULT);
 
 	const cards = $derived($gameStore?.decks?.[id]?.cards ?? []);
 	const position: [number, number, number] = $derived(deck.position ?? [0, 0, 0]);
 	const rotation: [number, number, number] = $derived(deck.rotation ?? [0, 0, 0]);
 	const isFaceUp = $derived(deck.isFaceUp ?? false); // true = cards[0] is top, false = cards[cards.length - 1] is top
 	const lastCardImage = $derived(cards?.[0].faceImageUrl ?? '');
-	const displayedImage = $derived(isFaceUp ? lastCardImage : deckBackImage);
+	const displayedImage = $derived(resolveCardImage(isFaceUp ? lastCardImage : deckBackImage));
 
 	const isHovered = $derived(id === $dragStore.isDeckHovered);
 
@@ -68,11 +65,9 @@
 		/>
 	</Billboard>
 	{#if cards?.length > 0}
-		<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.205}>
+		<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.21}>
 			<T.PlaneGeometry args={[1.4, 2]} />
-			{#key displayedImage}
-				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
-			{/key}
+			<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
 		</T.Mesh>
 	{/if}
 
@@ -80,14 +75,13 @@
 	{#if isFaceUp && cards.length > 1}
 		<T.Mesh>
 			<T.PlaneGeometry args={[0, 0]} />
-			{#key cards[1]?.faceImageUrl}
-				<ImageMaterial url={cards[1]?.faceImageUrl} side={2} radius={0.1} opacity={0} />
-			{/key}
+			<ImageMaterial url={resolveCardImage(cards[1]?.faceImageUrl)} side={2} radius={0.1} opacity={0} />
 		</T.Mesh>
 	{/if}
 
+	<!-- deck body: reads as a stack of card edges, not a black slab -->
 	<T.Mesh>
-		<T.BoxGeometry args={[1.4, 0.4, 2]} />
-		<T.MeshBasicMaterial color="black" />
+		<T.BoxGeometry args={[1.38, 0.4, 1.98]} />
+		<T.MeshBasicMaterial color="#e2dfd2" />
 	</T.Mesh>
 </T.Group>

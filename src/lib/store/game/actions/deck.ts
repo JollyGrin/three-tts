@@ -1,8 +1,6 @@
 import { DEG2RAD } from 'three/src/math/MathUtils.js';
 import { gameActions } from '.';
 import { gameStore } from '../gameStore.svelte';
-import { generateCardImages, getSorceryCardImage } from '$lib/utils/mock/cards';
-import { getStaticResourceUrl } from '$lib/utils/image';
 import { get } from 'svelte/store';
 import type { GameDTO } from '../types';
 
@@ -12,46 +10,6 @@ function getMyDecks() {
 	return Object.entries(decks).filter(([key]) =>
 		key.startsWith(`deck:${myPlayerId}:`)
 	);
-}
-
-function initDeck(props: { isFaceUp?: boolean }) {
-	const { id, seat = 0 } = gameActions.getMe() ?? {};
-	if (!id) return console.error('Cannot init deck without a playerId');
-	const myDecks = getMyDecks();
-	const deckId = `deck:${id}:${myDecks.length}`; // will choose next available deckId
-	const mod = props.isFaceUp ? 2 : 0;
-	const positions = [
-		[8.5 + mod, 0.4, 4.5],
-		[8.5 + mod, 0.4, -4.7]
-	];
-
-	const rotations = [
-		[0, 0, 0],
-		[0, DEG2RAD * 180, 0]
-	];
-	gameStore.updateState({
-		decks: {
-			[deckId]: {
-				id: deckId,
-				isFaceUp: props.isFaceUp ?? false,
-				position: positions[seat % positions.length] as [
-					number,
-					number,
-					number
-				],
-				rotation: rotations[seat % rotations.length] as [
-					number,
-					number,
-					number
-				],
-				cards: generateCardImages(2).map((slug, index) => ({
-					id: `card:playername:${slug}-${index}`,
-					faceImageUrl: getSorceryCardImage(slug),
-					backImageUrl: getStaticResourceUrl('/s-back.jpg')
-				}))
-			}
-		}
-	});
 }
 
 function addDeck(
@@ -169,7 +127,6 @@ export const deckActions = {
 	drawFromTop,
 	getDeckLength,
 	getMyDecks,
-	initDeck,
 	placeOnTopOfDeck,
 	shuffleDeck,
 	shuffleCards

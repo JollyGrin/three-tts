@@ -62,5 +62,5 @@ export interface GameDTO {
 	cards: Record<string, Partial<CardDTO>>; // cardId, state
 	decks: Record<string, Partial<DeckDTO>>; // deckId, state
 	players: Record<string, Partial<PlayerDTO>>; // playerId, state
-	overlays?: Record<string, Partial<OverlayDTO>>; // overlayId, state
+	overlays?: Record<string, Partial<OverlayDTO> | null>; // overlayId, state (null = remove)
 }
