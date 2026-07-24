@@ -10,7 +10,7 @@
 	import type { GameDTO } from './store/game/types';
 	import { gameActions } from './store/game/actions';
 	import { CARD_WIDTH, CARD_HEIGHT, CARD_THICKNESS, CARD_REST_Y } from '$lib/utils/constants-cards';
-	import { resolveCardImage } from '$lib/packs';
+	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	type Vec3Array = [number, number, number];
 
 	let { id }: { id: string } = $props();
@@ -25,8 +25,8 @@
 
 	const isDragging = $derived($dragStore.isDragging === id);
 	const cardState = $derived($gameStore?.cards?.[id] ?? initCardState);
-	const faceImageUrl = $derived(resolveCardImage(cardState?.faceImageUrl));
-	const backImageUrl = $derived(resolveCardImage(cardState?.backImageUrl));
+	const faceImageUrl = $derived(resolveCardImage(cardState?.faceImageUrl, $sheetRefCache));
+	const backImageUrl = $derived(resolveCardImage(cardState?.backImageUrl, $sheetRefCache));
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
 

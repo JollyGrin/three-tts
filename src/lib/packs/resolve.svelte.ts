@@ -7,6 +7,7 @@
  *   Only the tiny ref string ever touches the store/wire — never image data —
  *   so every client resolves the same ref to the same deterministic image.
  */
+import { writable, get } from 'svelte/store';
 import { sliceCell } from '$lib/tts/slice';
 import { namedCardImage } from './placeholder';
 import { CARD_BACK_DEFAULT } from './standard52';
@@ -232,59 +233,86 @@ type SheetRefPayload = {
 	back?: boolean;
 };
 
-const sheetResults = new Map<string, string>();
 const sheetPending = new Set<string>();
 
-// $state version counter: incremented whenever any slice result lands.
-// Every resolveSheet call reads it, so all callers ($derived in components)
-// re-run and pick up their result — regardless of Map reactivity semantics.
-let sheetVersion = $state(0);
+/**
+ * Resolved sheet refs as a CLASSIC writable store. Components subscribe
+ * with `$sheetRefCache` and pass the snapshot into resolveCardImage —
+ * store subscription is Svelte's most battle-tested reactivity channel,
+ * so a commit is guaranteed to re-render every subscriber.
+ */
+export const sheetRefCache = writable<Record<string, string>>({});
 
 function commitSheetResult(ref: string, url: string) {
-	sheetResults.set(ref, url);
-	sheetVersion++;
+	sheetRefCache.update((m) => ({ ...m, [ref]: url }));
 }
 
 export function makeSheetRef(payload: SheetRefPayload): string {
 	return `sheet:${JSON.stringify(payload)}`;
 }
 
-function resolveSheet(ref: string): string {
-	void sheetVersion; // reactive dependency: re-run when any result lands
-	const cached = sheetResults.get(ref);
+function parseSheetRef(ref: string): SheetRefPayload | null {
+	try {
+		return JSON.parse(ref.slice('sheet:'.length)) as SheetRefPayload;
+	} catch (error) {
+		console.warn('[resolve] unparseable sheet ref', ref.slice(0, 120), error);
+		return null;
+	}
+}
+
+async function sliceAndCommit(ref: string, payload: SheetRefPayload): Promise<string> {
+	const fallback = () =>
+		payload.back ? resolveGen(CARD_BACK_DEFAULT) : namedCardImage(payload.name ?? '');
+	let url: string | null = null;
+	try {
+		url = await sliceCell(payload);
+		if (url === null) console.warn('[resolve] sheet unreachable, using fallback:', payload.url);
+	} catch (error) {
+		console.warn('[resolve] slice failed, using fallback:', payload.url, error);
+	}
+	const result = url ?? fallback();
+	commitSheetResult(ref, result);
+	return result;
+}
+
+/**
+ * Resolve a sheet ref ahead of rendering (used by the importer so local
+ * imports paint synchronously on first render). Returns '' for dead art
+ * only if even the fallback can't draw (no canvas).
+ */
+export async function prewarmSheetRef(ref: string): Promise<string> {
+	const existing = get(sheetRefCache)[ref];
+	if (existing !== undefined) return existing;
+	const payload = parseSheetRef(ref);
+	if (!payload) {
+		commitSheetResult(ref, '');
+		return '';
+	}
+	sheetPending.add(ref);
+	return sliceAndCommit(ref, payload);
+}
+
+function resolveSheet(ref: string, cache?: Record<string, string>): string {
+	const map = cache ?? get(sheetRefCache);
+	const cached = map[ref];
 	if (cached !== undefined) return cached;
 
 	if (!sheetPending.has(ref)) {
 		sheetPending.add(ref);
-		let payload: SheetRefPayload | null = null;
-		try {
-			payload = JSON.parse(ref.slice('sheet:'.length)) as SheetRefPayload;
-		} catch (error) {
-			console.warn('[resolve] unparseable sheet ref', ref.slice(0, 120), error);
-			commitSheetResult(ref, '');
-		}
-		if (payload) {
-			const fallback = () =>
-				payload.back ? resolveGen(CARD_BACK_DEFAULT) : namedCardImage(payload.name ?? '');
-			sliceCell(payload)
-				.then((url) => {
-					if (url === null)
-						console.warn('[resolve] sheet unreachable, using fallback:', payload?.url);
-					commitSheetResult(ref, url ?? fallback());
-				})
-				.catch((error) => {
-					console.warn('[resolve] slice failed, using fallback:', payload?.url, error);
-					commitSheetResult(ref, fallback());
-				});
-		}
+		const payload = parseSheetRef(ref);
+		if (!payload) commitSheetResult(ref, '');
+		else void sliceAndCommit(ref, payload);
 	}
-	return ''; // pending — version bump re-triggers callers when the slice lands
+	return ''; // pending — the store commit re-renders subscribers when it lands
 }
 
 /** Resolve a face ref to something ImageMaterial can load. Unknown refs pass through. */
-export function resolveCardImage(ref: string | undefined | null): string {
+export function resolveCardImage(
+	ref: string | undefined | null,
+	sheetCache?: Record<string, string>
+): string {
 	if (!ref) return '';
 	if (ref.startsWith('gen:')) return resolveGen(ref);
-	if (ref.startsWith('sheet:')) return resolveSheet(ref);
+	if (ref.startsWith('sheet:')) return resolveSheet(ref, sheetCache);
 	return ref;
 }

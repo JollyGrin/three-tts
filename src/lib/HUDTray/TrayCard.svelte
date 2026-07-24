@@ -5,7 +5,7 @@
 	import { Spring } from 'svelte/motion';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
-	import { resolveCardImage, CARD_BACK_DEFAULT } from '$lib/packs';
+	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
 	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
@@ -81,7 +81,7 @@
 	onpointerdown={handleDragStart}
 >
 	<T.PlaneGeometry args={cardSize} />
-	{@const trayUrl = resolveCardImage(card.faceImageUrl)}
+	{@const trayUrl = resolveCardImage(card.faceImageUrl, $sheetRefCache)}
 	{#key trayUrl}
 		<ImageMaterial url={trayUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
 	{/key}

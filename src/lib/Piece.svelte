@@ -5,7 +5,7 @@
 	import { dragStart, dragStore } from './store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
-	import { resolveCardImage } from '$lib/packs';
+	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 
 	let { id }: { id: string } = $props();
 
@@ -13,7 +13,7 @@
 	const kind = $derived(piece?.kind ?? 'token');
 	const radius = $derived(piece?.radius ?? 0.75);
 	const color = $derived(piece?.color ?? '#c8c4b8');
-	const imageUrl = $derived(resolveCardImage(piece?.imageUrl));
+	const imageUrl = $derived(resolveCardImage(piece?.imageUrl, $sheetRefCache));
 	const isDragging = $derived($dragStore.isDragging === id);
 	let isHovered = $state(false);
 

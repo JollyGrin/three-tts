@@ -6,7 +6,7 @@
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { CARD_BACK_DEFAULT } from '$lib/packs';
-import { makeSheetRef } from '$lib/packs/resolve.svelte';
+import { makeSheetRef, prewarmSheetRef } from '$lib/packs/resolve.svelte';
 import { CARD_REST_Y } from '$lib/utils/constants-cards';
 import { parseSavedObject, type ParsedCard } from './parse';
 import { sliceCell } from './slice';
@@ -30,7 +30,9 @@ function slugify(name: string, fallback: string): string {
 /**
  * Game state carries tiny `sheet:` refs, never image data — each client
  * slices locally at render time, so state survives refresh/sync limits
- * (SPEC §4d). Slicing here is only a warm-up + art health probe.
+ * (SPEC §4d). Prewarming here fully resolves + commits every ref before
+ * entities hit the store, so local imports paint on first render; the
+ * missing-art probe rides along for free.
  */
 async function resolveCard(card: ParsedCard): Promise<{
 	name: string;
@@ -38,12 +40,18 @@ async function resolveCard(card: ParsedCard): Promise<{
 	backImageUrl: string;
 	missingArt: boolean;
 }> {
-	const [face] = await Promise.all([sliceCell(card.face), sliceCell(card.back)]);
+	const faceRef = makeSheetRef({ ...card.face, name: card.name });
+	const backRef = makeSheetRef({ ...card.back, name: card.name, back: true });
+	const [faceProbe] = await Promise.all([
+		sliceCell(card.face),
+		prewarmSheetRef(faceRef),
+		prewarmSheetRef(backRef)
+	]);
 	return {
 		name: card.name,
-		faceImageUrl: makeSheetRef({ ...card.face, name: card.name }),
-		backImageUrl: makeSheetRef({ ...card.back, name: card.name, back: true }),
-		missingArt: face === null
+		faceImageUrl: faceRef,
+		backImageUrl: backRef,
+		missingArt: faceProbe === null
 	};
 }
 
@@ -78,11 +86,15 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 			.reverse();
 
 		const firstBack = deck.cards[0]?.back;
+		const deckBackRef = firstBack
+			? makeSheetRef({ ...firstBack, back: true })
+			: CARD_BACK_DEFAULT;
+		if (firstBack) await prewarmSheetRef(deckBackRef);
 		gameActions.addDeck({
 			id: `deck:${playerId}:${slot}`,
 			deckId: `deck:${playerId}:${slot}`,
 			isFaceUp: false,
-			deckBackImageUrl: firstBack ? makeSheetRef({ ...firstBack, back: true }) : CARD_BACK_DEFAULT,
+			deckBackImageUrl: deckBackRef,
 			cards,
 			position: [8.5 - deckIndex * 2.5, 0.4, 4.5]
 		});

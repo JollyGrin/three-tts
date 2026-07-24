@@ -7,7 +7,7 @@
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
-	import { resolveCardImage, CARD_BACK_DEFAULT } from '$lib/packs';
+	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
 
 	interactivity();
 
@@ -21,7 +21,9 @@
 	const rotation: [number, number, number] = $derived(deck.rotation ?? [0, 0, 0]);
 	const isFaceUp = $derived(deck.isFaceUp ?? false); // true = cards[0] is top, false = cards[cards.length - 1] is top
 	const lastCardImage = $derived(cards?.[0].faceImageUrl ?? '');
-	const displayedImage = $derived(resolveCardImage(isFaceUp ? lastCardImage : deckBackImage));
+	const displayedImage = $derived(
+		resolveCardImage(isFaceUp ? lastCardImage : deckBackImage, $sheetRefCache)
+	);
 
 	const isHovered = $derived(id === $dragStore.isDeckHovered);
 
@@ -77,7 +79,10 @@
 	{#if isFaceUp && cards.length > 1}
 		<T.Mesh>
 			<T.PlaneGeometry args={[0, 0]} />
-			<ImageMaterial url={resolveCardImage(cards[1]?.faceImageUrl)} side={2} radius={0.1} opacity={0} />
+			{@const preloadUrl = resolveCardImage(cards[1]?.faceImageUrl, $sheetRefCache)}
+			{#key preloadUrl}
+				<ImageMaterial url={preloadUrl} side={2} radius={0.1} opacity={0} />
+			{/key}
 		</T.Mesh>
 	{/if}
 
