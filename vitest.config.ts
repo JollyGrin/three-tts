@@ -3,6 +3,9 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
   plugins: [sveltekit()],
+  // svelte resolves to its server build by default, which cannot mount()
+  // components — component tests need the browser build
+  resolve: { conditions: ['browser'] },
   test: {
     environment: 'jsdom',
     globals: true,
