@@ -8,6 +8,7 @@ import { gameActions } from '$lib/store/game/actions';
 import { CARD_BACK_DEFAULT } from '$lib/packs';
 import { makeSheetRef, prewarmSheetRef } from '$lib/packs/resolve.svelte';
 import { CARD_REST_Y } from '$lib/utils/constants-cards';
+import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { parseSavedObject, type ParsedCard } from './parse';
 import { sliceCell } from './slice';
 
@@ -134,7 +135,6 @@ export async function importTtsFile(
 	// tokens / pawns / counters land at their (mirrored) TTS table positions.
 	// TTS stacks health dials exactly on top of their pawn/token — offset
 	// counters sideways so they're visible and clickable next to their owner.
-	const PIECE_REST_Y = 0.255 + 0.08;
 	parsed.pieces.forEach((piece, i) => {
 		report.pieces += 1;
 		const offsetX = piece.kind === 'counter' ? 1.5 : 0;
