@@ -4,7 +4,15 @@
 	import { Text, Billboard, ImageMaterial, interactivity } from '@threlte/extras';
 	import { dragStart, dragStore, setDeckHover } from '$lib/store/dragStore.svelte';
 	import { degrees } from '$lib/utils/constants-rotation';
-	import { CARD_DRAG_Y, CARD_WIDTH, CARD_HEIGHT } from '$lib/utils/constants-cards';
+	import {
+		CARD_DRAG_Y,
+		CARD_WIDTH,
+		CARD_HEIGHT,
+		deckBodyGeometry,
+		deckHeightForCount
+	} from '$lib/utils/constants-cards';
+	import { createDeckEdgeTexture, deckEdgeRepeatY } from '$lib/utils/deck-edge-texture';
+	import { browser } from '$app/environment';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
@@ -26,6 +34,23 @@
 	const displayedImage = $derived(
 		resolveCardImage(isFaceUp ? lastCardImage : deckBackImage, $sheetRefCache)
 	);
+
+	// body height tracks how many cards are in the stack (clamped)
+	const height = $derived(deckHeightForCount(cards?.length ?? 0));
+
+	// Stacked-card-edge look for the sides: per-deck texture clone so repeat.y
+	// can track this deck's height (stripes stay one-card-thick as the deck
+	// shrinks). Materials stay UNLIT — side faces must never go black under the
+	// current lighting rig; the stripes supply the depth cue instead.
+	const edgeTexture = browser ? createDeckEdgeTexture() : null;
+	// ExtrudeGeometry has two material groups: 0 = top/bottom lids, 1 = side walls
+	const bodyMaterials = [
+		new THREE.MeshBasicMaterial({ color: '#e2dfd2' }),
+		new THREE.MeshBasicMaterial(edgeTexture ? { map: edgeTexture } : { color: '#e2dfd2' })
+	];
+	$effect(() => {
+		if (edgeTexture) edgeTexture.repeat.y = deckEdgeRepeatY(height);
+	});
 
 	const isHovered = $derived(id === $dragStore.isDeckHovered);
 	// dropping here replaces the table landing entirely, so the deck has to be
@@ -73,7 +98,7 @@
 	</Billboard>
 	{#if cards?.length > 0}
 		{#key displayedImage}
-			<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.21}>
+			<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={height / 2 + 0.01}>
 				<T.PlaneGeometry args={[1.4, 2]} />
 				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
 			</T.Mesh>
@@ -92,7 +117,7 @@
 	{/if}
 
 	{#if isDropTarget}
-		<T.Group rotation.x={-Math.PI / 2} position.y={0.23}>
+		<T.Group rotation.x={-Math.PI / 2} position.y={height / 2 + 0.03}>
 			<DropFootprint
 				shape="rect"
 				w={CARD_WIDTH + 0.3}
@@ -105,9 +130,11 @@
 		</T.Group>
 	{/if}
 
-	<!-- deck body: reads as a stack of card edges, not a black slab -->
-	<T.Mesh>
-		<T.BoxGeometry args={[1.38, 0.4, 1.98]} />
-		<T.MeshBasicMaterial color="#e2dfd2" />
+	<!-- deck body: rounded slab (matches the top image's corner radius) whose
+	     sides wear the stacked-card-edge stripes. Unit-height shared geometry,
+	     scaled to this deck's height; dispose={false} keeps one deck's unmount
+	     from destroying the shared geometry for everyone. -->
+	<T.Mesh scale.y={height} material={bodyMaterials}>
+		<T is={deckBodyGeometry} attach="geometry" dispose={false} />
 	</T.Mesh>
 </T.Group>
