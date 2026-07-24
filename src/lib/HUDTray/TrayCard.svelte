@@ -81,11 +81,8 @@
 	onpointerdown={handleDragStart}
 >
 	<T.PlaneGeometry args={cardSize} />
-	<ImageMaterial
-		url={resolveCardImage(card.faceImageUrl)}
-		side={2}
-		radius={0.1}
-		transparent={true}
-		opacity={0.9}
-	/>
+	{@const trayUrl = resolveCardImage(card.faceImageUrl)}
+	{#key trayUrl}
+		<ImageMaterial url={trayUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
+	{/key}
 </T.Mesh>

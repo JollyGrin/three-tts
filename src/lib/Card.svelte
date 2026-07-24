@@ -125,13 +125,16 @@
 		position.y={CARD_THICKNESS / 2}
 	>
 		<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-		<ImageMaterial
-			url={faceImageUrl ?? ''}
-			side={0}
-			radius={0.1}
-			monochromeColor={'#fff'}
-			monochromeStrength={emissiveIntensity}
-		/>
+		<!-- keyed: ImageMaterial doesn't hot-swap textures when url changes after mount -->
+		{#key faceImageUrl}
+			<ImageMaterial
+				url={faceImageUrl ?? ''}
+				side={0}
+				radius={0.1}
+				monochromeColor={'#fff'}
+				monochromeStrength={emissiveIntensity}
+			/>
+		{/key}
 	</T.Mesh>
 
 	{#if backImageUrl}
@@ -144,13 +147,15 @@
 			position.y={-CARD_THICKNESS / 2}
 		>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<ImageMaterial
-				url={backImageUrl}
-				side={0}
-				radius={0.1}
-				monochromeColor={'#fff'}
-				monochromeStrength={emissiveIntensity}
-			/>
+			{#key backImageUrl}
+				<ImageMaterial
+					url={backImageUrl}
+					side={0}
+					radius={0.1}
+					monochromeColor={'#fff'}
+					monochromeStrength={emissiveIntensity}
+				/>
+			{/key}
 		</T.Mesh>
 	{:else}
 		<T.Mesh rotation.x={Math.PI / 2} position.y={-CARD_THICKNESS / 2}>

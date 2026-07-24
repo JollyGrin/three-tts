@@ -67,7 +67,9 @@
 	{#if cards?.length > 0}
 		<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.21}>
 			<T.PlaneGeometry args={[1.4, 2]} />
-			<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
+			{#key displayedImage}
+				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
+			{/key}
 		</T.Mesh>
 	{/if}
 

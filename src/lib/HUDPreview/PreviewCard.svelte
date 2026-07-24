@@ -16,11 +16,9 @@
 {#if !!card}
 	<T.Mesh scale={2.75} position.y={1}>
 		<T.PlaneGeometry args={cardSize} />
-		<ImageMaterial
-			url={resolveCardImage(isFlipped ? card.backImageUrl : card.faceImageUrl)}
-			side={0}
-			radius={0.3}
-			opacity={1}
-		/>
+		{@const previewUrl = resolveCardImage(isFlipped ? card.backImageUrl : card.faceImageUrl)}
+		{#key previewUrl}
+			<ImageMaterial url={previewUrl} side={0} radius={0.3} opacity={1} />
+		{/key}
 	</T.Mesh>
 {/if}
