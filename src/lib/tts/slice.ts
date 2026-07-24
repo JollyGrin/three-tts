@@ -9,18 +9,33 @@
 
 import type { SheetCell } from './parse';
 
+/**
+ * CORS-adding pass-through proxy (already run for unbrewed). Many hosts
+ * serve images without CORS headers (the-unmatched.club's R2, pinimg) —
+ * fine for plain <img> display, but slicing/WebGL requires pixel access.
+ * Direct load is always tried first: Steam's CDN and imgur serve open
+ * CORS and need no proxy.
+ */
+const CORS_PROXY = 'https://corsproxy.innkeeper1.workers.dev/?url=';
+
 const imageCache = new Map<string, Promise<HTMLImageElement | null>>();
 
-function loadImage(url: string): Promise<HTMLImageElement | null> {
-	const cached = imageCache.get(url);
-	if (cached) return cached;
-	const promise = new Promise<HTMLImageElement | null>((resolve) => {
+function loadImageFrom(url: string): Promise<HTMLImageElement | null> {
+	return new Promise((resolve) => {
 		const img = new Image();
 		img.crossOrigin = 'anonymous'; // required to keep the canvas untainted
 		img.onload = () => resolve(img);
 		img.onerror = () => resolve(null);
 		img.src = url;
 	});
+}
+
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+	const cached = imageCache.get(url);
+	if (cached) return cached;
+	const promise = loadImageFrom(url).then(
+		(img) => img ?? loadImageFrom(CORS_PROXY + encodeURIComponent(url))
+	);
 	imageCache.set(url, promise);
 	return promise;
 }

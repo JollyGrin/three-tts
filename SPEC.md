@@ -239,7 +239,7 @@ Route `/import` (or drop target on the table):
 ## 6. Legal guardrails (build-time checklist)
 
 - **BYO-file only.** No mod library, no workshop browser, no mod URLs fetched by us, no raw-file storage. Users obtain their own files.
-- **Assets fetched by the user's browser, directly from origin hosts.** No proxy/cache backend in v1. If a caching proxy is ever added: register DMCA agent + ToS + repeat-infringer policy *in the same change*.
+- **Assets fetched by the user's browser, directly from origin hosts.** Exception: hosts without CORS headers fall back through a **pass-through** CORS proxy (currently the existing unbrewed worker) — no retention, direct-first, needed because WebGL requires pixel access where plain `<img>` display doesn't. If a *caching* proxy is ever added: register DMCA agent + ToS + repeat-infringer policy *in the same change*.
 - **Zero TTS-shipped assets.** Primitives are procedural (§2); test fixtures in-repo are self-authored or public-domain decks — never scraped commercial card sheets.
 - **Naming:** product name contains no "Tabletop Simulator"; compatibility phrased nominatively ("imports Tabletop Simulator save files").
 - Backend state contains URLs + our own normalized metadata only — we store pointers, not works.
