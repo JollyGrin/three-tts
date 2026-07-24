@@ -42,14 +42,61 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
 
 const cellCache = new Map<string, string>();
 
+/** Persistent cell cache (IndexedDB): sliced cells survive page reloads,
+ *  so refreshes render instantly and never depend on flaky upstream hosts. */
+const DB_NAME = 'tableplace-sheets';
+const STORE = 'cells';
+
+function openDb(): Promise<IDBDatabase | null> {
+	if (typeof indexedDB === 'undefined') return Promise.resolve(null);
+	return new Promise((resolve) => {
+		const req = indexedDB.open(DB_NAME, 1);
+		req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => resolve(null);
+	});
+}
+const dbPromise: Promise<IDBDatabase | null> | null =
+	typeof indexedDB !== 'undefined' ? openDb() : null;
+
+async function idbGet(key: string): Promise<string | null> {
+	const db = await (dbPromise ?? Promise.resolve(null));
+	if (!db) return null;
+	return new Promise((resolve) => {
+		try {
+			const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+			req.onsuccess = () => resolve(typeof req.result === 'string' ? req.result : null);
+			req.onerror = () => resolve(null);
+		} catch {
+			resolve(null);
+		}
+	});
+}
+
+async function idbPut(key: string, value: string): Promise<void> {
+	const db = await (dbPromise ?? Promise.resolve(null));
+	if (!db) return;
+	try {
+		db.transaction(STORE, 'readwrite').objectStore(STORE).put(value, key);
+	} catch {
+		// quota/private-mode failures are non-fatal — memory cache still works
+	}
+}
+
 /**
  * Resolve a sheet cell to a data URL, or null if the sheet is
- * unreachable/CORS-blocked. Cells are cached per url+index.
+ * unreachable/CORS-blocked. Cells are cached in memory and IndexedDB.
  */
 export async function sliceCell(cell: SheetCell): Promise<string | null> {
 	const key = `${cell.url}#${cell.cols}x${cell.rows}@${cell.index}`;
 	const cached = cellCache.get(key);
 	if (cached) return cached;
+
+	const persisted = await idbGet(key);
+	if (persisted) {
+		cellCache.set(key, persisted);
+		return persisted;
+	}
 
 	const img = await loadImage(cell.url);
 	if (!img) return null;
@@ -69,6 +116,7 @@ export async function sliceCell(cell: SheetCell): Promise<string | null> {
 	try {
 		const url = canvas.toDataURL('image/jpeg', 0.85);
 		cellCache.set(key, url);
+		void idbPut(key, url);
 		return url;
 	} catch {
 		return null; // tainted canvas (host without CORS) — caller falls back
