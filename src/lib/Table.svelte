@@ -88,8 +88,31 @@
 
 	const feltTexture = createFeltTexture();
 
+	// Branding wordmark printed into the felt near a board corner. Its own
+	// plane (NOT baked into createFeltTexture — that texture repeats 4x2
+	// across the board and would tile the mark 8 times).
+	function createWordmarkTexture(): THREE.CanvasTexture {
+		const canvas = document.createElement('canvas');
+		canvas.width = 1024;
+		canvas.height = 256;
+		const ctx = canvas.getContext('2d')!;
+
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.font = '600 130px "Helvetica Neue", Arial, sans-serif';
+		ctx.fillStyle = '#4c8a68';
+		ctx.fillText('table.place', canvas.width / 2, canvas.height / 2 + 8);
+
+		const texture = new THREE.CanvasTexture(canvas);
+		texture.anisotropy = 4;
+		return texture;
+	}
+
+	const wordmarkTexture = createWordmarkTexture();
+
 	onDestroy(() => {
 		feltTexture.dispose();
+		wordmarkTexture.dispose();
 	});
 </script>
 
@@ -122,6 +145,21 @@
 			metalness={0}
 			bumpMap={feltTexture}
 			bumpScale={0.02}
+			side={THREE.DoubleSide}
+		/>
+	</T.Mesh>
+	<!-- printed felt wordmark: not a raycast target (compute() in TableScene
+	     only intersects the table mesh above), no pointer handlers, so it
+	     can never intercept a drag/drop. -->
+	<T.Mesh position={[9, 0.256, -4.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+		<T.PlaneGeometry args={[5, 1.25]} />
+		<T.MeshStandardMaterial
+			map={wordmarkTexture}
+			transparent
+			opacity={0.22}
+			depthWrite={false}
+			roughness={1}
+			metalness={0}
 			side={THREE.DoubleSide}
 		/>
 	</T.Mesh>
