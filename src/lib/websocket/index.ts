@@ -8,6 +8,7 @@ import {
 } from './connection';
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
+import { prewarmGameState } from '$lib/packs/prewarm-state';
 import toast from 'svelte-french-toast';
 
 /**
@@ -90,13 +91,15 @@ function setupMessageHandlers(): void {
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
 				gameStore.updateStateSilently(message.value);
-
+				// resolve all sheet refs in the synced state, then force one
+				// re-render sweep so everything repaints deterministically
+				prewarmGameState(message.value, () => gameStore.updateStateSilently({}));
 				break;
 
 			case 'update':
 				console.log('Received update message', message);
 				gameStore.updateStateSilently(message.value);
-
+				prewarmGameState(message.value, () => gameStore.updateStateSilently({}));
 				break;
 
 			case 'error':
