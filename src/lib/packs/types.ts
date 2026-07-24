@@ -21,6 +21,31 @@ export type PackDeckDef = {
 	cards: PackCardDef[];
 };
 
+export type PackPieceKind = 'token' | 'pawn' | 'counter';
+
+export type PackPieceDef = {
+	kind: PackPieceKind;
+	name: string;
+	/** hex tint; pawns/counters without images render in this color */
+	color?: string;
+	/** token top-face image ref (resolved like card faces) */
+	imageUrl?: string;
+	/** world radius of the piece footprint */
+	radius?: number;
+	/** counters start at this value */
+	maxValue?: number;
+	/** table-plane position [x, z] in world units */
+	position: [number, number];
+};
+
+export type PackOverlayDef = {
+	/** board/map image ref */
+	imageUrl: string;
+	/** width / height of the image */
+	ratio: number;
+	scale: number;
+};
+
 export type GamePackDef = {
 	id: string;
 	name: string;
@@ -30,4 +55,10 @@ export type GamePackDef = {
 	 */
 	scope: 'table' | 'player';
 	decks: PackDeckDef[];
+	/** tokens/pawns/counters that spawn with the pack */
+	pieces?: PackPieceDef[];
+	/** board/map images laid on the table */
+	overlays?: PackOverlayDef[];
+	/** provenance: set by converters (e.g. the TTS importer), absent on native packs */
+	source?: 'tts';
 };

@@ -15,6 +15,7 @@ import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
 import type { GameDTO } from '$lib/store/game/types';
+import { parseScenarioFile, serializeScenarioFile, scenarioFileName, type Scenario } from './file';
 
 const STORAGE_KEY = 'scenarios:v1';
 
@@ -24,11 +25,7 @@ type StateUpdate = Parameters<typeof gameStore.updateState>[0];
 export const seatPlaceholderId = (seat: SeatIndex) => `seat${seat}`;
 export const isSeatPlaceholder = (id: string) => /^seat[0-3]$/.test(id);
 
-export type Scenario = {
-	name: string;
-	createdAt: number;
-	state: Partial<GameDTO>;
-};
+export type { Scenario };
 
 function readAll(): Record<string, Scenario> {
 	try {
@@ -178,25 +175,20 @@ export function claimSeat(seat: SeatIndex): boolean {
 }
 
 export function exportScenarioToFile(scenario: Scenario) {
-	const blob = new Blob([JSON.stringify(scenario, null, '\t')], { type: 'application/json' });
+	const blob = new Blob([serializeScenarioFile(scenario)], { type: 'application/json' });
 	const a = document.createElement('a');
 	a.href = URL.createObjectURL(blob);
-	a.download = `scenario-${scenario.name}.json`;
+	a.download = scenarioFileName(scenario.name);
 	a.click();
 	URL.revokeObjectURL(a.href);
 }
 
-/** Parse a scenario file and store it. Returns the saved scenario. */
+/**
+ * Parse a scenario file (`.tbps.json`, or a legacy `scenario-*.json`) and
+ * store it. Returns the saved scenario.
+ */
 export function importScenarioFromText(text: string): Scenario {
-	const parsed = JSON.parse(text);
-	if (!parsed || typeof parsed !== 'object' || typeof parsed.name !== 'string' || !parsed.state) {
-		throw new Error('Not a scenario file');
-	}
-	const scenario: Scenario = {
-		name: parsed.name,
-		createdAt: typeof parsed.createdAt === 'number' ? parsed.createdAt : Date.now(),
-		state: parsed.state
-	};
+	const scenario = parseScenarioFile(text);
 	const all = readAll();
 	all[scenario.name] = scenario;
 	writeAll(all);
