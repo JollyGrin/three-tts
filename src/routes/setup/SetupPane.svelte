@@ -31,6 +31,7 @@
 		importScenarioFromText,
 		type SeatIndex
 	} from '$lib/scenario/scenario';
+	import HUDPieces from '$lib/HUDPieces.svelte';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import type { GameDTO } from '$lib/store/game/types';
@@ -249,6 +250,10 @@
 			</TabGroup>
 		</Folder>
 	{/if}
+	<HUDPieces
+		ownerId={seatPlaceholderId(activeSeat)}
+		beforeSpawn={() => ensureSeatPlaceholder(activeSeat)}
+	/>
 	<Folder title="Overlay (map)" expanded={false}>
 		<Text label="Image URL" bind:value={imageUrl}></Text>
 		<Point bind:value={point3d} label="Position" />

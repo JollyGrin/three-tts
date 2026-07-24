@@ -50,10 +50,12 @@ type PlayerDTO = SeatState & {
  * Non-card table objects (tokens, pawns, counters). One generic shape
  * with a kind discriminator — see SPEC.md §4a.
  */
+export type PieceKind = 'token' | 'pawn' | 'counter';
+
 type PieceDTO = {
 	position: [number, number, number];
 	rotation: [number, number, number];
-	kind: 'token' | 'pawn' | 'counter';
+	kind: PieceKind;
 	name: string;
 	/** hex tint; pawns/counters without images render in this color */
 	color?: string;

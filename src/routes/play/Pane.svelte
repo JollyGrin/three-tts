@@ -26,6 +26,7 @@
 		type SeatIndex
 	} from '$lib/scenario/scenario';
 	import { List } from 'svelte-tweakpane-ui';
+	import HUDPieces from '$lib/HUDPieces.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import toast from 'svelte-french-toast';
@@ -154,6 +155,7 @@
 			value={`Build presets at /setup. Seeding replaces the table for the whole lobby; each player then claims a seat to take over its decks.`}
 		/>
 	</Folder>
+	<HUDPieces ownerId={gameActions.getMyId() ?? undefined} />
 	<Folder title="Overlays" expanded={false}>
 		<Button title="Clear overlay" on:click={clearOverlay} />
 		<Text label="Image URL" bind:value={imageUrl}></Text>
