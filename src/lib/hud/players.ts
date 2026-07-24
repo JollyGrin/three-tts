@@ -38,6 +38,12 @@ export type PlayerHudRow = {
 	isMe: boolean;
 	/** a `seat0`–`seat3` placeholder — nobody is sitting here yet */
 	isOpenSeat: boolean;
+	/**
+	 * live presence from the server (`players[id].connected` merge patches).
+	 * Strictly `=== true` — a client that never received a presence patch
+	 * must render offline-unknown, never connected.
+	 */
+	connected: boolean;
 	/** number of cards in the tray (hand); counts only, never the cards */
 	handCount: number;
 	/** decks owned by this player, sorted by slot */
@@ -89,23 +95,30 @@ export function derivePlayerRows(
 
 	const tableByOwner = countOwnedBy(Object.keys(state?.cards ?? {}));
 
-	return Object.entries(players)
-		.filter(([, player]) => !!player)
-		.map(([id, player]) => {
-			const seat = player?.seat ?? 0;
-			return {
-				id,
-				seat,
-				rotationDeg: SEAT_ROTATION_DEG[seat] ?? 0,
-				joinTimestamp: player?.joinTimestamp ?? 0,
-				isMe: !!myId && id === myId,
-				isOpenSeat: isSeatPlaceholder(id),
-				handCount: Object.keys(player?.tray ?? {}).length,
-				decks: decksByOwner[id] ?? [],
-				tableCount: tableByOwner[id] ?? 0
-			};
-		})
-		.sort((a, b) => a.seat - b.seat || a.joinTimestamp - b.joinTimestamp);
+	return (
+		Object.entries(players)
+			.filter(([, player]) => !!player)
+			// ghost-row guard: the server merges `connected` on socket attach,
+			// before the client has sent any player data — a row that is presence
+			// only (no joinTimestamp) is not a player yet and must not render
+			.filter(([, player]) => typeof player?.joinTimestamp === 'number')
+			.map(([id, player]) => {
+				const seat = player?.seat ?? 0;
+				return {
+					id,
+					seat,
+					rotationDeg: SEAT_ROTATION_DEG[seat] ?? 0,
+					joinTimestamp: player?.joinTimestamp ?? 0,
+					isMe: !!myId && id === myId,
+					isOpenSeat: isSeatPlaceholder(id),
+					connected: player?.connected === true,
+					handCount: Object.keys(player?.tray ?? {}).length,
+					decks: decksByOwner[id] ?? [],
+					tableCount: tableByOwner[id] ?? 0
+				};
+			})
+			.sort((a, b) => a.seat - b.seat || a.joinTimestamp - b.joinTimestamp)
+	);
 }
 
 /** `3 players` / `1 player` — the collapsed header summary. */

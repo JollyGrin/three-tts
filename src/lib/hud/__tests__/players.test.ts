@@ -119,20 +119,50 @@ describe('derivePlayerRows', () => {
 	it('handles empty and missing state', () => {
 		expect(derivePlayerRows(undefined)).toEqual([]);
 		expect(derivePlayerRows({})).toEqual([]);
-		const sparse = derivePlayerRows({ players: { solo: { id: 'solo' } } });
+		const sparse = derivePlayerRows({
+			players: { solo: { id: 'solo', joinTimestamp: 5 } }
+		});
 		expect(sparse).toEqual([
 			{
 				id: 'solo',
 				seat: 0,
 				rotationDeg: 0,
-				joinTimestamp: 0,
+				joinTimestamp: 5,
 				isMe: false,
 				isOpenSeat: false,
+				connected: false,
 				handCount: 0,
 				decks: [],
 				tableCount: 0
 			}
 		]);
+	});
+
+	it('skips presence-only ghost rows (no joinTimestamp yet)', () => {
+		// the server merges players[id].connected on socket attach, before the
+		// client has sent seat/tray/joinTimestamp — such rows are not players yet
+		const rows = derivePlayerRows({
+			...state,
+			players: { ...state.players, ghost: { connected: true } }
+		});
+		expect(rows.map((r) => r.id)).not.toContain('ghost');
+	});
+
+	it('treats missing presence as offline-unknown, never connected', () => {
+		const rows = derivePlayerRows(state);
+		// nobody in this fixture has ever received a presence patch
+		expect(rows.every((r) => r.connected === false)).toBe(true);
+	});
+
+	it('maps presence strictly from connected === true', () => {
+		const rows = derivePlayerRows({
+			players: {
+				on: { id: 'on', seat: 0, joinTimestamp: 1, tray: {}, metadata: {}, connected: true },
+				off: { id: 'off', seat: 1, joinTimestamp: 2, tray: {}, metadata: {}, connected: false }
+			}
+		});
+		expect(rows.find((r) => r.id === 'on')?.connected).toBe(true);
+		expect(rows.find((r) => r.id === 'off')?.connected).toBe(false);
 	});
 });
 

@@ -1,11 +1,4 @@
-import {
-	connect,
-	joinLobby,
-	onMessage,
-	sendMessage,
-	type WebSocketMessage,
-	type ConnectedPlayer
-} from './connection';
+import { connect, joinLobby, onMessage, sendMessage, type WebSocketMessage } from './connection';
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
@@ -58,34 +51,6 @@ export async function initWebsocket(lobbyId: string, serverUrl?: string): Promis
 function setupMessageHandlers(): void {
 	onMessage((message: WebSocketMessage) => {
 		switch (message.type) {
-			case 'connect':
-				console.log(`Player ${message.playerId} connected`);
-				toast(`Player ${message.playerId} connected`);
-				break;
-
-			case 'disconnect':
-				console.log(`Player ${message.playerId} disconnected`);
-				// We keep the player in the store to preserve their data
-				// but could mark them as offline if needed
-				break;
-
-			case 'playerList':
-				console.log('Received player list:', message.players);
-				if (message.players && message.players.length > 0) {
-					// Update all players in the store
-					message.players.forEach((player: ConnectedPlayer) => {
-						gameStore?.updateStateSilently({
-							players: {
-								[player.id]: {
-									id: player.id,
-									joinTimestamp: player.joinTimestamp
-								}
-							}
-						});
-					});
-				}
-				break;
-
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
 				gameStore.updateStateSilently(message.value);

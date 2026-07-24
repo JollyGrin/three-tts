@@ -88,6 +88,49 @@ describe('PlayerHud', () => {
 		expect(reloaded.container.textContent).not.toContain('Seat 2 — open');
 	});
 
+	it('renders every dot as offline when no presence patch ever arrived', () => {
+		const { container } = render(PlayerHud);
+		// fixture state has no `connected` anywhere — offline-unknown, never green
+		const dots = container.querySelectorAll('[data-connected]');
+		expect(dots.length).toBe(2); // me + them; open seats get no dot
+		dots.forEach((dot) => expect(dot.getAttribute('data-connected')).toBe('false'));
+	});
+
+	it('flips a dot live when a presence patch lands', async () => {
+		const { container } = render(PlayerHud);
+		const dotFor = (id: string) =>
+			container
+				.querySelector(`[title="${id}"]`)
+				?.parentElement?.querySelector('[data-connected]')
+				?.getAttribute('data-connected');
+
+		gameStore.set({
+			...state,
+			players: { ...state.players, them: { ...state.players!.them, connected: true } }
+		} as Partial<GameDTO>);
+		await Promise.resolve();
+		expect(dotFor('them')).toBe('true');
+		expect(dotFor('me')).toBe('false');
+
+		gameStore.set({
+			...state,
+			players: { ...state.players, them: { ...state.players!.them, connected: false } }
+		} as Partial<GameDTO>);
+		await Promise.resolve();
+		expect(dotFor('them')).toBe('false');
+	});
+
+	it('never renders a presence-only ghost row', async () => {
+		const { container } = render(PlayerHud);
+		gameStore.set({
+			...state,
+			players: { ...state.players, ghost: { connected: true } }
+		} as Partial<GameDTO>);
+		await Promise.resolve();
+		expect(container.textContent).not.toContain('ghost');
+		expect(container.textContent).toContain('2 players · 1 open');
+	});
+
 	it('lets pointer events through everywhere but the HUD box', () => {
 		const { container } = render(PlayerHud);
 		const wrapper = container.querySelector('div');

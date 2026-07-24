@@ -41,6 +41,12 @@ type PlayerDTO = SeatState & {
 	joinTimestamp: number;
 	tray: Record<string, Partial<CardDTO | null>>;
 	/**
+	 * server-owned presence: merged into the lobby state on socket
+	 * connect/disconnect. Absent until the server has said anything —
+	 * treat undefined as offline-unknown, never as connected.
+	 * */
+	connected?: boolean;
+	/**
 	 * extend for future use with life/resources
 	 * */
 	metadata: any;
