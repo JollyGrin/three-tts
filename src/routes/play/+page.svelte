@@ -12,6 +12,7 @@
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
 	import PaneDecks from './PaneDecks.svelte';
+	import PlayerHud from '$lib/hud/PlayerHud.svelte';
 	import toast from 'svelte-french-toast';
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -71,6 +72,7 @@
 
 <Pane />
 <PaneDecks />
+<PlayerHud />
 
 <div
 	class="h-screen w-screen overflow-clip transition-all"
