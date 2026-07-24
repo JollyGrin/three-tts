@@ -72,6 +72,23 @@ describe('derivePlayerRows', () => {
 		expect(rows.find((r) => r.id === 'seat2')?.handCount).toBe(0);
 	});
 
+	// Online there is nothing to count: another player's tray and a facedown
+	// deck's card list never reach this client, only the server's numbers do.
+	it('uses the server counts when the contents are withheld', () => {
+		const rows = derivePlayerRows({
+			players: {
+				me: { id: 'me', seat: 0, joinTimestamp: 1, tray: { c1: card }, handCount: 1, metadata: {} },
+				them: { id: 'them', seat: 1, joinTimestamp: 2, handCount: 4, metadata: {} } as never
+			},
+			decks: {
+				'deck:them:main': { id: 'deck:them:main', cardCount: 37 }
+			}
+		});
+		expect(rows.find((r) => r.id === 'me')?.handCount).toBe(1);
+		expect(rows.find((r) => r.id === 'them')?.handCount).toBe(4);
+		expect(rows.find((r) => r.id === 'them')?.decks).toEqual([{ slot: 'main', count: 37 }]);
+	});
+
 	it('groups decks by owner from the deck id, sorted by slot', () => {
 		const rows = derivePlayerRows(state);
 		expect(rows.find((r) => r.id === 'alice')?.decks).toEqual([

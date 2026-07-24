@@ -174,8 +174,12 @@ func (l *Lobby) clientWrite(ctx context.Context, c *Client) {
 // unsubscribe will only close the connection once
 func (l *Lobby) unsubscribe(c *Client) {
 	c.close.Do(func() {
-		l.mu.Lock()
+		// outside l.mu: this releases the player's hold leases and fans the
+		// synthesized drop out through the game's channel, which run() drains
+		// under this same lock
 		l.state.DisconnectPlayer(c.Player)
+
+		l.mu.Lock()
 		_ = c.Conn.Close(websocket.StatusInternalError, "unsubscribing")
 		delete(l.clients, c)
 		// safe: run() only sends to clients still in the map, under this same

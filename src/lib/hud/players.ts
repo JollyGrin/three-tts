@@ -7,8 +7,10 @@
  * `card:<playerId>:…`), so an opponent's hand size and deck counts are
  * derivable without any new wire messages.
  *
- * Only counts are exposed for other players. Card faces/ids of somebody
- * else's tray must never leave this module.
+ * Counts are all there is to work with: another player's tray and a facedown
+ * deck's card list never reach this client at all, so `handCount`/`cardCount`
+ * (server-derived) are the numbers, with the local lengths as the offline
+ * fallback for the /setup editor.
  */
 
 import { isSeatPlaceholder } from '$lib/scenario/scenario';
@@ -82,7 +84,10 @@ export function derivePlayerRows(
 	for (const [deckId, deck] of Object.entries(state?.decks ?? {})) {
 		const owner = ownerOf(deckId);
 		if (!owner || !deck) continue;
-		(decksByOwner[owner] ??= []).push({ slot: slotOf(deckId), count: deck.cards?.length ?? 0 });
+		(decksByOwner[owner] ??= []).push({
+			slot: slotOf(deckId),
+			count: deck.cardCount ?? deck.cards?.length ?? 0
+		});
 	}
 	for (const decks of Object.values(decksByOwner))
 		decks.sort((a, b) => a.slot.localeCompare(b.slot));
@@ -100,7 +105,7 @@ export function derivePlayerRows(
 				joinTimestamp: player?.joinTimestamp ?? 0,
 				isMe: !!myId && id === myId,
 				isOpenSeat: isSeatPlaceholder(id),
-				handCount: Object.keys(player?.tray ?? {}).length,
+				handCount: player?.handCount ?? Object.keys(player?.tray ?? {}).length,
 				decks: decksByOwner[id] ?? [],
 				tableCount: tableByOwner[id] ?? 0
 			};

@@ -73,19 +73,11 @@
 	}
 	function handleDragStart() {
 		const { x = 0, z = 0 } = $dragStore.intersectionPoint as THREE.Vector3;
-
-		const movedCard = gameActions.moveCardOutOfTray(id, myPlayerId);
-		gameStore?.updateState({
-			cards: {
-				[id]: {
-					...movedCard,
-					position: [x, 2.5, z],
-					// 180 on x = facedown (matches flipCard convention) — cards leave the hand hidden
-					rotation: [180, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
-					faceImageUrl: movedCard?.faceImageUrl ?? card?.faceImageUrl,
-					backImageUrl: movedCard?.backImageUrl ?? card.backImageUrl ?? CARD_BACK_DEFAULT // TODO: update this with its actual cardback
-				}
-			}
+		gameActions.moveCardOutOfTray(id, myPlayerId, {
+			position: [x, 2.5, z],
+			// 180 on x = facedown (matches flipCard convention) — cards leave the hand hidden
+			rotation: [180, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
+			backImageUrl: card.backImageUrl ?? CARD_BACK_DEFAULT // TODO: update this with its actual cardback
 		});
 		dragStart(id, 2.5);
 	}

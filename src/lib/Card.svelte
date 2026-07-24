@@ -11,9 +11,12 @@
 	import { gameActions } from './store/game/actions';
 	import { CARD_WIDTH, CARD_HEIGHT, CARD_THICKNESS, CARD_REST_Y } from '$lib/utils/constants-cards';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import { canSeeFace, isHeldByOther } from './store/game/visibility';
+	import toast from 'svelte-french-toast';
 	type Vec3Array = [number, number, number];
 
 	let { id }: { id: string } = $props();
+	const myPlayerId = gameActions.getMyId() ?? '';
 
 	let card: THREE.Mesh | undefined = $state();
 	const initCardState: GameDTO['cards'][string] = {
@@ -25,7 +28,13 @@
 
 	const isDragging = $derived($dragStore.isDragging === id);
 	const cardState = $derived($gameStore?.cards?.[id] ?? initCardState);
-	const faceImageUrl = $derived(resolveCardImage(cardState?.faceImageUrl, $sheetRefCache));
+	// Entitlement, not orientation: a card we may not see arrives with no face
+	// at all, and the visibility descriptor says so explicitly.
+	const canSee = $derived(canSeeFace(cardState, myPlayerId));
+	const heldByOther = $derived(isHeldByOther(cardState, myPlayerId));
+	const faceImageUrl = $derived(
+		canSee ? resolveCardImage(cardState?.faceImageUrl, $sheetRefCache) : ''
+	);
 	const backImageUrl = $derived(resolveCardImage(cardState?.backImageUrl, $sheetRefCache));
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
@@ -108,7 +117,15 @@
 		rotationTap.target = baseRotation[2];
 	});
 
+	// Starting a drag is a request for the hold lease, not a fait accompli: the
+	// server rejects a grab on a card somebody else already has, and corrects us
+	// if we started moving it anyway.
 	function handleDragStart() {
+		if (heldByOther) {
+			toast(`${cardState.heldBy} is holding that card`);
+			return;
+		}
+		gameActions.grabObject(id);
 		dragStart(id, position[1]); // Pass current height
 
 		// Animate to raised height with some extra bounce
@@ -141,28 +158,35 @@
 		<T.BoxGeometry args={[CARD_WIDTH - 0.04, CARD_THICKNESS * 0.92, CARD_HEIGHT - 0.04]} />
 		<T.MeshBasicMaterial color="#d9d6c9" />
 	</T.Mesh>
-	<!-- key the MESH, not the material: threlte 8.5 material swaps on a live
+	<!-- No face plane at all for a card we are not entitled to: there is no url
+	     to load, so nothing to peek at in devtools or in a drag ghost. When we
+	     do hold the face, the plane stays mounted (hidden while facedown) so the
+	     texture survives a flip.
+
+	     key the MESH, not the material: threlte 8.5 material swaps on a live
 	     mesh detach without reattaching (same bug as the felt table), leaving
 	     the default white material. Mesh recreation attaches cleanly. -->
-	{#key faceImageUrl}
-		<T.Mesh
-			castShadow
-			receiveShadow
-			bind:ref={card}
-			visible={!isFacedown}
-			rotation.x={-Math.PI / 2}
-			position.y={CARD_THICKNESS / 2}
-		>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			<ImageMaterial
-				url={faceImageUrl ?? ''}
-				side={0}
-				radius={0.1}
-				monochromeColor={'#fff'}
-				monochromeStrength={emissiveIntensity}
-			/>
-		</T.Mesh>
-	{/key}
+	{#if faceImageUrl}
+		{#key faceImageUrl}
+			<T.Mesh
+				castShadow
+				receiveShadow
+				bind:ref={card}
+				visible={!isFacedown}
+				rotation.x={-Math.PI / 2}
+				position.y={CARD_THICKNESS / 2}
+			>
+				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
+				<ImageMaterial
+					url={faceImageUrl}
+					side={0}
+					radius={0.1}
+					monochromeColor={'#fff'}
+					monochromeStrength={emissiveIntensity}
+				/>
+			</T.Mesh>
+		{/key}
+	{/if}
 
 	{#if backImageUrl}
 		<!-- rotation.z compensates the width-axis flip so directional backs read upright -->

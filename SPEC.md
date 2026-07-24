@@ -175,7 +175,37 @@ Discrete actions and continuous drags have opposite needs, so they ride the same
 | Persistence | Applied to canonical `GameDTO`, snapshotted | Never persisted |
 | Rate | Occasional | 20–30 Hz per held object |
 
-**Drag lifecycle:** `grab(objectId)` action → server grants a *hold lease* (`held_by`; concurrent grabs rejected — no two players fight over one card) → holder streams `move {objectId, seq, pos, rot}` → server stamps + fans out, drops stale seqs → `drop(objectId, finalTransform)` action ends the lease and persists the result. Leases auto-expire on disconnect (object stays at last streamed position via a server-synthesized drop).
+**Drag lifecycle:** `grab(objectId)` action → server grants a *hold lease* (`heldBy`; concurrent grabs rejected — no two players fight over one card) → holder streams `move {objectId, seq, pos, rot}` → server stamps + fans out, drops stale seqs → `drop(objectId, finalTransform)` action ends the lease and persists the result. Leases auto-expire on disconnect (object stays at last streamed position via a server-synthesized drop) and after a 60s TTL, so a wedged tab can't park a card out of reach. `heldBy` rides on the entity itself, so every client can render "someone else has this" and refuse to start its own drag.
+
+### 4e. Hidden information
+
+Facedown is a *data* boundary, not a render flag. The rule: **hidden state never leaves the server for a player not entitled to it**, so secrecy holds against devtools, not just against the UI.
+
+**The model.** Cards carry a visibility descriptor rather than having their secrecy inferred from rotation:
+
+```typescript
+type CardVisibility =
+  | { kind: 'public' }                        // face-up: anyone may see the face
+  | { kind: 'hidden'; seenBy?: string[] };    // only the listed players may
+```
+
+Facedown on the table = hidden to all. In a hand = hidden to everyone but its owner. Peeked = hidden, with the peeker in `seenBy`. State with no descriptor (a scenario file, an older client) falls back to orientation — facedown reads as hidden, which is the safe direction. Rendering keys off this, never off rotation: a card you peeked at lies facedown on the table but shows its face in the preview HUD.
+
+**Per-recipient views.** The server builds a filtered copy of the document for each player before sending, and diffs it against what that player was last sent — so every client receives a patch stream describing only the game it is allowed to know about:
+
+| | shipped to an entitled player | shipped to everyone else |
+|---|---|---|
+| card face | `faceImageUrl` | *omitted* — backs, transforms and the descriptor still ship, so the table renders identically |
+| hand (`players[x].tray`) | full contents, to `x` only | `handCount` only |
+| deck (`decks[d].cards`) | face-up pile: its top card | `cardCount` only — a facedown deck's order and faces never leave |
+
+**Two write paths.** `update` merge patches remain the cheap path for drag streams, layout, imports and scenario seeds, but are now *sanitized*: a client may not write another player's row, a hand, an existing deck's card list, an existing card's face, or the server-owned `visibility`/`heldBy` fields, and may not mutate any object somebody else holds. Refused subtrees are dropped rather than merged, and the sender is told — and corrected, since its next patch is diffed against "what we last sent you, plus what you just tried".
+
+Everything that moves hidden information is a validated **action** instead, because the requesting client usually cannot hold the data the move operates on: `draw` (server pops the deck and materializes a card under a client-supplied *opaque* id — `card:alice:main-AS` would announce the card it names), `placeOnDeck`, `shuffle`, `tray`/`untray`, `flip`, `claimSeat` (an unclaimed seat's pre-dealt hand is hidden from its claimer too), plus the deliberate reveals below.
+
+**Peeking is a move.** Looking at a hidden card is legitimate, so it is explicit and recorded rather than a side effect of hovering: `peek` entitles you to the face and writes you into `seenBy` where the whole table can see it, announced with a `log` message; `reveal` turns a card face-up for everyone. Flipping *back* down removes the face from everyone again, peekers included — "facedown" has no exceptions to reason about.
+
+With no backend (`local` mode, the /setup editor) there is nothing to hide and nobody to arbitrate: actions fall back to applying the move on the spot.
 
 **Client smoothing:** remote clients feed incoming samples into the existing spring interpolation (`Card.svelte`) — springs chasing the latest sample absorb jitter without snapshot-buffer machinery. The local holder renders its own drag directly (no round-trip lag on your own hand).
 

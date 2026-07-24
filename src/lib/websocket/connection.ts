@@ -7,7 +7,17 @@ export type ConnectedPlayer = {
 };
 
 export type WebSocketMessage = {
-	type: 'connect' | 'sync' | 'update' | 'error' | 'disconnect' | 'playerList';
+	type:
+		| 'connect'
+		| 'sync'
+		| 'update'
+		| 'error'
+		| 'disconnect'
+		| 'playerList'
+		/** a gameplay move for the server to arbitrate — see actions/net.ts */
+		| 'action'
+		/** something the table should know happened, e.g. a peek */
+		| 'log';
 	path?: string[];
 	value?: any;
 	playerId: string;

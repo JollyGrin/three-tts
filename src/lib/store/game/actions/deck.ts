@@ -3,6 +3,7 @@ import { gameActions } from '.';
 import { gameStore } from '../gameStore.svelte';
 import { get } from 'svelte/store';
 import type { GameDTO } from '../types';
+import { sendGameAction } from './net';
 
 function getMyDecks() {
 	const myPlayerId = gameActions.getMe()?.id;
@@ -52,50 +53,101 @@ function addDeck(
 }
 
 /**
- * Draws from the top of the deck
- * Follows LIFO (Last In First Out)
- * When facedown (like a deck of cards), the top card = cards.length - 1
- * When faceup (like a visible discard pile), the top card = cards[0]
+ * Draws from the top of the deck onto the table.
  *
- * returns the card drawn.
+ * Deck order and deck faces live on the server — a client holds a count, not a
+ * card list — so drawing is a request for a specific new card id, which the
+ * server materializes (leased to you, facedown unless the pile is face-up).
+ * The caller can start dragging that id immediately.
+ *
+ * Follows LIFO (Last In First Out): when facedown (like a deck of cards) the
+ * top card is the last entry; when faceup (like a visible discard pile) it is
+ * the first.
+ *
+ * Returns the id of the card being drawn, or undefined when there is nothing
+ * to draw.
  * */
-function drawFromTop(id: string) {
-	const { cards, isFaceUp } = get(gameStore)?.decks?.[id] ?? {};
-	if (!cards || cards.length === 0)
-		return console.error('Cannot draw from an empty deck');
+function drawFromTop(
+	deckId: string,
+	placement: {
+		cardId: string;
+		position: [number, number, number];
+		rotation: [number, number, number];
+	}
+): string | undefined {
+	if (getDeckLength(deckId) === 0) {
+		console.error('Cannot draw from an empty deck');
+		return undefined;
+	}
 
-	const card = isFaceUp ? cards.shift() : cards.pop();
+	const { cardId, position, rotation } = placement;
+	if (sendGameAction('draw', { deckId, id: cardId, position, rotation })) {
+		return cardId;
+	}
+
+	// offline: we are the authority and hold the whole deck
+	const { cards, isFaceUp } = get(gameStore)?.decks?.[deckId] ?? {};
+	if (!cards || cards.length === 0) {
+		console.error('Cannot draw from an empty deck');
+		return undefined;
+	}
+	const drawn = isFaceUp ? cards.shift() : cards.pop();
+	if (!drawn) return undefined;
 	gameStore.updateState({
-		decks: { [id]: { cards } }
+		decks: { [deckId]: { cards } },
+		cards: {
+			[cardId]: {
+				faceImageUrl: drawn.faceImageUrl,
+				backImageUrl: drawn.backImageUrl,
+				position,
+				rotation,
+				visibility: isFaceUp ? { kind: 'public' } : { kind: 'hidden' }
+			}
+		}
 	});
-	return card; // returns card to hoist into cards for dragging
+	return cardId;
 }
 
-type Card = NonNullable<GameDTO['decks'][string]['cards']>[number];
+/** Put a table card back on a deck. The face goes back behind the server. */
 function placeOnTopOfDeck(deckId: string, cardId: string) {
-	const _card = get(gameStore)?.cards?.[cardId]; // grab card from table
-	if (!_card) return console.error('Card not found');
+	if (sendGameAction('placeOnDeck', { deckId, id: cardId })) {
+		return gameStore.updateStateSilently({ cards: { [cardId]: null } });
+	}
 
-	const { position, rotation, ...card } = { ..._card, id: cardId };
-	card.id = cardId;
+	const card = get(gameStore)?.cards?.[cardId]; // grab card from table
+	if (!card) return console.error('Card not found');
 	if (!card.faceImageUrl) return console.error('No card faceImageUrl found');
+
+	// only the identity travels back into the deck — transform and lease are
+	// table state, not card state
+	const entry = {
+		id: cardId,
+		faceImageUrl: card.faceImageUrl,
+		backImageUrl: card.backImageUrl
+	};
 
 	// get current deck
 	const { cards, isFaceUp } = get(gameStore)?.decks?.[deckId] ?? {};
 	if (!cards) return console.error('No cards found in deck');
 
-	isFaceUp ? cards.unshift(card as Card) : cards.push(card as Card);
+	isFaceUp ? cards.unshift(entry as Card) : cards.push(entry as Card);
 	return gameStore.updateState({
 		cards: { [cardId]: null },
 		decks: { [deckId]: { cards } }
 	});
 }
 
+type Card = NonNullable<GameDTO['decks'][string]['cards']>[number];
+
 /**
- * How many cards are in the deck
+ * How many cards are in the deck.
+ *
+ * `cardCount` is the server's number and covers the cards you cannot see;
+ * `cards.length` is the offline/local-authority fallback.
  * */
 function getDeckLength(id: string) {
-	return get(gameStore)?.decks?.[id]?.cards?.length ?? 0;
+	const deck = get(gameStore)?.decks?.[id];
+	return deck?.cardCount ?? deck?.cards?.length ?? 0;
 }
 
 function shuffleCards(cards: any[]) {
@@ -107,10 +159,13 @@ function shuffleCards(cards: any[]) {
 	return cards;
 }
 
-//   /**
-//    * Shuffle deck using the Fisher-Yates shuffle
-//    */
+/**
+ * Shuffle deck using the Fisher-Yates shuffle. Online the server does it —
+ * shuffling a list of counts would be theatre.
+ */
 export function shuffleDeck(deckId: string) {
+	if (sendGameAction('shuffle', { deckId })) return;
+
 	const deck = get(gameStore)?.decks?.[deckId];
 	const cards = deck?.cards;
 	if (!cards || cards.length === 0) return console.error('No cards to shuffle');

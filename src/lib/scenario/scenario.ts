@@ -14,6 +14,7 @@ import { get } from 'svelte/store';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
+import { sendGameAction } from '$lib/store/game/actions/net';
 import type { GameDTO } from '$lib/store/game/types';
 
 const STORAGE_KEY = 'scenarios:v1';
@@ -145,6 +146,10 @@ function renameOwner(key: string, from: string, to: string): string {
  * Claim a placeholder seat as the local player: the seat index + tray move
  * onto my player, and every entity owned by the placeholder is renamed to my
  * id so ownership-based UI (deck panes) follows. No-op if already claimed.
+ *
+ * Online this has to be a server action. An unclaimed seat's pre-dealt hand is
+ * hidden from everybody — including whoever is about to sit down — so the
+ * claiming client cannot see what it is claiming, let alone move it.
  */
 export function claimSeat(seat: SeatIndex): boolean {
 	const myId = gameActions.getMyId();
@@ -153,6 +158,8 @@ export function claimSeat(seat: SeatIndex): boolean {
 	const s = get(gameStore);
 	const ph = s?.players?.[placeholder];
 	if (!ph) return false;
+
+	if (sendGameAction('claimSeat', { seat })) return true;
 
 	// decks first, one message each — full card lists must stay under the
 	// server's websocket read limit

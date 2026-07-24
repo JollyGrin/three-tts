@@ -21,6 +21,11 @@
 		if (event.code === 'KeyC') cameraTransforms.resetView();
 		if (event.code === 'KeyT') gameActions.tapCard();
 		if (event.code === 'KeyR') gameActions.tapCard(true);
+		// P peeks (hold space to see it in the preview), shift+P reveals to all
+		if (event.code === 'KeyP') {
+			if (event.shiftKey) gameActions.revealCard();
+			else gameActions.peekCard();
+		}
 		if (event.code === 'ArrowUp') gameActions.incrementHeight(0.01);
 		if (event.code === 'ArrowDown') gameActions.incrementHeight(-0.01);
 	}

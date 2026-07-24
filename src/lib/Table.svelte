@@ -25,30 +25,36 @@
 			if (px !== undefined && pz !== undefined) {
 				gameStore.updateState({ pieces: { [id]: { position: [px, PIECE_REST_Y, pz] } } });
 			}
+			gameActions.dropObject(id);
 			dragEnd();
 			return;
 		}
 
-		const { faceImageUrl } = gameActions.getCardState($dragStore.isDragging) ?? {};
-
 		if ($dragStore.isTrayHovered) {
-			console.log('Storing in hand:', id, faceImageUrl);
+			// tray/placeOnDeck end the lease themselves — the card is leaving the
+			// table, so there is nothing left to hold
 			gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
+			dragEnd();
+			return;
 		}
 
 		if (!!$dragStore.isDeckHovered) {
 			const deckIdHovered = $dragStore.isDeckHovered;
-			console.log('Storing in deck', deckIdHovered);
 			gameActions.placeOnTopOfDeck(deckIdHovered, id);
+			dragEnd();
+			return;
 		}
 
 		const card = gameActions.getCardState(id);
-		const [x, y, z] = card?.position ?? [];
+		const [x, , z] = card?.position ?? [];
 		if (x && z) {
 			const restY = resolveStackHeight($gameStore?.cards, id, x, z);
 			gameStore.updateState({ cards: { [id]: { position: [x, restY, z] } } });
 		}
 
+		// releasing the lease is the last thing that happens: the settle above
+		// still needs it (sendGameAction flushes the queued drag frame first)
+		gameActions.dropObject(id);
 		dragEnd();
 	}
 

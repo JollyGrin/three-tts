@@ -4,18 +4,24 @@
 	import { T } from '@threlte/core';
 	import { ImageMaterial, interactivity } from '@threlte/extras';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import { canSeeFace } from '$lib/store/game/visibility';
+	import { gameActions } from '$lib/store/game/actions';
 
 	interactivity();
 	let { id }: { id: string } = $props();
+	const myPlayerId = gameActions.getMyId() ?? '';
 	const card = $derived($gameStore?.cards?.[id] as NonNullable<GameDTO['cards'][string]>);
-	const isFlipped = $derived((card?.rotation ?? [0])[0] === 180);
+	// The preview is where a peeked card pays off: it shows the face you are
+	// entitled to even while the card lies facedown on the table. A card you may
+	// not see previews as its back — there is no face here to leak.
+	const canSee = $derived(canSeeFace(card, myPlayerId));
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
 </script>
 
 {#if !!card}
 	{@const previewUrl = resolveCardImage(
-		isFlipped ? card.backImageUrl : card.faceImageUrl,
+		canSee ? card.faceImageUrl : card.backImageUrl,
 		$sheetRefCache
 	)}
 	{#key previewUrl}

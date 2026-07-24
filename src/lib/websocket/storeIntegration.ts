@@ -112,10 +112,32 @@ function mergePendingValue(pending: any, incoming: any) {
 	return merged;
 }
 
+/**
+ * Send whatever the position throttle is sitting on, right now.
+ *
+ * Actions bypass the throttle, so a queued drag frame would otherwise land
+ * *after* the `drop` that ended the drag — and be rejected, because by then the
+ * sender no longer holds the lease. Flushing first keeps the stream ordered.
+ * A no-op before `initWrappers` (the offline /setup editor).
+ */
+export let flushPendingUpdate: () => void = () => {};
+
 export function wsWrapperUpdateGameState(fn: Function) {
 	let lastSentTime = 0; // track the last time a message was sent
 	let positionTimeout: ReturnType<typeof setTimeout> | null = null;
 	let pendingPayload: any = null;
+
+	flushPendingUpdate = () => {
+		if (positionTimeout) {
+			clearTimeout(positionTimeout);
+			positionTimeout = null;
+		}
+		if (!pendingPayload) return;
+		lastSentTime = Date.now();
+		sendMessage(pendingPayload);
+		pendingPayload = null;
+	};
+
 	return function passArgs(...args: any[]) {
 		console.log('ws update gamestate: spread args', ...args);
 		const metadata = createWsMetaData();

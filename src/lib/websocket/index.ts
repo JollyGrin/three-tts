@@ -108,9 +108,19 @@ function setupMessageHandlers(): void {
 				prewarmGameState(message.value, () => gameStore.updateStateSilently({}));
 				break;
 
+			case 'log': {
+				// table events worth announcing: looking at a hidden card is a
+				// move, so everyone gets told who looked at what
+				const { kind, playerId, cardId } = message.value ?? {};
+				const verb = kind === 'peek' ? 'peeked at' : 'revealed';
+				console.log(`[log] ${playerId} ${verb} ${cardId}`);
+				if (playerId !== gameActions.getMyId()) toast(`${playerId} ${verb} a card`);
+				break;
+			}
+
 			case 'error':
 				console.error('Received error message:', message.value);
-				toast('Connection Error:', message.value);
+				toast(`Rejected: ${message.value}`);
 				break;
 
 			default:

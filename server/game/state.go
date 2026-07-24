@@ -16,9 +16,26 @@ type Game struct {
 	LastActivity time.Time `json:"lastActivity"`
 	Updates      int64     `json:"updates"`
 
+	// views is what we believe each client's copy of the state looks like —
+	// the filtered document last sent to them. Outgoing patches are diffed
+	// against it, so a client is only ever told about the part of a change it
+	// is entitled to know about.
+	views map[string]map[string]any
+	// holds tracks when each hold lease goes stale, keyed by "<collection>/<id>".
+	// The lease itself lives on the entity (heldBy) so every client can see who
+	// is dragging what; only the expiry is server-private.
+	holds map[string]time.Time
+
 	out chan *PlayerMessage
 	mu  sync.Mutex
 }
+
+// holdTTL bounds a lease that was never dropped — a wedged tab or a lost
+// pointerup must not park a card out of everyone else's reach forever.
+const holdTTL = 60 * time.Second
+
+// serverID is the sender stamped on messages the server itself originates.
+const serverID = "server"
 
 type PlayerMessage struct {
 	// TODO: Probably a better way to add addressing
@@ -28,12 +45,16 @@ type PlayerMessage struct {
 }
 
 func NewGame() (*Game, <-chan *PlayerMessage) {
-	out := make(chan *PlayerMessage, 50)
+	// one buffered slot per message, and a fan-out now produces one message per
+	// connected player rather than one for the whole lobby
+	out := make(chan *PlayerMessage, 256)
 	now := time.Now()
 	return &Game{
 		Players:      make(map[string]*Player),
 		out:          out,
 		Data:         map[string]any{},
+		views:        make(map[string]map[string]any),
+		holds:        make(map[string]time.Time),
 		CreatedAt:    now,
 		LastActivity: now,
 	}, out

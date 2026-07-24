@@ -6,10 +6,14 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import { isHeldByOther } from './store/game/visibility';
+	import toast from 'svelte-french-toast';
 
 	let { id }: { id: string } = $props();
+	const myPlayerId = gameActions.getMyId() ?? '';
 
 	const piece = $derived($gameStore?.pieces?.[id]);
+	const heldByOther = $derived(isHeldByOther(piece, myPlayerId));
 	const kind = $derived(piece?.kind ?? 'token');
 	const radius = $derived(piece?.radius ?? 0.75);
 	const color = $derived(piece?.color ?? '#c8c4b8');
@@ -57,6 +61,11 @@
 			gameActions.incrementCounter(id, -1);
 			return;
 		}
+		if (heldByOther) {
+			toast(`${piece?.heldBy} is holding that piece`);
+			return;
+		}
+		gameActions.grabObject(id);
 		dragStart(id, position[1]);
 		height.target = 1.2;
 	}
