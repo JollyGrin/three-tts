@@ -7,7 +7,7 @@ import * as THREE from 'three';
  */
 export const CARD_WIDTH = 1.4;
 export const CARD_HEIGHT = 2;
-export const CARD_THICKNESS = 0.04;
+export const CARD_THICKNESS = 0.03;
 
 /** Corner radius of the printed face (ImageMaterial radius prop) */
 export const CARD_CORNER_RADIUS = 0.1;
@@ -51,16 +51,17 @@ function roundedSlabGeometry(
 }
 
 /**
- * Shared body geometry for every card: inset under the printed face so the
- * face always overhangs the paper edge, with the corner radius shrunk by the
- * same inset so the arc stays concentric inside the face's rounded corner.
- * Static — build once, share across all card instances.
+ * Shared body geometry for every card: same footprint and corner radius as
+ * the printed face, so the two share one silhouette with no overhanging lip.
+ * The body is thinner than CARD_THICKNESS (see roundedSlabGeometry call
+ * below) so its flat lids sit just under the face planes — that vertical gap
+ * avoids z-fighting between the white lid and the printed face; it's not a
+ * lateral inset. Static — build once, share across all card instances.
  */
-const CARD_BODY_INSET = 0.02; // per side
 export const cardBodyGeometry = roundedSlabGeometry(
-	CARD_WIDTH - CARD_BODY_INSET * 2,
-	CARD_HEIGHT - CARD_BODY_INSET * 2,
-	CARD_CORNER_RADIUS - CARD_BODY_INSET,
+	CARD_WIDTH,
+	CARD_HEIGHT,
+	CARD_CORNER_RADIUS,
 	CARD_THICKNESS * 0.92
 );
 
@@ -68,14 +69,9 @@ export const cardBodyGeometry = roundedSlabGeometry(
  * Shared deck body geometry, unit height (scale the mesh's Y to the deck's
  * actual height). Side-wall v spans exactly 0..1 over the unit thickness, so
  * texture.repeat.y = number of stripe-texture repeats across the full height.
+ * Same footprint/radius as the card face — no lateral inset (see cardBodyGeometry).
  */
-const DECK_BODY_INSET = 0.01; // per side
-export const deckBodyGeometry = roundedSlabGeometry(
-	CARD_WIDTH - DECK_BODY_INSET * 2,
-	CARD_HEIGHT - DECK_BODY_INSET * 2,
-	CARD_CORNER_RADIUS - DECK_BODY_INSET,
-	1
-);
+export const deckBodyGeometry = roundedSlabGeometry(CARD_WIDTH, CARD_HEIGHT, CARD_CORNER_RADIUS, 1);
 
 /**
  * Deck body height per card, clamped so a huge deck doesn't tower and an
