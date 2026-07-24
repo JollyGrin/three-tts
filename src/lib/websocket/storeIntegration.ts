@@ -106,8 +106,12 @@ export function wsWrapperUpdateGameState(fn: Function) {
 		};
 
 		// NOTE: This is a hacky way to check if there are any position updates
-		const hasPositionUpdate = Object.values(payload.value.cards || {}).some(
-			(card: any) => !!card && Object.keys(card ?? {}).includes('position')
+		// (cards AND pieces — anything draggable must go through the throttle,
+		// or pointer-move-rate messages trip the server rate limiter)
+		const hasPositionUpdate = [payload.value.cards, payload.value.pieces].some((collection) =>
+			Object.values(collection || {}).some(
+				(item: any) => !!item && Object.keys(item ?? {}).includes('position')
+			)
 		);
 		const now = Date.now();
 		const limitMs = 200;

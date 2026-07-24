@@ -105,10 +105,13 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 		});
 	}
 
-	// tokens / pawns / counters land at their (mirrored) TTS table positions
+	// tokens / pawns / counters land at their (mirrored) TTS table positions.
+	// TTS stacks health dials exactly on top of their pawn/token — offset
+	// counters sideways so they're visible and clickable next to their owner.
 	const PIECE_REST_Y = 0.255 + 0.08;
 	parsed.pieces.forEach((piece, i) => {
 		report.pieces += 1;
+		const offsetX = piece.kind === 'counter' ? 1.5 : 0;
 		gameStore.updateState({
 			pieces: {
 				[`piece:${playerId}:${slugify(piece.name, 'piece')}-${i}`]: {
@@ -119,7 +122,7 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 					radius: piece.radius,
 					maxValue: piece.maxValue,
 					value: piece.maxValue,
-					position: [piece.position[0], PIECE_REST_Y, piece.position[1]],
+					position: [piece.position[0] + offsetX, PIECE_REST_Y, piece.position[1]],
 					rotation: [0, 0, 0]
 				}
 			}
