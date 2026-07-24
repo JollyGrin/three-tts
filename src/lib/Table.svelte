@@ -7,46 +7,30 @@
 	import { gameActions } from './store/game/actions';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
-	import { resolveStackHeight } from './utils/transforms/stacking';
+	import { resolveDrop } from './utils/transforms/drop';
+	import { TABLE_TOP_Y } from './utils/constants-table';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 
-	// Handle the tray & deck drop actions here
-	const PIECE_REST_Y = 0.255 + 0.08; // table top + half token thickness
-
+	// The drop is resolved by the same pure function the DropIndicator previews
+	// with, so what the player saw while dragging is what gets committed.
 	function handleDragEnd() {
-		if (!$dragStore.isDragging) return;
 		const id = $dragStore.isDragging;
+		if (!id) return;
 
-		// pieces don't stack, join decks, or enter the tray — just settle
-		if (id.startsWith('piece:')) {
-			const piece = gameActions.getPieceState(id);
-			const [px, , pz] = piece?.position ?? [];
-			if (px !== undefined && pz !== undefined) {
-				gameStore.updateState({ pieces: { [id]: { position: [px, PIECE_REST_Y, pz] } } });
-			}
-			dragEnd();
-			return;
-		}
+		const drop = resolveDrop($gameStore, id, $dragStore.intersectionPoint, {
+			deckId: $dragStore.isDeckHovered,
+			tray: $dragStore.isTrayHovered
+		});
 
-		const { faceImageUrl } = gameActions.getCardState($dragStore.isDragging) ?? {};
-
-		if ($dragStore.isTrayHovered) {
-			console.log('Storing in hand:', id, faceImageUrl);
+		if (drop?.kind === 'tray') {
 			gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
-		}
-
-		if (!!$dragStore.isDeckHovered) {
-			const deckIdHovered = $dragStore.isDeckHovered;
-			console.log('Storing in deck', deckIdHovered);
-			gameActions.placeOnTopOfDeck(deckIdHovered, id);
-		}
-
-		const card = gameActions.getCardState(id);
-		const [x, y, z] = card?.position ?? [];
-		if (x && z) {
-			const restY = resolveStackHeight($gameStore?.cards, id, x, z);
-			gameStore.updateState({ cards: { [id]: { position: [x, restY, z] } } });
+		} else if (drop?.kind === 'deck' && drop.targetId) {
+			gameActions.placeOnTopOfDeck(drop.targetId, id);
+		} else if (drop && id.startsWith('piece:')) {
+			gameStore.updateState({ pieces: { [id]: { position: drop.position } } });
+		} else if (drop) {
+			gameStore.updateState({ cards: { [id]: { position: drop.position } } });
 		}
 
 		dragEnd();
@@ -117,12 +101,12 @@
      the grid strong ~100 units out). Radial fade: solid over the felt, gone
      ~20 units past the long edge. -->
 <Grid
-	position.y={0.255}
+	position.y={TABLE_TOP_Y}
 	cellColor="#fff"
 	sectionColor="#fff"
 	sectionThickness={0}
 	cellThickness={0.5}
-	fadeOrigin={[0, 0.255, 0]}
+	fadeOrigin={[0, TABLE_TOP_Y, 0]}
 	fadeDistance={50}
 	fadeStrength={0.5}
 	infiniteGrid

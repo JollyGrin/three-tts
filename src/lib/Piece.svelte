@@ -6,19 +6,25 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import {
+		PIECE_DEFAULT_RADIUS,
+		PIECE_DRAG_Y,
+		PIECE_REST_Y,
+		PIECE_THICKNESS
+	} from '$lib/utils/constants-pieces';
 
 	let { id }: { id: string } = $props();
 
 	const piece = $derived($gameStore?.pieces?.[id]);
 	const kind = $derived(piece?.kind ?? 'token');
-	const radius = $derived(piece?.radius ?? 0.75);
+	const radius = $derived(piece?.radius ?? PIECE_DEFAULT_RADIUS);
 	const color = $derived(piece?.color ?? '#c8c4b8');
 	const imageUrl = $derived(resolveCardImage(piece?.imageUrl, $sheetRefCache));
 	const isDragging = $derived($dragStore.isDragging === id);
 	let isHovered = $state(false);
 
-	const THICKNESS = 0.16;
-	const REST_Y = 0.255 + THICKNESS / 2;
+	const THICKNESS = PIECE_THICKNESS;
+	const REST_Y = PIECE_REST_Y;
 
 	const height = new Spring(piece?.position?.[1] ?? REST_Y, {
 		stiffness: 0.28,
@@ -58,7 +64,7 @@
 			return;
 		}
 		dragStart(id, position[1]);
-		height.target = 1.2;
+		height.target = PIECE_DRAG_Y;
 	}
 
 	function handleClick(e: PointerEvent) {

@@ -5,7 +5,7 @@
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import TableCamera from './TableCamera.svelte';
-	import Intersection from './Intersection.svelte';
+	import DropIndicator from './drop/DropIndicator.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
 	import Piece from './Piece.svelte';
@@ -13,6 +13,10 @@
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
+	import { clampToTable } from './utils/transforms/drop';
+	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
+	import { PIECE_DRAG_Y } from '$lib/utils/constants-pieces';
+	import { TABLE_TOP_Y } from '$lib/utils/constants-table';
 	import type { GameDTO } from './store/game/types';
 	type CardDTO = GameDTO['cards'][string];
 
@@ -22,14 +26,9 @@
 
 	let intersectionPoint: THREE.Vector3 | null = $state(null);
 
-	// table is a 60×30 box centered at origin; dragged entities are clamped a
-	// margin inside the edge so they always stay on the felt and grabbable
-	const TABLE_HALF_X = 30;
-	const TABLE_HALF_Z = 15;
-	const EDGE_MARGIN = 1;
 	// fallback for when the pointer leaves the table mesh: the infinite plane at
 	// tabletop height keeps a drag tracking instead of yielding a null hit
-	const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.255);
+	const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -TABLE_TOP_Y);
 	const planeHit = new THREE.Vector3();
 
 	interactivity({
@@ -43,14 +42,14 @@
 			$dragStore.intersectionPoint = intersectionPoint ?? undefined;
 
 			if (isDragging && intersectionPoint) {
-				const { x, z } = intersectionPoint;
-				const cx = THREE.MathUtils.clamp(x, -TABLE_HALF_X + EDGE_MARGIN, TABLE_HALF_X - EDGE_MARGIN);
-				const cz = THREE.MathUtils.clamp(z, -TABLE_HALF_Z + EDGE_MARGIN, TABLE_HALF_Z - EDGE_MARGIN);
+				// same clamp the drop commits with (see utils/transforms/drop.ts),
+				// so the floating entity can never track somewhere it can't land
+				const [cx, cz] = clampToTable(intersectionPoint.x, intersectionPoint.z);
 				const dragId = $dragStore.isDragging as string;
 				if (dragId.startsWith('piece:')) {
-					gameStore.updateState({ pieces: { [dragId]: { position: [cx, 1.2, cz] } } });
+					gameStore.updateState({ pieces: { [dragId]: { position: [cx, PIECE_DRAG_Y, cz] } } });
 				} else {
-					gameStore.updateState({ cards: { [dragId]: { position: [cx, 2.5, cz] } } });
+					gameStore.updateState({ cards: { [dragId]: { position: [cx, CARD_DRAG_Y, cz] } } });
 				}
 			}
 
@@ -82,7 +81,7 @@
 </HUD>
 
 <Hdr />
-<Intersection />
+<DropIndicator />
 <Table bind:mesh />
 
 {#each Object.entries($gameStore?.decks ?? {}) as [id] (id)}

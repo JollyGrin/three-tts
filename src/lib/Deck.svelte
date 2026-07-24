@@ -4,10 +4,12 @@
 	import { Text, Billboard, ImageMaterial, interactivity } from '@threlte/extras';
 	import { dragStart, dragStore, setDeckHover } from '$lib/store/dragStore.svelte';
 	import { degrees } from '$lib/utils/constants-rotation';
+	import { CARD_DRAG_Y, CARD_WIDTH, CARD_HEIGHT } from '$lib/utils/constants-cards';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
+	import DropFootprint from './drop/DropFootprint.svelte';
 
 	interactivity();
 
@@ -26,6 +28,9 @@
 	);
 
 	const isHovered = $derived(id === $dragStore.isDeckHovered);
+	// dropping here replaces the table landing entirely, so the deck has to be
+	// the cue — the drop indicator suppresses its table footprint while hovered
+	const isDropTarget = $derived(isHovered && !!$dragStore.isDragging);
 
 	function handleDragStart(e: PointerEvent) {
 		e.stopPropagation();
@@ -40,14 +45,14 @@
 			cards: {
 				[card.id]: {
 					...card,
-					position: [x, 2.5, z],
+					position: [x, CARD_DRAG_Y, z],
 					rotation: [rotX, rotY, rotZ],
 					backImageUrl: card.backImageUrl ?? deckBackImage
 				}
 			}
 		});
 
-		dragStart(card.id, 2.5);
+		dragStart(card.id, CARD_DRAG_Y);
 	}
 </script>
 
@@ -84,6 +89,20 @@
 				<ImageMaterial url={preloadUrl} side={2} radius={0.1} opacity={0} />
 			</T.Mesh>
 		{/key}
+	{/if}
+
+	{#if isDropTarget}
+		<T.Group rotation.x={-Math.PI / 2} position.y={0.23}>
+			<DropFootprint
+				shape="rect"
+				w={CARD_WIDTH + 0.3}
+				h={CARD_HEIGHT + 0.3}
+				color="#5ee7ff"
+				fill={0.15}
+				border={0.08}
+				depthTest={false}
+			/>
+		</T.Group>
 	{/if}
 
 	<!-- deck body: reads as a stack of card edges, not a black slab -->
