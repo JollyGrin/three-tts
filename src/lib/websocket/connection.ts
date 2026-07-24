@@ -26,7 +26,6 @@ function normalizeServerHost(url: string): string {
 const CACHE_SERVER_URL = normalizeServerHost(localStorage.getItem('serverurl') ?? 'localhost:8080');
 const SECURITY = CACHE_SERVER_URL.includes('localhost') ? 'ws' : 'wss';
 const WS_SERVER_URL = `${SECURITY}://${CACHE_SERVER_URL}/ws`;
-const DEFAULT_LOBBY = 'default';
 
 // State
 let socket: WebSocket | null = null;
@@ -43,13 +42,10 @@ const messageCallbacks: MessageCallback[] = [];
 
 /**
  * Connect to the websocket server
- * @param lobbyId The lobby ID to connect to (defaults to 'default')
+ * @param lobbyId The lobby ID to connect to
  * @returns Promise that resolves when connected
  */
-export async function connect(
-	lobbyId: string = DEFAULT_LOBBY,
-	serverUrl?: string
-): Promise<boolean> {
+export async function connect(lobbyId: string, serverUrl?: string): Promise<boolean> {
 	if (isConnected) {
 		console.log('Already connected to websocket server');
 		return true;
@@ -84,10 +80,7 @@ export async function connect(
 			socket = new WebSocket(wsUrl);
 
 			socket.onopen = () => {
-				console.log(
-					'Connected to websocket server. Reconnection attempts:',
-					reconnectAttempts
-				);
+				console.log('Connected to websocket server. Reconnection attempts:', reconnectAttempts);
 				toast(`Connected to lobby: ${lobbyId}`);
 				isConnected = true;
 				isConnecting = false;
@@ -151,12 +144,10 @@ export async function connect(
 
 /**
  * Join a lobby as the current player
- * @param lobbyId Lobby ID to join (defaults to 'default')
+ * @param lobbyId Lobby ID to join
  * @returns Promise that resolves when joined
  */
-export async function joinLobby(
-	lobbyId: string = DEFAULT_LOBBY
-): Promise<boolean> {
+export async function joinLobby(lobbyId: string): Promise<boolean> {
 	// First ensure we're connected
 	if (!isConnected) {
 		const connected = await connect(lobbyId);
