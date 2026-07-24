@@ -249,15 +249,23 @@ function resolveSheet(ref: string): string {
 		let payload: SheetRefPayload | null = null;
 		try {
 			payload = JSON.parse(ref.slice('sheet:'.length)) as SheetRefPayload;
-		} catch {
+		} catch (error) {
+			console.warn('[resolve] unparseable sheet ref', ref.slice(0, 120), error);
 			sheetResults.set(ref, '');
 		}
 		if (payload) {
 			const fallback = () =>
 				payload.back ? resolveGen(CARD_BACK_DEFAULT) : namedCardImage(payload.name ?? '');
 			sliceCell(payload)
-				.then((url) => sheetResults.set(ref, url ?? fallback()))
-				.catch(() => sheetResults.set(ref, fallback()));
+				.then((url) => {
+					if (url === null)
+						console.warn('[resolve] sheet unreachable, using fallback:', payload?.url);
+					sheetResults.set(ref, url ?? fallback());
+				})
+				.catch((error) => {
+					console.warn('[resolve] slice failed, using fallback:', payload?.url, error);
+					sheetResults.set(ref, fallback());
+				});
 		}
 	}
 	return ''; // pending — reactive map update re-triggers callers
