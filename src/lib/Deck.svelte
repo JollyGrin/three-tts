@@ -67,23 +67,23 @@
 		/>
 	</Billboard>
 	{#if cards?.length > 0}
-		<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.21}>
-			<T.PlaneGeometry args={[1.4, 2]} />
-			{#key displayedImage}
+		{#key displayedImage}
+			<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={0.21}>
+				<T.PlaneGeometry args={[1.4, 2]} />
 				<ImageMaterial url={displayedImage} side={2} radius={0.1} opacity={isHovered ? 0.8 : 1} />
-			{/key}
-		</T.Mesh>
+			</T.Mesh>
+		{/key}
 	{/if}
 
 	<!-- PRELOAD THE NEXT DISCARD IMAGE -->
 	{#if isFaceUp && cards.length > 1}
-		<T.Mesh>
-			<T.PlaneGeometry args={[0, 0]} />
-			{@const preloadUrl = resolveCardImage(cards[1]?.faceImageUrl, $sheetRefCache)}
-			{#key preloadUrl}
+		{@const preloadUrl = resolveCardImage(cards[1]?.faceImageUrl, $sheetRefCache)}
+		{#key preloadUrl}
+			<T.Mesh>
+				<T.PlaneGeometry args={[0, 0]} />
 				<ImageMaterial url={preloadUrl} side={2} radius={0.1} opacity={0} />
-			{/key}
-		</T.Mesh>
+			</T.Mesh>
+		{/key}
 	{/if}
 
 	<!-- deck body: reads as a stack of card edges, not a black slab -->

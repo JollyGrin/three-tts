@@ -87,12 +87,12 @@
 				<T.MeshStandardMaterial {color} />
 			</T.Mesh>
 			{#if imageUrl}
-				<T.Mesh rotation.x={-Math.PI / 2} position.y={THICKNESS / 2 + 0.002}>
-					<T.CircleGeometry args={[radius * 0.96, 36]} />
-					{#key imageUrl}
+				{#key imageUrl}
+					<T.Mesh rotation.x={-Math.PI / 2} position.y={THICKNESS / 2 + 0.002}>
+						<T.CircleGeometry args={[radius * 0.96, 36]} />
 						<ImageMaterial url={imageUrl} side={0} />
-					{/key}
-				</T.Mesh>
+					</T.Mesh>
+				{/key}
 			{/if}
 		{/if}
 

@@ -71,18 +71,18 @@
 	}
 </script>
 
-<T.Mesh
-	scale={cardScale.current}
-	position.z={cardZ}
-	position.y={cardY.current}
-	position.x={-trayWidth / 2 + 1.25 + index * 1.2}
-	onpointerenter={handlePointerEnter}
-	onpointerleave={handlePointerLeave}
-	onpointerdown={handleDragStart}
->
-	<T.PlaneGeometry args={cardSize} />
-	{@const trayUrl = resolveCardImage(card.faceImageUrl, $sheetRefCache)}
-	{#key trayUrl}
+{@const trayUrl = resolveCardImage(card.faceImageUrl, $sheetRefCache)}
+{#key trayUrl}
+	<T.Mesh
+		scale={cardScale.current}
+		position.z={cardZ}
+		position.y={cardY.current}
+		position.x={-trayWidth / 2 + 1.25 + index * 1.2}
+		onpointerenter={handlePointerEnter}
+		onpointerleave={handlePointerLeave}
+		onpointerdown={handleDragStart}
+	>
+		<T.PlaneGeometry args={cardSize} />
 		<ImageMaterial url={trayUrl} side={2} radius={0.1} transparent={true} opacity={0.9} />
-	{/key}
-</T.Mesh>
+	</T.Mesh>
+{/key}

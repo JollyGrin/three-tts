@@ -117,16 +117,18 @@
 		<T.BoxGeometry args={[CARD_WIDTH - 0.04, CARD_THICKNESS * 0.92, CARD_HEIGHT - 0.04]} />
 		<T.MeshBasicMaterial color="#d9d6c9" />
 	</T.Mesh>
-	<T.Mesh
-		castShadow
-		receiveShadow
-		bind:ref={card}
-		rotation.x={-Math.PI / 2}
-		position.y={CARD_THICKNESS / 2}
-	>
-		<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-		<!-- keyed: ImageMaterial doesn't hot-swap textures when url changes after mount -->
-		{#key faceImageUrl}
+	<!-- key the MESH, not the material: threlte 8.5 material swaps on a live
+	     mesh detach without reattaching (same bug as the felt table), leaving
+	     the default white material. Mesh recreation attaches cleanly. -->
+	{#key faceImageUrl}
+		<T.Mesh
+			castShadow
+			receiveShadow
+			bind:ref={card}
+			rotation.x={-Math.PI / 2}
+			position.y={CARD_THICKNESS / 2}
+		>
+			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 			<ImageMaterial
 				url={faceImageUrl ?? ''}
 				side={0}
@@ -134,20 +136,20 @@
 				monochromeColor={'#fff'}
 				monochromeStrength={emissiveIntensity}
 			/>
-		{/key}
-	</T.Mesh>
+		</T.Mesh>
+	{/key}
 
 	{#if backImageUrl}
 		<!-- rotation.z compensates the width-axis flip so directional backs read upright -->
-		<T.Mesh
-			castShadow
-			receiveShadow
-			rotation.x={-DEG2RAD * 270}
-			rotation.z={Math.PI}
-			position.y={-CARD_THICKNESS / 2}
-		>
-			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
-			{#key backImageUrl}
+		{#key backImageUrl}
+			<T.Mesh
+				castShadow
+				receiveShadow
+				rotation.x={-DEG2RAD * 270}
+				rotation.z={Math.PI}
+				position.y={-CARD_THICKNESS / 2}
+			>
+				<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />
 				<ImageMaterial
 					url={backImageUrl}
 					side={0}
@@ -155,8 +157,8 @@
 					monochromeColor={'#fff'}
 					monochromeStrength={emissiveIntensity}
 				/>
-			{/key}
-		</T.Mesh>
+			</T.Mesh>
+		{/key}
 	{:else}
 		<T.Mesh rotation.x={Math.PI / 2} position.y={-CARD_THICKNESS / 2}>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />

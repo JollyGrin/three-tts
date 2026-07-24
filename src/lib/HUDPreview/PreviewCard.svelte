@@ -14,14 +14,14 @@
 </script>
 
 {#if !!card}
-	<T.Mesh scale={2.75} position.y={1}>
-		<T.PlaneGeometry args={cardSize} />
-		{@const previewUrl = resolveCardImage(
-			isFlipped ? card.backImageUrl : card.faceImageUrl,
-			$sheetRefCache
-		)}
-		{#key previewUrl}
+	{@const previewUrl = resolveCardImage(
+		isFlipped ? card.backImageUrl : card.faceImageUrl,
+		$sheetRefCache
+	)}
+	{#key previewUrl}
+		<T.Mesh scale={2.75} position.y={1}>
+			<T.PlaneGeometry args={cardSize} />
 			<ImageMaterial url={previewUrl} side={0} radius={0.3} opacity={1} />
-		{/key}
-	</T.Mesh>
+		</T.Mesh>
+	{/key}
 {/if}
