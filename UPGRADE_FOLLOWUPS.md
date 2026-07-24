@@ -2,13 +2,9 @@
 
 Open action items from the threlte/three/svelte upgrade and the card z-fighting fix. Done in that change: three 0.174→0.185, @threlte/core 8.0→8.5, extras 9.0→9.21, rapier 3.0→3.5 (+ rapier3d-compat 0.19), svelte 5.20→5.56; camera near/far tightened to 0.5/200; cards given real thickness (`CARD_THICKNESS`); dropped cards stack via `resolveStackHeight()` instead of all resting coplanar at y=0.26; `{#key}` material remounts removed. Check/tests/build all green — but the items below still need action.
 
-## 1. Visual verification (do first)
+## 1. ~~Visual verification~~ — RESOLVED 2026-07-24
 
-The upgrade and stacking fix were verified by build/tests only, never in a browser. Run `bun run dev` and check:
-
-- Drop several cards on top of each other → they stack with visible separation, no flicker/flashing.
-- Draw from a deck and cycle a discard pile → no image flash (previously caused by `{#key}` remounts).
-- Tap/flip → springs settle onto stacked heights naturally.
+Verified live: stacking without flicker, deck draws without flashing, flips lifting and settling correctly, felt table rendering. The session also surfaced and fixed: rapier `<World>` silently unmounting the scene, AgX tone mapping washing out the felt, the threlte 8.5 `{#if}`+`<T is>` material-swap detach bug, and the height feedback loop that cancelled flip lifts.
 
 ## 2. `Card.svelte` state-capture warnings are real bugs
 
@@ -34,6 +30,6 @@ Removed `@threlte/rapier` + `@dimforge/rapier3d-compat` and unwrapped `<World>` 
 
 Both should be expressed in terms of the card constants so future scale changes don't reintroduce near-coplanar surfaces.
 
-## 6. Verify CI is green
+## 6. ~~Verify CI is green~~ — RESOLVED 2026-07-24
 
-`bun run check` and `vitest` were failing **before** this upgrade (stale references to a deleted `objectStore.svelte`, missing `jsdom` devDependency) — both fixed now, but the GitHub Pages deploy workflow may have been red for a while. Confirm it passes on the next push.
+Pages deploy succeeded on the push of `a711a2a` (54s). The pre-existing local failures (stale `objectStore.svelte` refs, missing `jsdom`) were fixed earlier in the session.
