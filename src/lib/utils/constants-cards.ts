@@ -11,6 +11,13 @@ export const CARD_THICKNESS = 0.04;
 export const CARD_REST_Y = 0.26;
 
 /**
+ * Height a card floats at while being dragged. Shared by every drag entry
+ * point (table, deck, tray) so the store position matches what is rendered —
+ * the drop indicator's connector line is drawn to this height.
+ */
+export const CARD_DRAG_Y = 2;
+
+/**
  * Max XZ center-distance for two cards to count as stacked.
  * Covers any overlap of two 1.4x2 cards regardless of tap rotation.
  */

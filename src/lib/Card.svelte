@@ -9,7 +9,13 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import type { GameDTO } from './store/game/types';
 	import { gameActions } from './store/game/actions';
-	import { CARD_WIDTH, CARD_HEIGHT, CARD_THICKNESS, CARD_REST_Y } from '$lib/utils/constants-cards';
+	import {
+		CARD_WIDTH,
+		CARD_HEIGHT,
+		CARD_THICKNESS,
+		CARD_REST_Y,
+		CARD_DRAG_Y
+	} from '$lib/utils/constants-cards';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	type Vec3Array = [number, number, number];
 
@@ -111,9 +117,11 @@
 	function handleDragStart() {
 		dragStart(id, position[1]); // Pass current height
 
-		// Animate to raised height with some extra bounce
-		height.target = 2.2;
-		setTimeout(() => (height.target = 2), 150);
+		// Animate to raised height with some extra bounce. Settles on
+		// CARD_DRAG_Y — the same height the store records mid-drag, so the drop
+		// indicator's connector meets the card instead of stopping short.
+		height.target = CARD_DRAG_Y + 0.2;
+		setTimeout(() => (height.target = CARD_DRAG_Y), 150);
 	}
 
 	function handlePointerEnter() {

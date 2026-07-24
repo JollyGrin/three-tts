@@ -4,6 +4,7 @@
 	import * as THREE from 'three';
 	import { useViewport, interactivity } from '@threlte/extras';
 	import TrayCard from './TrayCard.svelte';
+	import DropFootprint from '$lib/drop/DropFootprint.svelte';
 	import type { GameDTO } from '$lib/store/game/types';
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
@@ -19,6 +20,8 @@
 	const trayY = $derived(-$viewport.height / 2 + trayHeight / 2);
 
 	let trayMesh: THREE.Mesh | undefined = $state(undefined);
+
+	const isDropTarget = $derived($dragStore.isTrayHovered && !!$dragStore.isDragging);
 
 	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
 	const cards = $derived(
@@ -47,6 +50,21 @@
 			side={2}
 		/>
 	</T.Mesh>
+
+	{#if isDropTarget}
+		<!-- the tray is the whole cue while it's hovered: the drop indicator
+		     drops its table footprint, since the card is going to the hand -->
+		<T.Group position.z={0.01}>
+			<DropFootprint
+				shape="rect"
+				w={trayWidth - 0.12}
+				h={trayHeight - 0.12}
+				color="#5ee7ff"
+				fill={0.1}
+				border={0.08}
+			/>
+		</T.Group>
+	{/if}
 
 	{#each cards as [id], index (id)}
 		<TrayCard {id} {index} {trayWidth} />

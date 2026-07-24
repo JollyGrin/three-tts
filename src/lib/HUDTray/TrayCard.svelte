@@ -13,6 +13,7 @@
 	import { ImageMaterial, interactivity } from '@threlte/extras';
 	import { Spring } from 'svelte/motion';
 	import { degrees } from '$lib/utils/constants-rotation';
+	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
 	import { dragStart, dragStore } from '$lib/store/dragStore.svelte';
@@ -79,7 +80,7 @@
 			cards: {
 				[id]: {
 					...movedCard,
-					position: [x, 2.5, z],
+					position: [x, CARD_DRAG_Y, z],
 					// 180 on x = facedown (matches flipCard convention) — cards leave the hand hidden
 					rotation: [180, 0, -degrees[gameActions?.getMySeat()] / DEG2RAD],
 					faceImageUrl: movedCard?.faceImageUrl ?? card?.faceImageUrl,
@@ -87,7 +88,7 @@
 				}
 			}
 		});
-		dragStart(id, 2.5);
+		dragStart(id, CARD_DRAG_Y);
 	}
 </script>
 
