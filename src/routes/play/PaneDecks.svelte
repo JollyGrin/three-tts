@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { Button, Pane, Element, TabGroup, TabPage, Point } from 'svelte-tweakpane-ui';
+	import { Button, Pane, Element, TabGroup, TabPage, Point, Text } from 'svelte-tweakpane-ui';
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { spawnPack, STANDARD_52 } from '$lib/packs';
 	import { importTtsFile } from '$lib/tts/import';
+	import { importUnmatchedDeck } from '$lib/unmatched/import';
 	import toast from 'svelte-french-toast';
 
 	const playerId = gameActions.getMyId();
@@ -13,6 +14,24 @@
 
 	let fileInput: HTMLInputElement | undefined = $state();
 	let isImporting = $state(false);
+	let deckCode = $state('');
+
+	async function handleDeckCode() {
+		if (!deckCode.trim()) return toast.error('Paste a deck code or URL first');
+		isImporting = true;
+		try {
+			const report = await importUnmatchedDeck(deckCode);
+			toast(
+				`Imported "${report.name}": ${report.cards} cards${report.ruleCards ? ` + ${report.ruleCards} hero/rule card(s)` : ''}`,
+				{ duration: 6000 }
+			);
+			deckCode = '';
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Deck import failed');
+		} finally {
+			isImporting = false;
+		}
+	}
 
 	async function handleImportFile(event: Event) {
 		const input = event.target as HTMLInputElement;
@@ -53,6 +72,12 @@
 		</Element>
 		<Button title="Spawn {STANDARD_52.name}" on:click={() => spawnPack(STANDARD_52)} />
 	{/if}
+	<Text label="Deck code / URL" bind:value={deckCode} />
+	<Button
+		title={isImporting ? 'Importing…' : 'Import Unmatched deck code'}
+		disabled={isImporting}
+		on:click={handleDeckCode}
+	/>
 	<Button
 		title={isImporting ? 'Importing…' : 'Import TTS deck (.json)'}
 		disabled={isImporting}
