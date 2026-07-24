@@ -1,12 +1,10 @@
 import { get } from 'svelte/store';
 import { dragStore } from '$lib/store/dragStore.svelte';
-import { gameActions } from '$lib/store/game/actions';
+import { requestCameraReset } from '$lib/store/cameraStore.svelte';
 
-// reset camera view to top down
+// reset camera to the seat's default top-down view (like a fresh page load)
 function resetView() {
-	const currentSeat = gameActions?.getMySeat(); // save current seat
-	gameActions.setSeat();
-	gameActions.setSeat(currentSeat); // return index to current seat
+	requestCameraReset();
 }
 
 function togglePreviewHud(isPreview?: boolean) {

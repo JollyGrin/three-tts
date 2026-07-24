@@ -135,10 +135,12 @@
 	</T.Mesh>
 
 	{#if backImageUrl}
+		<!-- rotation.z compensates the width-axis flip so directional backs read upright -->
 		<T.Mesh
 			castShadow
 			receiveShadow
 			rotation.x={-DEG2RAD * 270}
+			rotation.z={Math.PI}
 			position.y={-CARD_THICKNESS / 2}
 		>
 			<T.PlaneGeometry args={[CARD_WIDTH, CARD_HEIGHT]} />

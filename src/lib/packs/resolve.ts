@@ -3,9 +3,14 @@
  *
  * - `https://…`      → returned as-is
  * - `gen:std52/<code>` → drawn to a canvas once per client, cached as a data URL.
+ * - `sheet:{json}`   → sprite-sheet cell, fetched + sliced async (reactive).
  *   Only the tiny ref string ever touches the store/wire — never image data —
  *   so every client resolves the same ref to the same deterministic image.
  */
+import { SvelteMap } from 'svelte/reactivity';
+import { sliceCell } from '$lib/tts/slice';
+import { namedCardImage } from './placeholder';
+import { CARD_BACK_DEFAULT } from './standard52';
 
 const CARD_W = 420;
 const CARD_H = 600;
@@ -197,11 +202,7 @@ function drawBack(): string | null {
 
 const cache = new Map<string, string>();
 
-/** Resolve a face ref to something ImageMaterial can load. Unknown refs pass through. */
-export function resolveCardImage(ref: string | undefined | null): string {
-	if (!ref) return '';
-	if (!ref.startsWith('gen:')) return ref;
-
+function resolveGen(ref: string): string {
 	const cached = cache.get(ref);
 	if (cached) return cached;
 
@@ -213,4 +214,59 @@ export function resolveCardImage(ref: string | undefined | null): string {
 	if (!url) return ref; // SSR / no canvas: pass through harmlessly
 	cache.set(ref, url);
 	return url;
+}
+
+/**
+ * `sheet:` refs resolve asynchronously (fetch + slice); results land in a
+ * reactive map so any $derived that called resolveCardImage re-runs when
+ * the slice completes. Game state carries only the tiny ref string —
+ * data URLs never touch the store or the wire (SPEC §4d).
+ */
+type SheetRefPayload = {
+	url: string;
+	cols: number;
+	rows: number;
+	index: number;
+	/** card name for the placeholder fallback when the sheet is dead */
+	name?: string;
+	/** back cells fall back to the generated card back, not a named proxy */
+	back?: boolean;
+};
+
+const sheetResults = new SvelteMap<string, string>();
+const sheetPending = new Set<string>();
+
+export function makeSheetRef(payload: SheetRefPayload): string {
+	return `sheet:${JSON.stringify(payload)}`;
+}
+
+function resolveSheet(ref: string): string {
+	const cached = sheetResults.get(ref);
+	if (cached !== undefined) return cached;
+
+	if (!sheetPending.has(ref)) {
+		sheetPending.add(ref);
+		let payload: SheetRefPayload | null = null;
+		try {
+			payload = JSON.parse(ref.slice('sheet:'.length)) as SheetRefPayload;
+		} catch {
+			sheetResults.set(ref, '');
+		}
+		if (payload) {
+			const fallback = () =>
+				payload.back ? resolveGen(CARD_BACK_DEFAULT) : namedCardImage(payload.name ?? '');
+			sliceCell(payload)
+				.then((url) => sheetResults.set(ref, url ?? fallback()))
+				.catch(() => sheetResults.set(ref, fallback()));
+		}
+	}
+	return ''; // pending — reactive map update re-triggers callers
+}
+
+/** Resolve a face ref to something ImageMaterial can load. Unknown refs pass through. */
+export function resolveCardImage(ref: string | undefined | null): string {
+	if (!ref) return '';
+	if (ref.startsWith('gen:')) return resolveGen(ref);
+	if (ref.startsWith('sheet:')) return resolveSheet(ref);
+	return ref;
 }

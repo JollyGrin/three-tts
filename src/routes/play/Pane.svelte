@@ -27,7 +27,8 @@
 	}
 
 	let rot = $state(0);
-	let scale = $state($gameStore?.overlays?.table?.scale ?? 0.015 * 100);
+	// world height of the overlay in table units (plane is aspect-normalized)
+	let scale = $state($gameStore?.overlays?.table?.scale ?? 12);
 	let point3d = $state({ x: 0, y: 0 });
 	let imageUrl = $state($gameStore?.overlays?.table?.imageUrl ?? '');
 
@@ -39,7 +40,7 @@
 					imageUrl: _imageUrl,
 					rotation: [0, rot * DEG2RAD, 0],
 					position: [point3d.x, 0.255, point3d.y],
-					scale: scale / 100
+					scale
 				}) as NonNullable<GameDTO['overlays']>[string]
 			}
 		});
@@ -93,6 +94,7 @@
 			label="Seat: {$gameStore?.players?.[gameActions?.getMe()?.id ?? 0]?.seat}"
 			title="Next Seat"
 		/>
+		<Text label="Reset camera" value="C" disabled />
 		<Text label="Preview hovered" value="spacebar" disabled />
 		<Text label="Tap card" value="T" disabled />
 		<Text label="Reverse Tap card" value="R" disabled />

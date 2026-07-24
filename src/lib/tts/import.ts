@@ -6,7 +6,7 @@
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { CARD_BACK_DEFAULT } from '$lib/packs';
-import { namedCardImage } from '$lib/packs/placeholder';
+import { makeSheetRef } from '$lib/packs/resolve';
 import { CARD_REST_Y } from '$lib/utils/constants-cards';
 import { parseSavedObject, type ParsedCard } from './parse';
 import { sliceCell } from './slice';
@@ -26,17 +26,22 @@ function slugify(name: string, fallback: string): string {
 	return slug || fallback;
 }
 
+/**
+ * Game state carries tiny `sheet:` refs, never image data — each client
+ * slices locally at render time, so state survives refresh/sync limits
+ * (SPEC §4d). Slicing here is only a warm-up + art health probe.
+ */
 async function resolveCard(card: ParsedCard): Promise<{
 	name: string;
 	faceImageUrl: string;
 	backImageUrl: string;
 	missingArt: boolean;
 }> {
-	const [face, back] = await Promise.all([sliceCell(card.face), sliceCell(card.back)]);
+	const [face] = await Promise.all([sliceCell(card.face), sliceCell(card.back)]);
 	return {
 		name: card.name,
-		faceImageUrl: face ?? namedCardImage(card.name),
-		backImageUrl: back ?? CARD_BACK_DEFAULT,
+		faceImageUrl: makeSheetRef({ ...card.face, name: card.name }),
+		backImageUrl: makeSheetRef({ ...card.back, name: card.name, back: true }),
 		missingArt: face === null
 	};
 }
@@ -65,11 +70,12 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 			}))
 			.reverse();
 
+		const firstBack = deck.cards[0]?.back;
 		gameActions.addDeck({
 			id: `deck:${playerId}:${slot}`,
 			deckId: `deck:${playerId}:${slot}`,
 			isFaceUp: false,
-			deckBackImageUrl: resolved[0]?.backImageUrl ?? CARD_BACK_DEFAULT,
+			deckBackImageUrl: firstBack ? makeSheetRef({ ...firstBack, back: true }) : CARD_BACK_DEFAULT,
 			cards,
 			position: [8.5 - deckIndex * 2.5, 0.4, 4.5]
 		});
