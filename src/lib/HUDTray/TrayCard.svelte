@@ -19,6 +19,7 @@
 
 	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
 	const card = $derived($gameStore?.players?.[myPlayerId]?.tray?.[id] ?? {});
+	const trayUrl = $derived(resolveCardImage(card.faceImageUrl, $sheetRefCache));
 
 	let isCardHovered = $state(false);
 	let emissiveIntensity = $state(0);
@@ -71,7 +72,6 @@
 	}
 </script>
 
-{@const trayUrl = resolveCardImage(card.faceImageUrl, $sheetRefCache)}
 {#key trayUrl}
 	<T.Mesh
 		scale={cardScale.current}
