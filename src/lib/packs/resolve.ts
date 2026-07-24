@@ -241,6 +241,9 @@ export function makeSheetRef(payload: SheetRefPayload): string {
 }
 
 function resolveSheet(ref: string): string {
+	// structural dependency: guarantees callers re-run when ANY result lands,
+	// even if reading a missing key didn't register a per-key signal
+	void sheetResults.size;
 	const cached = sheetResults.get(ref);
 	if (cached !== undefined) return cached;
 
