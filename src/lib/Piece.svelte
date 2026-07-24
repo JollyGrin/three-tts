@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import { Billboard, Text, ImageMaterial } from '@threlte/extras';
+	import type { IntersectionEvent } from '@threlte/extras';
 	import { Spring } from 'svelte/motion';
 	import { dragStart, dragStore } from './store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
@@ -57,25 +58,100 @@
 		planar.current.z
 	]);
 
-	function handlePointerDown(e: { nativeEvent?: PointerEvent } & PointerEvent) {
-		// counters: click adjusts value (shift = decrement); drag still works via move
-		if (kind === 'counter' && (e.shiftKey || e.altKey)) {
-			gameActions.incrementCounter(id, -1);
-			return;
-		}
+	// px the pointer may travel between down and up and still count as a click
+	const DRAG_THRESHOLD_PX = 5;
+
+	let pendingDrag: { x: number; y: number } | null = null;
+	let dragMoved = false;
+
+	function liftIntoDrag() {
 		dragStart(id, position[1]);
 		height.target = PIECE_DRAG_Y;
 	}
 
-	function handleClick(e: PointerEvent) {
+	// Counters defer the lift until the pointer actually travels, so a plain
+	// click can adjust the value without picking the piece up and dropping it.
+	function onPendingMove(ne: PointerEvent) {
+		if (!pendingDrag) return;
+		if (Math.hypot(ne.clientX - pendingDrag.x, ne.clientY - pendingDrag.y) < DRAG_THRESHOLD_PX)
+			return;
+		cancelPendingDrag();
+		dragMoved = true;
+		liftIntoDrag();
+	}
+
+	function cancelPendingDrag() {
+		pendingDrag = null;
+		window.removeEventListener('pointermove', onPendingMove);
+		window.removeEventListener('pointerup', cancelPendingDrag);
+	}
+
+	$effect(() => cancelPendingDrag);
+
+	function handlePointerDown(e: IntersectionEvent<PointerEvent>) {
+		if (e.nativeEvent.button !== 0) return; // right-click is contextmenu, not drag
+		if (kind !== 'counter') {
+			liftIntoDrag();
+			return;
+		}
+		// keep OrbitControls from rotating during the pre-threshold pixels
+		e.stopImmediatePropagation();
+		dragMoved = false;
+		pendingDrag = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+		window.addEventListener('pointermove', onPendingMove);
+		window.addEventListener('pointerup', cancelPendingDrag);
+	}
+
+	function handleClick(e: IntersectionEvent<MouseEvent>) {
 		if (kind !== 'counter') return;
-		if (e.shiftKey || e.altKey) return; // handled on pointerdown
+		if (dragMoved || e.delta > DRAG_THRESHOLD_PX) return; // was a drag, not a click
+		// click deals damage; shift (or alt) heals
+		const ne = e.nativeEvent;
+		gameActions.incrementCounter(id, ne.shiftKey || ne.altKey ? 1 : -1);
+	}
+
+	function handleContextMenu(e: IntersectionEvent<MouseEvent>) {
+		if (kind !== 'counter') return;
+		e.nativeEvent.preventDefault();
+		if (e.delta > DRAG_THRESHOLD_PX) return;
 		gameActions.incrementCounter(id, 1);
 	}
 
-	const label = $derived(
-		kind === 'counter' ? `${piece?.value ?? piece?.maxValue ?? 0}` : (piece?.name ?? '')
-	);
+	// ±1 per wheel notch; accumulate so trackpads don't spray increments
+	let wheelAccum = 0;
+	const WHEEL_NOTCH = 100;
+	function handleWheel(e: IntersectionEvent<WheelEvent>) {
+		if (kind !== 'counter') return;
+		e.stopImmediatePropagation(); // don't zoom the camera while adjusting
+		const ne = e.nativeEvent;
+		wheelAccum += ne.deltaMode === 1 ? ne.deltaY * (WHEEL_NOTCH / 3) : ne.deltaY;
+		while (wheelAccum >= WHEEL_NOTCH) {
+			wheelAccum -= WHEEL_NOTCH;
+			gameActions.incrementCounter(id, -1);
+		}
+		while (wheelAccum <= -WHEEL_NOTCH) {
+			wheelAccum += WHEEL_NOTCH;
+			gameActions.incrementCounter(id, 1);
+		}
+	}
+
+	const label = $derived.by(() => {
+		if (kind !== 'counter') return piece?.name ?? '';
+		const value = piece?.value ?? piece?.maxValue ?? 0;
+		return piece?.maxValue != null ? `${value}/${piece.maxValue}` : `${value}`;
+	});
+
+	// pulse the label when the value changes (local or remote) so it's noticed
+	const labelScale = new Spring(1, { stiffness: 0.15, damping: 0.5, precision: 0.001 });
+	let prevValue: number | undefined = undefined;
+	$effect(() => {
+		const v = piece?.value;
+		if (prevValue !== undefined && v !== undefined && v !== prevValue) {
+			labelScale.set(1.6, { instant: true });
+			labelScale.target = 1;
+		}
+		prevValue = v;
+	});
 </script>
 
 {#if piece}
@@ -83,6 +159,8 @@
 		{position}
 		onpointerdown={handlePointerDown}
 		onclick={handleClick}
+		oncontextmenu={handleContextMenu}
+		onwheel={handleWheel}
 		onpointerenter={() => (isHovered = true)}
 		onpointerleave={() => (isHovered = false)}
 	>
@@ -122,6 +200,7 @@
 					text={label}
 					fontSize={kind === 'counter' ? 0.55 : 0.35}
 					position={[0, kind === 'pawn' ? 1.5 : 0.75, 0]}
+					scale={kind === 'counter' ? labelScale.current : 1}
 					anchorX="center"
 					color="#ffffff"
 					outlineWidth={0.02}
