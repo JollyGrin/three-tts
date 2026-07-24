@@ -12,14 +12,12 @@ import { prewarmGameState } from '$lib/packs/prewarm-state';
 import toast from 'svelte-french-toast';
 
 /**
- * Initialize websocket connection and join the default lobby
+ * Initialize websocket connection and join the given lobby
+ * @param lobbyId Lobby to join — callers roll one with randomLobbyName() when
+ * the URL has no ?lobby, so there is no shared fallback room
  * @returns Promise that resolves when connected and joined
  */
-export async function initWebsocket(
-	_lobbyId?: string,
-	serverUrl?: string
-): Promise<boolean> {
-	const lobbyId = _lobbyId ?? 'default';
+export async function initWebsocket(lobbyId: string, serverUrl?: string): Promise<boolean> {
 	// Check if player exists, if not create a player
 	const player = gameActions.getMe();
 	if (!player) {
@@ -28,21 +26,21 @@ export async function initWebsocket(
 	}
 
 	try {
-		// Connect to the default lobby
+		// Connect to the lobby
 		const connected = await connect(lobbyId, serverUrl);
 		if (!connected) {
 			console.error('Failed to connect to websocket server');
 			return false;
 		}
 
-		// Join the default lobby
+		// Join the lobby
 		const joined = await joinLobby(lobbyId);
 		if (!joined) {
-			console.error('Failed to join default lobby');
+			console.error(`Failed to join lobby ${lobbyId}`);
 			return false;
 		}
 
-		console.log('Successfully connected and joined default lobby');
+		console.log(`Successfully connected and joined lobby ${lobbyId}`);
 
 		// Set up event listeners for incoming messages
 		setupMessageHandlers();
@@ -96,7 +94,9 @@ function setupMessageHandlers(): void {
 				prewarmGameState(message.value, ({ total, failed }) => {
 					gameStore.updateStateSilently({});
 					toast(
-						failed > 0 ? `Card art: ${total - failed}/${total} loaded` : `Card art ready (${total})`,
+						failed > 0
+							? `Card art: ${total - failed}/${total} loaded`
+							: `Card art ready (${total})`,
 						{ duration: 3000 }
 					);
 				});

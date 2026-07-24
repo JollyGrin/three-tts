@@ -56,6 +56,12 @@
 	});
 
 	let lobbyId = $state(page.url.searchParams.get('lobby') ?? '');
+	// /play with no ?lobby rolls a name and replaceState()s it in after this pane
+	// has already mounted — adopt it so the share link isn't empty
+	$effect(() => {
+		const fromUrl = page.url.searchParams.get('lobby');
+		if (fromUrl && !lobbyId) lobbyId = fromUrl;
+	});
 	const lobbyUrl = $derived(
 		new URLSearchParams({ server: $connectionStore.serverUrl, lobby: lobbyId }).toString()
 	);

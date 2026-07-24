@@ -11,6 +11,8 @@
 	import { claimSeat, seatPlaceholderId, type SeatIndex } from '$lib/scenario/scenario';
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
+	import { randomLobbyName } from '$lib/utils/lobby-name';
 	import PaneDecks from './PaneDecks.svelte';
 	import toast from 'svelte-french-toast';
 
@@ -51,7 +53,16 @@
 	}
 
 	onMount(() => {
-		const lobbyId = page?.url?.searchParams?.get('lobby') ?? undefined;
+		// no ?lobby means someone hit /play directly — roll a name and pin it into
+		// the URL *before* connecting, so a refresh rejoins the same table and the
+		// address bar is always a copy-pasteable invite
+		let lobbyId = page?.url?.searchParams?.get('lobby') ?? undefined;
+		if (!lobbyId) {
+			lobbyId = randomLobbyName();
+			const url = new URL(page.url);
+			url.searchParams.set('lobby', lobbyId);
+			replaceState(`${url.pathname}${url.search}${url.hash}`, page.state);
+		}
 		const serverUrl = page?.url?.searchParams?.get('server') ?? undefined;
 		const seatParam = page?.url?.searchParams?.get('seat');
 		const connected = initWebsocket(lobbyId, serverUrl);

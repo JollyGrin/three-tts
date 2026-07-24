@@ -1,4 +1,16 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { randomLobbyName } from '$lib/utils/lobby-name';
+
+	// href is a working fallback (middle-click / no JS); the click handler rolls a
+	// fresh name so every launch from this page gets its own table
+	let lobby = $state(randomLobbyName());
+
+	function openTable(event: MouseEvent) {
+		event.preventDefault();
+		lobby = randomLobbyName();
+		goto(`/play?lobby=${lobby}`);
+	}
 </script>
 
 <svelte:head>
@@ -18,12 +30,17 @@
 			<li>Click <strong>Open Table</strong> and spawn a deck of cards</li>
 		</ol>
 		<p class="mb-4">
-			In the Settings pane (⚙️), set the Server to <code>localhost:8080</code> or your ngrok URL, and
-			enter a Lobby ID.
+			In the Settings pane (⚙️), set the Server to <code>localhost:8080</code> or your ngrok URL.
 		</p>
-		<a href="/play" class="block rounded bg-emerald-400 py-2 text-center font-medium text-white"
-			>Open Table</a
+		<a
+			href="/play?lobby={lobby}"
+			onclick={openTable}
+			class="block rounded bg-emerald-400 py-2 text-center font-medium text-white">Open Table</a
 		>
+		<p class="mt-2 text-sm text-gray-500">
+			Every table gets its own name — the table's URL is your invite link, so share it with whoever
+			you want to play with.
+		</p>
 		<a
 			href="/setup"
 			class="mt-2 block rounded border border-emerald-400 py-2 text-center font-medium text-emerald-600"
