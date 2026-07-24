@@ -66,4 +66,4 @@ C0 should ride along with SPEC M1 (the parser needs pack validation anyway). C1 
 - Pack identity/versioning: content hash as `id` for imported packs? `version` field for creator iterations?
 - Where does per-card metadata beyond name live (rules text, stats for search/preview)? Proposal: optional `meta: Record<string, string>` on `PackCardDef`, rendered in the HUD preview only — keeps the sandbox rules-free.
 - Should `gen:` become creator-extensible (parameterized generated cards, e.g. `gen:text/{"title":…}` for prototyping games with no art yet)? Cheap and very useful for playtesting-stage designers.
-- Naming: "pack" vs "deck file" in user-facing copy (creators from the Unmatched world will say "deck").
+- ~~Naming: "pack" vs "deck file" in user-facing copy (creators from the Unmatched world will say "deck").~~ **Decided (tableplace-54):** "pack" = the content library file (`<name>.tbpp.json`); "deck" stays the word for one pile of cards *inside* a pack; "scenario" = an arrangement (`<name>.tbps.json`). See `docs/packs.md`.

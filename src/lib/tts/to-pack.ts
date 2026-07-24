@@ -31,7 +31,12 @@ function cellToRef(cell: SheetCell, opts: { name?: string; back?: boolean } = {}
 	return makeSheetRef({ ...cell, ...opts });
 }
 
-function toDeck(name: string, cards: ParsedCard[], slotFallback: string, isFaceUp?: boolean): PackDeckDef {
+function toDeck(
+	name: string,
+	cards: ParsedCard[],
+	slotFallback: string,
+	isFaceUp?: boolean
+): PackDeckDef {
 	const seen = new Set<string>();
 	return {
 		slot: slugify(name, slotFallback),

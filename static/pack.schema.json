@@ -1,0 +1,188 @@
+{
+	"description": "table.place pack (.tbpp.json) — see docs/packs.md",
+	"allOf": [
+		{
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"title": "id"
+				},
+				"name": {
+					"type": "string",
+					"title": "name"
+				},
+				"scope": {
+					"description": "'table' = the shared game, loaded once per lobby by the host (TTS analog: the mod/save).\n'player' = what one player brings, spawned per seat (TTS analog: a Saved Object, e.g. a deck-builder export).",
+					"enum": ["player", "table"],
+					"type": "string",
+					"title": "scope"
+				},
+				"decks": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"slot": {
+								"description": "Stable id within the pack, e.g. 'main', 'discard'",
+								"type": "string",
+								"title": "slot"
+							},
+							"name": {
+								"type": "string",
+								"title": "name"
+							},
+							"back": {
+								"description": "Face ref for the card back",
+								"type": "string",
+								"title": "back"
+							},
+							"isFaceUp": {
+								"type": "boolean",
+								"title": "isFaceUp"
+							},
+							"cards": {
+								"type": "array",
+								"items": {
+									"description": "A pack is a named, serializable definition of a game's contents —\ndecoupled from live game state. Packs are templates; the gameStore\nholds the instance. See SPEC.md §4d.",
+									"type": "object",
+									"properties": {
+										"code": {
+											"description": "Stable code within the pack, e.g. 'AS' (ace of spades)",
+											"type": "string",
+											"title": "code"
+										},
+										"name": {
+											"type": "string",
+											"title": "name"
+										},
+										"face": {
+											"description": "Face ref: https url, `sheet:` descriptor, or `gen:` scheme",
+											"type": "string",
+											"title": "face"
+										}
+									},
+									"required": ["code", "face"]
+								},
+								"title": "cards"
+							}
+						},
+						"required": ["back", "cards", "name", "slot"]
+					},
+					"title": "decks"
+				},
+				"pieces": {
+					"description": "tokens/pawns/counters that spawn with the pack",
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"kind": {
+								"$ref": "#/definitions/PackPieceKind",
+								"title": "kind"
+							},
+							"name": {
+								"type": "string",
+								"title": "name"
+							},
+							"color": {
+								"description": "hex tint; pawns/counters without images render in this color",
+								"type": "string",
+								"title": "color"
+							},
+							"imageUrl": {
+								"description": "token top-face image ref (resolved like card faces)",
+								"type": "string",
+								"title": "imageUrl"
+							},
+							"radius": {
+								"description": "world radius of the piece footprint",
+								"type": "number",
+								"title": "radius"
+							},
+							"maxValue": {
+								"description": "counters start at this value",
+								"type": "number",
+								"title": "maxValue"
+							},
+							"position": {
+								"description": "table-plane position [x, z] in world units",
+								"type": "array",
+								"items": [
+									{
+										"type": "number"
+									},
+									{
+										"type": "number"
+									}
+								],
+								"minItems": 2,
+								"maxItems": 2,
+								"title": "position"
+							}
+						},
+						"required": ["kind", "name", "position"]
+					},
+					"title": "pieces"
+				},
+				"overlays": {
+					"description": "board/map images laid on the table",
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"imageUrl": {
+								"description": "board/map image ref",
+								"type": "string",
+								"title": "imageUrl"
+							},
+							"ratio": {
+								"description": "width / height of the image",
+								"type": "number",
+								"title": "ratio"
+							},
+							"scale": {
+								"type": "number",
+								"title": "scale"
+							}
+						},
+						"required": ["imageUrl", "ratio", "scale"]
+					},
+					"title": "overlays"
+				},
+				"source": {
+					"description": "provenance: set by converters (e.g. the TTS importer), absent on native packs",
+					"const": "tts",
+					"type": "string",
+					"title": "source"
+				}
+			},
+			"required": ["decks", "id", "name", "scope"]
+		},
+		{
+			"type": "object",
+			"properties": {
+				"tbpp": {
+					"description": "format discriminator + version",
+					"type": "number",
+					"const": 1,
+					"title": "tbpp"
+				},
+				"$schema": {
+					"description": "optional editor-validation hint; always written on export",
+					"type": "string",
+					"title": "$schema"
+				}
+			},
+			"required": ["tbpp"]
+		}
+	],
+	"definitions": {
+		"PackPieceKind": {
+			"title": "PackPieceKind",
+			"enum": ["counter", "pawn", "token"],
+			"type": "string"
+		}
+	},
+	"$schema": "http://json-schema.org/draft-07/schema#"
+}

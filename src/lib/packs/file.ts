@@ -57,7 +57,10 @@ function arr(v: unknown, path: string): unknown[] {
 
 function parseCard(v: unknown, path: string): PackCardDef {
 	if (!isRecord(v)) fail(path, 'must be an object');
-	const card: PackCardDef = { code: str(v.code, `${path}.code`), face: str(v.face, `${path}.face`) };
+	const card: PackCardDef = {
+		code: str(v.code, `${path}.code`),
+		face: str(v.face, `${path}.face`)
+	};
 	if (v.name !== undefined) card.name = str(v.name, `${path}.name`);
 	return card;
 }
