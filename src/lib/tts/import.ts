@@ -14,6 +14,7 @@ import { sliceCell } from './slice';
 export type ImportReport = {
 	decks: number;
 	cards: number;
+	pieces: number;
 	missingArt: number;
 	skipped: string[];
 };
@@ -52,7 +53,13 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 	const playerId = gameActions.getMyId();
 	if (!playerId) throw new Error('No player id — join a lobby first');
 
-	const report: ImportReport = { decks: 0, cards: 0, missingArt: 0, skipped: parsed.skipped };
+	const report: ImportReport = {
+		decks: 0,
+		cards: 0,
+		pieces: 0,
+		missingArt: 0,
+		skipped: parsed.skipped
+	};
 
 	for (const [deckIndex, deck] of parsed.decks.entries()) {
 		const resolved = await Promise.all(deck.cards.map(resolveCard));
@@ -97,6 +104,27 @@ export async function importTtsFile(text: string): Promise<ImportReport> {
 			}
 		});
 	}
+
+	// tokens / pawns / counters land at their (mirrored) TTS table positions
+	const PIECE_REST_Y = 0.255 + 0.08;
+	parsed.pieces.forEach((piece, i) => {
+		report.pieces += 1;
+		gameStore.updateState({
+			pieces: {
+				[`piece:${playerId}:${slugify(piece.name, 'piece')}-${i}`]: {
+					kind: piece.kind,
+					name: piece.name,
+					color: piece.color,
+					imageUrl: piece.imageUrl,
+					radius: piece.radius,
+					maxValue: piece.maxValue,
+					value: piece.maxValue,
+					position: [piece.position[0], PIECE_REST_Y, piece.position[1]],
+					rotation: [0, 0, 0]
+				}
+			}
+		});
+	});
 
 	return report;
 }

@@ -46,6 +46,26 @@ type PlayerDTO = SeatState & {
 	metadata: any;
 };
 
+/**
+ * Non-card table objects (tokens, pawns, counters). One generic shape
+ * with a kind discriminator — see SPEC.md §4a.
+ */
+type PieceDTO = {
+	position: [number, number, number];
+	rotation: [number, number, number];
+	kind: 'token' | 'pawn' | 'counter';
+	name: string;
+	/** hex tint; pawns/counters without images render in this color */
+	color?: string;
+	/** token top-face image ref (resolved like card faces) */
+	imageUrl?: string;
+	/** world radius of the piece footprint */
+	radius?: number;
+	/** counter state */
+	value?: number;
+	maxValue?: number;
+};
+
 type OverlayDTO = {
 	id: string;
 	position: [number, number, number];
@@ -63,4 +83,5 @@ export interface GameDTO {
 	decks: Record<string, Partial<DeckDTO>>; // deckId, state
 	players: Record<string, Partial<PlayerDTO>>; // playerId, state
 	overlays?: Record<string, Partial<OverlayDTO> | null>; // overlayId, state (null = remove)
+	pieces?: Record<string, Partial<PieceDTO> | null>; // pieceId, state (null = remove)
 }

@@ -22,6 +22,7 @@
 		try {
 			const report = await importTtsFile(await file.text());
 			const parts = [`Imported ${report.decks} deck(s), ${report.cards} cards`];
+			if (report.pieces > 0) parts.push(`${report.pieces} piece(s)`);
 			if (report.missingArt > 0)
 				parts.push(`${report.missingArt} with dead art links (named placeholders used)`);
 			if (report.skipped.length > 0)

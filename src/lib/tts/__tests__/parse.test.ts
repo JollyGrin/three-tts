@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseSavedObject, normalizeAssetUrl, decodeCardId } from '../parse';
+import { parseSavedObject, normalizeAssetUrl, decodeCardId, extractCounterMax } from '../parse';
 
-// Real the-unmatched.club export committed as a fixture
+// Real the-unmatched.club exports committed as fixtures
 const fixture = JSON.parse(
 	readFileSync(join(__dirname, '../../../../tts-unmatched-greviousdeck.json'), 'utf-8')
+);
+const cloneFixture = JSON.parse(
+	readFileSync(join(__dirname, '../../../../tts-clonetroopers.json'), 'utf-8')
 );
 
 describe('normalizeAssetUrl', () => {
@@ -50,14 +53,44 @@ describe('parseSavedObject on a real unmatched.club export', () => {
 		expect(card.face.url).toMatch(/^https:\/\//);
 	});
 
-	it('collects loose cards (hero + special) and skips models/pawns/tiles', () => {
+	it('collects loose cards (hero + special)', () => {
 		expect(parsed.looseCards.length).toBeGreaterThan(0);
-		expect(parsed.skipped.length).toBeGreaterThan(0);
-		expect(parsed.skipped.join(',')).toMatch(/Custom_Model|PlayerPawn|Custom_Tile/);
+	});
+
+	it('extracts tiles as tokens, pawns, and health dials as counters', () => {
+		const kinds = parsed.pieces.map((p) => p.kind);
+		expect(kinds).toContain('token');
+		expect(kinds).toContain('pawn');
+		expect(kinds).toContain('counter');
+		const tokens = parsed.pieces.filter((p) => p.kind === 'token');
+		expect(tokens.every((t) => t.imageUrl?.startsWith('https://'))).toBe(true);
 	});
 
 	it('handles empty/garbage input without throwing', () => {
-		expect(parseSavedObject({})).toEqual({ decks: [], looseCards: [], skipped: [] });
-		expect(parseSavedObject(null)).toEqual({ decks: [], looseCards: [], skipped: [] });
+		expect(parseSavedObject({})).toEqual({ decks: [], looseCards: [], pieces: [], skipped: [] });
+		expect(parseSavedObject(null)).toEqual({ decks: [], looseCards: [], pieces: [], skipped: [] });
+	});
+});
+
+describe('pieces on the Clone Troopers export', () => {
+	const parsed = parseSavedObject(cloneFixture);
+
+	it('finds the hero pawn with its faction color', () => {
+		const pawn = parsed.pieces.find((p) => p.kind === 'pawn');
+		expect(pawn?.name).toBe('Clone Troopers');
+		expect(pawn?.color).toMatch(/^#/);
+	});
+
+	it('turns the health-dial Custom_Model into a counter with HP from Lua', () => {
+		const counter = parsed.pieces.find((p) => p.kind === 'counter');
+		expect(counter?.maxValue).toBe(2);
+	});
+});
+
+describe('extractCounterMax', () => {
+	it('parses MAX_VALUE from TTS counter Lua', () => {
+		expect(extractCounterMax('CONFIG = {\r\n MIN_VALUE = 0,\r\n MAX_VALUE = 18,')).toBe(18);
+		expect(extractCounterMax('no counter here')).toBeNull();
+		expect(extractCounterMax(undefined)).toBeNull();
 	});
 });

@@ -8,6 +8,7 @@
 	import Intersection from './Intersection.svelte';
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
+	import Piece from './Piece.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
@@ -31,8 +32,12 @@
 
 			if (isDragging) {
 				const { x, z } = intersectionPoint as THREE.Vector3;
-				const cardId = $dragStore.isDragging as string;
-				gameStore.updateState({ cards: { [cardId]: { position: [x, 2.5, z] } } });
+				const dragId = $dragStore.isDragging as string;
+				if (dragId.startsWith('piece:')) {
+					gameStore.updateState({ pieces: { [dragId]: { position: [x, 1.2, z] } } });
+				} else {
+					gameStore.updateState({ cards: { [dragId]: { position: [x, 2.5, z] } } });
+				}
 			}
 
 			state.pointer.update((p) => {
@@ -72,4 +77,8 @@
 
 {#each cards as [id] (id)}
 	<Card {id} />
+{/each}
+
+{#each Object.keys($gameStore?.pieces ?? {}).filter((key) => $gameStore?.pieces?.[key]) as id (id)}
+	<Piece {id} />
 {/each}

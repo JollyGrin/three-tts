@@ -12,9 +12,23 @@
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 
 	// Handle the tray & deck drop actions here
+	const PIECE_REST_Y = 0.255 + 0.08; // table top + half token thickness
+
 	function handleDragEnd() {
 		if (!$dragStore.isDragging) return;
 		const id = $dragStore.isDragging;
+
+		// pieces don't stack, join decks, or enter the tray — just settle
+		if (id.startsWith('piece:')) {
+			const piece = gameActions.getPieceState(id);
+			const [px, , pz] = piece?.position ?? [];
+			if (px !== undefined && pz !== undefined) {
+				gameStore.updateState({ pieces: { [id]: { position: [px, PIECE_REST_Y, pz] } } });
+			}
+			dragEnd();
+			return;
+		}
+
 		const { faceImageUrl } = gameActions.getCardState($dragStore.isDragging) ?? {};
 
 		if ($dragStore.isTrayHovered) {
