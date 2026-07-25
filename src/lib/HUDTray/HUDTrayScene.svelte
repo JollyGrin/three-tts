@@ -9,6 +9,20 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 
+	/**
+	 * The one interactivity() the HUD keeps, and the only one besides
+	 * TableScene's (see #86). `<HUD>` calls createCameraContext(), so
+	 * `useThrelte().camera` inside it resolves to the OrthographicCamera below,
+	 * not the table camera — and a Raycaster is set from exactly one camera. The
+	 * tray's meshes sit in that ortho camera's space, so a ray cast from the
+	 * table's perspective camera would never hit them. Hence a second context,
+	 * whose default compute picks up this camera.
+	 *
+	 * `<HUD>` does not create a DOM context, so `useDOM().dom` — interactivity's
+	 * listener target — is still the shared canvas element. Only the camera is
+	 * re-rooted, which is why this needs to be per HUD root and never per card:
+	 * TrayCard registers into this context.
+	 */
 	interactivity();
 	let {}: {} = $props();
 

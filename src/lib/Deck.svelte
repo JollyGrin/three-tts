@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as THREE from 'three';
 	import { T } from '@threlte/core';
-	import { Text, Billboard, ImageMaterial, interactivity } from '@threlte/extras';
+	import { Text, Billboard, ImageMaterial } from '@threlte/extras';
 	import { dragStart, dragStore, setDeckHover } from '$lib/store/dragStore.svelte';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import {
@@ -19,8 +19,11 @@
 	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
 	import DropFootprint from './drop/DropFootprint.svelte';
 
-	interactivity();
-
+	// No interactivity() here on purpose. It calls setContext, so a per-deck call
+	// would shadow TableScene's context — the handlers below would raycast with
+	// the default compute instead of TableScene's (no intersectionPoint, no
+	// table-plane fallback) and stopPropagation could never reach a card. They
+	// register into TableScene's one context instead.
 	let { id = '' }: { id: string } = $props();
 
 	const deck = $derived($gameStore?.decks?.[id] ?? {});

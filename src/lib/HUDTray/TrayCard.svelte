@@ -10,7 +10,7 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import { ImageMaterial, interactivity } from '@threlte/extras';
+	import { ImageMaterial } from '@threlte/extras';
 	import { Spring } from 'svelte/motion';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
@@ -20,7 +20,10 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
 
-	interactivity();
+	// No interactivity() here on purpose — one call per card in hand meant one
+	// Raycaster and one full set of DOM listeners per card. The handlers below
+	// register into HUDTrayScene's context, which is the one that owns the tray's
+	// orthographic camera.
 	let {
 		id,
 		index = 0,
