@@ -1,8 +1,9 @@
 <script lang="ts">
 	/**
-	 * Read-only overlay listing who is at the table: seat, hand size, deck
-	 * counts, and which seats are still open. Counts only — another player's
-	 * card faces/ids are never rendered.
+	 * Overlay listing who is at the table: seat, hand size, deck counts, and
+	 * which seats are still open. Open-seat rows are the primary claim
+	 * affordance — clicking one sits you there and hands you its decks.
+	 * Counts only — another player's card faces/ids are never rendered.
 	 *
 	 * Plain DOM (not svelte-tweakpane-ui) since this is player-facing game
 	 * info, and anchored top-right so it clears the Settings (x=0) and Decks
@@ -10,7 +11,9 @@
 	 */
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { claimSeat, type SeatIndex } from '$lib/scenario/scenario';
 	import { derivePlayerRows, summarize, type DeckCount } from './players';
+	import toast from 'svelte-french-toast';
 
 	/** `main 34 · discard 6` */
 	const deckLine = (decks: DeckCount[]) => decks.map((d) => `${d.slot} ${d.count}`).join(' · ');
@@ -41,6 +44,11 @@
 			// private mode / storage disabled — collapse still works for this session
 		}
 	}
+
+	function handleClaimSeat(seat: number) {
+		if (claimSeat(seat as SeatIndex)) toast(`Seat ${seat} claimed — your decks are ready`);
+		else toast.error(`Seat ${seat} is no longer open`);
+	}
 </script>
 
 <!-- wrapper is click-through so cards can still be dragged underneath -->
@@ -67,14 +75,7 @@
 					<li class="px-3 py-2 text-xs opacity-50">Nobody at the table yet</li>
 				{/if}
 				{#each rows as row (row.id)}
-					<li
-						class={[
-							'flex gap-2 border-b border-white/5 px-3 py-2 text-xs last:border-b-0',
-							row.isOpenSeat && 'opacity-50',
-							row.isMe && 'bg-emerald-400/10'
-						]}
-						data-open-seat={row.isOpenSeat}
-					>
+					{#snippet seatBadge()}
 						<span
 							class={[
 								'mt-0.5 flex h-6 w-6 shrink-0 flex-col items-center justify-center rounded',
@@ -85,11 +86,36 @@
 							<span class="text-[0.65rem] leading-none font-bold">{row.seat}</span>
 							<span class="text-[0.5rem] leading-none opacity-60">{row.rotationDeg}°</span>
 						</span>
-
-						<span class="min-w-0 flex-1">
-							{#if row.isOpenSeat}
-								<span class="block italic">Seat {row.seat} — open</span>
-							{:else}
+					{/snippet}
+					<li
+						class={[
+							'border-b border-white/5 text-xs last:border-b-0',
+							!row.isOpenSeat && 'flex gap-2 px-3 py-2',
+							row.isMe && 'bg-emerald-400/10'
+						]}
+						data-open-seat={row.isOpenSeat}
+					>
+						{#if row.isOpenSeat}
+							<!-- an open seat is claimable: sit here and take over its decks -->
+							<button
+								type="button"
+								onclick={() => handleClaimSeat(row.seat)}
+								class="flex w-full gap-2 px-3 py-2 text-left opacity-50 hover:bg-white/10 hover:opacity-100"
+							>
+								{@render seatBadge()}
+								<span class="min-w-0 flex-1">
+									<span class="block italic">Seat {row.seat} — open</span>
+									{#if row.decks.length > 0}
+										<span class="block opacity-70">{deckLine(row.decks)}</span>
+									{/if}
+									<span class="block text-[0.6rem] text-emerald-300 uppercase">
+										click to sit here
+									</span>
+								</span>
+							</button>
+						{:else}
+							{@render seatBadge()}
+							<span class="min-w-0 flex-1">
 								<span class="flex items-baseline gap-1">
 									<!-- presence dot: green = connected; hollow = offline or unknown
 									     (a client that never got a presence patch must not show green) -->
@@ -109,11 +135,11 @@
 								<span class="block opacity-70">
 									hand {row.handCount}{#if row.tableCount > 0}&nbsp;· table {row.tableCount}{/if}
 								</span>
-							{/if}
-							{#if row.decks.length > 0}
-								<span class="block opacity-70">{deckLine(row.decks)}</span>
-							{/if}
-						</span>
+								{#if row.decks.length > 0}
+									<span class="block opacity-70">{deckLine(row.decks)}</span>
+								{/if}
+							</span>
+						{/if}
 					</li>
 				{/each}
 			</ul>

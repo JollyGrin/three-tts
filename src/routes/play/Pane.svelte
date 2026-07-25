@@ -25,6 +25,7 @@
 		isSeatPlaceholder,
 		type SeatIndex
 	} from '$lib/scenario/scenario';
+	import { buildInviteUrl, pickInviteSeat } from '$lib/scenario/invite';
 	import { List } from 'svelte-tweakpane-ui';
 	import HUDPieces from '$lib/HUDPieces.svelte';
 	import { page } from '$app/state';
@@ -95,20 +96,22 @@
 		else toast.error(`Seat ${seat} is no longer open`);
 	}
 
-	// invite link that auto-claims the opposing (first open, non-mine) seat on join
-	function copyOpponentInvite() {
-		const mySeat = gameActions.getMySeat();
-		const inviteSeat = openSeats.find((s) => s !== mySeat) ?? openSeats[0];
-		if (inviteSeat === undefined)
-			return toast.error('No open seats — seed a scenario and claim yours first');
-		const params = new URLSearchParams({
+	// invite link that auto-claims the opposing (first open, non-mine) seat on
+	// join; without open seats it degrades to a plain lobby link
+	function copyInvite() {
+		const inviteSeat = pickInviteSeat(openSeats, gameActions.getMySeat());
+		const url = buildInviteUrl({
+			origin: page.url.origin,
 			server: $connectionStore.serverUrl,
 			lobby: lobbyId,
-			seat: String(inviteSeat)
+			seat: inviteSeat
 		});
-		const url = `${page.url.host}/play?${params.toString()}`;
 		navigator.clipboard.writeText(url);
-		toast(`Copied invite — joiner auto-claims seat ${inviteSeat}`);
+		toast(
+			inviteSeat === undefined
+				? `Copied lobby link (no open seats): ${url}`
+				: `Copied invite — joiner auto-claims seat ${inviteSeat}`
+		);
 	}
 </script>
 
@@ -129,26 +132,28 @@
 		<Button
 			title="Share lobby: {lobbyId}"
 			on:click={() => {
+				// copy an invite that seats the joiner; my own navigation must NOT
+				// carry ?seat= or I'd claim the seat meant for the opponent
+				copyInvite();
 				goto(`/play?${lobbyUrl}`, { invalidateAll: true });
-				const hostUrl = page.url.host ?? '';
-				const url = `${hostUrl}/play?${lobbyUrl}`;
-				navigator.clipboard.writeText(url);
-				toast(`Copied to clipboard: ` + url);
 			}}
 		/>
 		<Textarea
 			disabled
-			value={`Enter the server and lobby names. Then click share to copy to clipboard. Then refresh page to join.`}
+			value={`Share copies an invite link — whoever opens it is seated at the first open seat and gets its decks.`}
 		/>
 	</Folder>
 	<Folder title="Scenarios" expanded={false}>
 		<List label="Preset" bind:value={selectedScenario} options={scenarioOptions} />
 		<Button title="Seed lobby with preset" on:click={seedLobby} />
-		<Button title="Refresh preset list" on:click={() => (scenarioNames = listScenarios().map((s) => s.name))} />
+		<Button
+			title="Refresh preset list"
+			on:click={() => (scenarioNames = listScenarios().map((s) => s.name))}
+		/>
 		{#each openSeats as seat (seat)}
 			<Button title="Claim seat {seat}" on:click={() => handleClaimSeat(seat)} />
 		{/each}
-		<Button title="Copy opponent invite" on:click={copyOpponentInvite} />
+		<Button title="Copy opponent invite" on:click={copyInvite} />
 		<Textarea
 			disabled
 			rows={3}

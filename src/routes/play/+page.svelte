@@ -7,8 +7,7 @@
 	import { initWrappers } from '$lib/websocket/storeIntegration';
 	import { initWebsocket } from '$lib/websocket';
 	import { gameActions } from '$lib/store/game/actions';
-	import { gameStore } from '$lib/store/game/gameStore.svelte';
-	import { claimSeat, seatPlaceholderId, type SeatIndex } from '$lib/scenario/scenario';
+	import { startAutoClaim } from '$lib/scenario/autoClaim';
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
@@ -35,23 +34,19 @@
 	initWrappers();
 	let isConnected = $state(false);
 
-	// ?seat=N invite links: once the sync delivers a scenario with that seat's
-	// placeholder still open, claim it automatically for the joining player
+	// ?seat=N invite links: keep trying to claim that seat's placeholder until
+	// it succeeds; a give-up is announced, never silent (see autoClaim.ts)
 	function autoClaimSeat(seatParam: string | null) {
-		const seat = Number(seatParam) as SeatIndex;
-		if (seatParam === null || ![0, 1, 2, 3].includes(seat)) return;
-		let claimed = false;
-		const stop = gameStore.subscribe((s) => {
-			if (claimed || !s?.players?.[seatPlaceholderId(seat)]) return;
-			claimed = true;
-			// claim outside the store notification cycle
-			queueMicrotask(() => {
-				if (claimSeat(seat)) toast(`Seat ${seat} claimed — your decks are ready`);
-				stop();
-			});
+		startAutoClaim(seatParam, {
+			onClaimed: (seat) => toast(`Seat ${seat} claimed — your decks are ready`),
+			onFailed: (seat, reason) =>
+				toast.error(
+					reason === 'seat-taken'
+						? `Seat ${seat} is already taken — click an open seat in the Players list to sit down`
+						: `Couldn't claim seat ${seat} — once the table is seeded, click an open seat in the Players list`,
+					{ duration: 10000 }
+				)
 		});
-		// stop waiting if no scenario ever shows up
-		setTimeout(() => stop(), 20000);
 	}
 
 	onMount(() => {
