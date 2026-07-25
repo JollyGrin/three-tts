@@ -2,14 +2,19 @@
 	import {
 		AutoValue,
 		Button,
+		ButtonGrid,
 		Checkbox,
 		Color,
 		Element,
+		File as FileBlade,
 		Folder,
 		List,
 		Pane,
 		Point,
+		Separator,
 		Stepper,
+		TabGroup,
+		TabPage,
 		Text,
 		Textarea
 	} from 'svelte-tweakpane-ui';
@@ -32,7 +37,7 @@
 	} from '$lib/packs/spread';
 	import { onCardPick } from '$lib/store/cardPick';
 	import { previewLayout, type PreviewLayout } from './preview-layout';
-	import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
+	import { CARD_BACK_DEFAULT, STANDARD_52 } from '$lib/packs/standard52';
 	import { parsePackFile, serializePackFile, packFileName } from '$lib/packs/file';
 	import {
 		listLibraryPacks,
@@ -73,6 +78,9 @@
 	/** Everything the /create preview spawns is owned by this placeholder id */
 	const PREVIEW_OWNER = 'preview';
 
+	/** the editor column's width — the pane fills it exactly (see +page.svelte) */
+	const PANE_WIDTH = 352;
+
 	const HELP_TEXT =
 		'A pack is a content library: decks (piles of cards), pieces (including bags — a ' +
 		'hidden pool you draw from at the table), and board overlays. ' +
@@ -91,25 +99,30 @@
 		'edit respawns the preview from the draft. C recentres the camera, hold Space ' +
 		'for a close-up. The durable start face is the deck’s "Face up" box.';
 
-	function emptyPack(): EditorPack {
+	/**
+	 * A new pack: one empty deck, no cards. The deck is not fabricated content —
+	 * a card has nowhere to go without one, and "Add card" would only toast "add
+	 * a deck first". Everything else (the pack's name, its first card) is the
+	 * author's to type; the old starter pack shipped an Ace of Spades nobody
+	 * asked for, so the first gesture in the editor was deleting it (#108).
+	 */
+	function newPack(): EditorPack {
 		return withEditorDefaults({
 			id: 'my-pack',
 			name: 'My Pack',
 			scope: 'player',
-			decks: [
-				{
-					slot: 'main',
-					name: 'Draw Pile',
-					back: CARD_BACK_DEFAULT,
-					cards: [{ code: 'AS', name: 'Ace of Spades', face: 'gen:std52/AS' }]
-				}
-			]
+			decks: [{ slot: 'main', name: 'Draw Pile', back: CARD_BACK_DEFAULT, cards: [] }]
 		});
 	}
 
-	let pack: EditorPack = $state(emptyPack());
+	/**
+	 * `null` until the author picks a starting point. There is no draft before
+	 * that: the start state is the first screen, not 39 controls on a pack that
+	 * fabricated itself.
+	 */
+	let pack = $state<EditorPack | null>(null);
 	/** the draft as a plain (non-proxy) object, cleaned of editing defaults */
-	const exportable = $derived(cleanForExport($state.snapshot(pack) as EditorPack));
+	const exportable = $derived(pack ? cleanForExport($state.snapshot(pack) as EditorPack) : null);
 
 	// ——— cursors (indexes into the draft's arrays, clamped as arrays shrink) ———
 	let deckCursor = $state(0);
@@ -118,12 +131,18 @@
 	let stateCursor = $state(0);
 	let overlayCursor = $state(0);
 
-	const deckIndex = $derived(Math.min(deckCursor, Math.max(0, pack.decks.length - 1)));
-	const deck = $derived(pack.decks[deckIndex]);
+	// the draft's collections, empty while there is no draft — every cursor and
+	// option list below reads them rather than re-testing `pack` for null
+	const decks = $derived(pack?.decks ?? []);
+	const pieces = $derived(pack?.pieces ?? []);
+	const overlays = $derived(pack?.overlays ?? []);
+
+	const deckIndex = $derived(Math.min(deckCursor, Math.max(0, decks.length - 1)));
+	const deck = $derived(decks[deckIndex]);
 	const cardIndex = $derived(Math.min(cardCursor, Math.max(0, (deck?.cards.length ?? 0) - 1)));
 	const card = $derived(deck?.cards[cardIndex]);
-	const pieceIndex = $derived(Math.min(pieceCursor, Math.max(0, pack.pieces.length - 1)));
-	const piece = $derived(pack.pieces[pieceIndex]);
+	const pieceIndex = $derived(Math.min(pieceCursor, Math.max(0, pieces.length - 1)));
+	const piece = $derived(pieces[pieceIndex]);
 	const stateIndex = $derived(Math.min(stateCursor, Math.max(0, (piece?.states.length ?? 0) - 1)));
 	const pieceState = $derived(piece?.states[stateIndex]);
 	let bagItemCursor = $state(0);
@@ -131,12 +150,12 @@
 		Math.min(bagItemCursor, Math.max(0, (piece?.contents.length ?? 0) - 1))
 	);
 	const bagItem = $derived(piece?.kind === 'bag' ? piece.contents[bagItemIndex] : undefined);
-	const overlayIndex = $derived(Math.min(overlayCursor, Math.max(0, pack.overlays.length - 1)));
-	const overlay = $derived(pack.overlays[overlayIndex]);
+	const overlayIndex = $derived(Math.min(overlayCursor, Math.max(0, overlays.length - 1)));
+	const overlay = $derived(overlays[overlayIndex]);
 
 	const deckOptions = $derived(
-		pack.decks.length
-			? Object.fromEntries(pack.decks.map((d, i) => [`${i}: ${d.slot}`, i]))
+		decks.length
+			? Object.fromEntries(decks.map((d, i) => [`${i}: ${d.slot}`, i]))
 			: { '(no decks)': 0 }
 	);
 	const cardOptions = $derived(
@@ -145,13 +164,13 @@
 			: { '(no cards)': 0 }
 	);
 	const pieceOptions = $derived(
-		pack.pieces.length
-			? Object.fromEntries(pack.pieces.map((p, i) => [`${i}: ${p.kind} ${p.name}`, i]))
+		pieces.length
+			? Object.fromEntries(pieces.map((p, i) => [`${i}: ${p.kind} ${p.name}`, i]))
 			: { '(no pieces)': 0 }
 	);
 	const overlayOptions = $derived(
-		pack.overlays.length
-			? Object.fromEntries(pack.overlays.map((_, i) => [`overlay ${i}`, i]))
+		overlays.length
+			? Object.fromEntries(overlays.map((_, i) => [`overlay ${i}`, i]))
 			: { '(no overlays)': 0 }
 	);
 	const stateOptions = $derived(
@@ -172,6 +191,7 @@
 
 	// ——— structure edits ———
 	function addDeck() {
+		if (!pack) return;
 		pack.decks.push({
 			slot: `deck-${pack.decks.length}`,
 			name: `Deck ${pack.decks.length + 1}`,
@@ -183,7 +203,7 @@
 	}
 
 	function removeDeck() {
-		if (!deck) return;
+		if (!pack || !deck) return;
 		pack.decks.splice(deckIndex, 1);
 		deckCursor = Math.max(0, deckIndex - 1);
 	}
@@ -260,6 +280,7 @@
 	let newBagItemKind: PackBagItemDef['kind'] = $state('token');
 
 	function addPiece() {
+		if (!pack) return;
 		pack.pieces.push({
 			kind: newPieceKind,
 			name: newPieceKind,
@@ -279,7 +300,7 @@
 	}
 
 	function removePiece() {
-		if (!piece) return;
+		if (!pack || !piece) return;
 		pack.pieces.splice(pieceIndex, 1);
 		pieceCursor = Math.max(0, pieceIndex - 1);
 	}
@@ -350,12 +371,13 @@
 	}
 
 	function addOverlay() {
+		if (!pack) return;
 		pack.overlays.push({ imageUrl: '', ratio: 1, scale: 12 });
 		overlayCursor = pack.overlays.length - 1;
 	}
 
 	function removeOverlay() {
-		if (!overlay) return;
+		if (!pack || !overlay) return;
 		pack.overlays.splice(overlayIndex, 1);
 		overlayCursor = Math.max(0, overlayIndex - 1);
 	}
@@ -410,6 +432,18 @@
 	let spreadCursors: Record<string, { deck: number; card: number }> = {};
 
 	/**
+	 * Where Deck mode puts a pile. A pack does not author deck positions, so a
+	 * spawned deck lands on its owner's own deck spot — the near-right corner of
+	 * the felt, which the editor's shot (narrower than a full-width table, with
+	 * the column beside it) cuts in half. The preview centres its piles instead,
+	 * the same reasoning as the spread's fixed origin: what is being previewed
+	 * has to be in the frame.
+	 */
+	function previewPilePosition(index: number, count: number): [number, number, number] {
+		return [(index - (count - 1) / 2) * 3, 0.4, 0];
+	}
+
+	/**
 	 * `selected` is the piece cursor and the state cursor: the selected piece
 	 * previews on the state you are editing, so "preview each state" is just
 	 * picking it in the list. Every other piece shows its base face.
@@ -418,6 +452,7 @@
 		clearPreview();
 		spreadCursors = {};
 		const preview = exportable;
+		if (!preview) return;
 
 		// carpeting the felt with tiles too small to read is worse than a pile,
 		// so past the cap the spread refuses and the CONTROL follows the table —
@@ -449,11 +484,15 @@
 			// spawned per entity rather than through spawnPack: the preview must show
 			// the deck in AUTHORED order (spawnPack shuffles facedown decks), and an
 			// empty deck mid-authoring has no cards[0] for Deck.svelte to render
-			preview.decks
-				.filter((deck) => deck.cards.length > 0)
-				.forEach((deck, index) =>
-					spawnPackDeck(preview, deck, { ownerId: PREVIEW_OWNER, index, shuffle: false })
-				);
+			const piles = preview.decks.filter((deck) => deck.cards.length > 0);
+			piles.forEach((deck, index) =>
+				spawnPackDeck(preview, deck, {
+					ownerId: PREVIEW_OWNER,
+					index,
+					shuffle: false,
+					position: previewPilePosition(index, piles.length)
+				})
+			);
 		}
 
 		preview.pieces?.forEach((_, index) =>
@@ -475,6 +514,9 @@
 		// read the cursors here too: selecting a piece's state must re-lay the
 		// preview, which is how the table shows the state being edited
 		const selected = { piece: pieceIndex, state: stateIndex };
+		// no draft, no preview: closing a pack leaves an empty table, not the
+		// last thing that was on it
+		if (!pack) return clearPreview();
 		const timer = setTimeout(() => respawnPreview(mode, selected), 300);
 		return () => clearTimeout(timer);
 	});
@@ -511,8 +553,8 @@
 	 * work, and every action that REPLACES the draft asks first — losing an hour
 	 * of authoring to a mis-click was the old behavior (#93).
 	 */
-	let savedSnapshot = $state(JSON.stringify(cleanForExport(emptyPack())));
-	const isDirty = $derived(JSON.stringify(exportable) !== savedSnapshot);
+	let savedSnapshot = $state('');
+	const isDirty = $derived(!!exportable && JSON.stringify(exportable) !== savedSnapshot);
 
 	function markSaved(current = exportable) {
 		savedSnapshot = JSON.stringify(current);
@@ -520,16 +562,40 @@
 
 	function confirmDiscard(what: string): boolean {
 		if (!isDirty) return true;
-		return window.confirm(`Discard your unsaved edits to "${pack.name}" and ${what}?`);
+		return window.confirm(`Discard your unsaved edits to "${pack?.name}" and ${what}?`);
 	}
 
 	/** Put a pack in the editor: it becomes the draft, and it is now saved. */
 	function editPack(next: GamePackDef) {
 		pack = withEditorDefaults(next);
+		// every cursor points into the OLD draft's arrays
+		deckCursor = cardCursor = pieceCursor = stateCursor = overlayCursor = bagItemCursor = 0;
 		markSaved(cleanForExport($state.snapshot(pack) as EditorPack));
 	}
 
+	// ——— the start state: the first screen, before there is anything to edit ———
+
+	const START_BUTTONS = ['New empty pack', 'Standard 52 template'];
+
+	function handleStart(label: string) {
+		if (label === START_BUTTONS[1]) {
+			// withEditorDefaults deep-copies decks and cards, so editing the draft
+			// can't reach back into the built-in pack
+			editPack(STANDARD_52);
+			return toast(`Started from ${STANDARD_52.name}`);
+		}
+		editPack(newPack());
+	}
+
+	/** Back to the start state — the only way to reach it again after step 1. */
+	function closePack() {
+		if (!confirmDiscard('start over')) return;
+		pack = null;
+		savedSnapshot = '';
+	}
+
 	function handleSavePack() {
+		if (!pack || !exportable) return;
 		if (!pack.id.trim()) return toast.error('Give the pack an id first');
 		saveLibraryPack(exportable);
 		markSaved();
@@ -554,32 +620,6 @@
 	}
 
 	// ——— open / export ———
-	let ttsFileInput: HTMLInputElement | undefined = $state();
-	let packFileInput: HTMLInputElement | undefined = $state();
-
-	async function handleOpenTts(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file) return;
-		try {
-			const parsed = parseSavedObject(JSON.parse(await file.text()));
-			const imported = ttsToPack(parsed);
-			// converted, not authored: it is unsaved work until "Save to library"
-			if (!confirmDiscard(`open "${file.name}"`)) return;
-			pack = withEditorDefaults(imported);
-			const skipped = parsed.skipped.length ? ` (skipped: ${parsed.skipped.join(', ')})` : '';
-			toast(
-				`Opened ${imported.decks.length} deck(s), ${imported.pieces?.length ?? 0} piece(s)${skipped}`,
-				{ duration: 5000 }
-			);
-		} catch (error) {
-			toast.error(
-				`Could not open the file: ${error instanceof Error ? error.message : 'invalid file'}`
-			);
-		} finally {
-			input.value = '';
-		}
-	}
 
 	/**
 	 * Opening a pack file both files it in the library and edits it — one
@@ -598,12 +638,48 @@
 		return true;
 	}
 
-	async function handleOpenPack(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
+	/**
+	 * The one file entry point, behind the `File` blade's drop zone (start state
+	 * and the File tab both mount one). A TTS save and a pack file are both
+	 * `.json`, so the routing is by content — `ObjectStates` is TTS's root
+	 * array — rather than by which button you found.
+	 */
+	async function handleOpenFile(picked: unknown) {
+		// `unknown` in, cast here: the blade's own types name its value `File`,
+		// which inside that module resolves to the component class rather than
+		// the DOM type. What it hands over is a DOM File.
+		const file = picked as globalThis.File | undefined;
 		if (!file) return;
+		let json: unknown;
 		try {
-			const imported = parsePackFile(await file.text());
+			json = JSON.parse(await file.text());
+		} catch {
+			return toast.error(`${file.name} is not JSON`);
+		}
+
+		if (json && typeof json === 'object' && 'ObjectStates' in json) {
+			try {
+				const parsed = parseSavedObject(json);
+				const imported = ttsToPack(parsed);
+				// converted, not authored: it is unsaved work until "Save to library"
+				if (!confirmDiscard(`open "${file.name}"`)) return;
+				pack = withEditorDefaults(imported);
+				markSaved(cleanForExport($state.snapshot(pack) as EditorPack));
+				const skipped = parsed.skipped.length ? ` (skipped: ${parsed.skipped.join(', ')})` : '';
+				toast(
+					`Opened ${imported.decks.length} deck(s), ${imported.pieces?.length ?? 0} piece(s)${skipped}`,
+					{ duration: 5000 }
+				);
+			} catch (error) {
+				toast.error(
+					`Could not open the TTS save: ${error instanceof Error ? error.message : 'invalid file'}`
+				);
+			}
+			return;
+		}
+
+		try {
+			const imported = parsePackFile(JSON.stringify(json));
 			toast(
 				openPack(imported)
 					? `Opened pack: ${imported.name} — saved to your pack library`
@@ -614,8 +690,6 @@
 			toast.error(
 				`Could not open the pack: ${error instanceof Error ? error.message : 'invalid file'}`
 			);
-		} finally {
-			input.value = '';
 		}
 	}
 
@@ -625,7 +699,7 @@
 	 * anything else spawned here would vanish on the next keystroke. A scenario
 	 * is saved for /setup and /play but not applied, for the same reason.
 	 */
-	async function handleDroppedFile(file: File) {
+	async function handleDroppedFile(file: globalThis.File) {
 		await openDroppedFile(file, {
 			onPack: (imported) => {
 				// the library keeps it either way — only the editor swap is refusable
@@ -636,6 +710,7 @@
 	}
 
 	function handleExport() {
+		if (!exportable) return;
 		try {
 			const text = serializePackFile(exportable);
 			// validate before download with the same parser importers use, so a
@@ -652,254 +727,306 @@
 			toast.error(`Export failed: ${error instanceof Error ? error.message : 'invalid pack'}`);
 		}
 	}
+
+	/**
+	 * The bulk sheet is a mode, not a fixture: it took prime screen space before
+	 * anyone had a sheet URL, and its only tie to the selected deck was the text
+	 * on its last button (#108). Opened from the Cards tab, next to the deck the
+	 * batch lands in.
+	 */
+	let sheetOpen = $state(false);
 </script>
 
 <!--
-	Four panes, not one: each carries a single concern and remembers its own
-	position and collapse state (`localStoreId`). Authoring a card — the thing
-	this editor is for — is one pane deep, and Save / Export never hides under
-	another section.
+	ONE pane, laid out `inline` so the editor column owns it: the four draggable
+	panes this replaces had hard-coded positions but content-driven heights, so
+	they overlapped each other and covered the felt the preview draws on (#108).
+	Inline means overlap is structurally impossible and clipping becomes the
+	column's scroll.
+
+	Tabs, not folders: only one concern's controls are on screen at a time, and
+	Save / Export stay one tab click away rather than buried under a section
+	(#71 §4).
 -->
 
-<Pane
-	position="draggable"
-	title="Pack (local)"
-	expanded={true}
-	y={8}
-	x={8}
-	width={320}
-	localStoreId="create-pane-pack"
->
-	<Text label="Id" bind:value={pack.id} />
-	<Text label="Name" bind:value={pack.name} />
-	<List
-		label="Scope"
-		bind:value={pack.scope}
-		options={{ 'player (one seat brings it)': 'player', 'table (the shared game)': 'table' }}
-	/>
-	<Textarea disabled rows={5} value={HELP_TEXT} />
-</Pane>
+{#if !pack}
+	<!--
+		Step 1. A separate pane rather than an {#if} inside the editor's blade
+		tree: replacing one blade with another tears a tweakpane pane down, while
+		mounting and unmounting a whole <Pane> is plain Svelte and safe.
+	-->
+	<Pane position="inline" title="new pack" userExpandable={false} width={PANE_WIDTH}>
+		<Element>
+			<div class="p-2 font-sans text-[11px] leading-snug text-white/60">
+				A pack is a content library — decks, pieces and board overlays — authored here and kept in
+				this browser. Start one, or open a file you were sent.
+			</div>
+		</Element>
+		<ButtonGrid buttons={START_BUTTONS} on:click={(e) => handleStart(e.detail.label)} />
+		<Separator />
+		<!-- a real drop target, replacing the hidden <input type=file> + Button
+		     hack: a pack file and a TTS save are both .json, and both land here -->
+		<FileBlade
+			label="Open"
+			extensions={['.json']}
+			rows={3}
+			on:change={(e) => handleOpenFile(e.detail.value)}
+		/>
+		{#if libraryIds.length}
+			<Separator />
+			<List label="Continue" bind:value={selectedPack} options={libraryOptions} />
+			<Button title="Open selected" on:click={handleEditSelected} />
+		{/if}
+	</Pane>
+{:else}
+	<Pane position="inline" title="pack editor" userExpandable={false} width={PANE_WIDTH}>
+		<!--
+			The breadcrumb row: what is selected, above the tabs, always mounted so
+			#109 can fill it in with `pack › deck › card N of M` without touching the
+			blade tree's shape.
+		-->
+		<Element>
+			<div class="truncate p-1 font-sans text-[11px] text-white/70">
+				{pack.name || pack.id}
+			</div>
+		</Element>
 
-<Pane
-	position="draggable"
-	title="Decks & Cards"
-	expanded={true}
-	y={190}
-	x={8}
-	width={320}
-	localStoreId="create-pane-decks"
->
-	<!-- first row, above the cursors: it decides what the whole table shows -->
-	<List
-		label="Layout"
-		bind:value={$previewLayout}
-		options={{ 'Deck — a pile per deck': 'deck', 'Spread — cards side by side (L)': 'spread' }}
-	/>
-	<List label="Deck" bind:value={deckCursor} options={deckOptions} />
-	<Button title="Add deck" on:click={addDeck} />
-	{#if deck}
-		<Folder title="Deck ({deck.slot})" expanded={true}>
-			<Text label="Slot" bind:value={deck.slot} />
-			<Text label="Name" bind:value={deck.name} />
-			<Checkbox label="Face up" bind:value={deck.isFaceUp} />
-			<Button title="Remove deck" on:click={removeDeck} />
-			<!-- keyed on the cursor: a fresh editor for whichever deck is selected -->
-			{#key deckIndex}
-				<FaceRef title="Deck back" value={deck.back} onchange={(ref) => (deck.back = ref)} />
-			{/key}
-		</Folder>
+		<TabGroup>
+			<TabPage title="Pack">
+				<Text label="Id" bind:value={pack.id} />
+				<Text label="Name" bind:value={pack.name} />
+				<List
+					label="Scope"
+					bind:value={pack.scope}
+					options={{ 'player (one seat brings it)': 'player', 'table (the shared game)': 'table' }}
+				/>
+				<Separator />
+				<Button title="Close pack" on:click={closePack} />
+				<!-- collapsed by default, and the home for the per-control help #115
+				     rewrites: the editor should open on controls, not on prose -->
+				<Folder title="How this works" expanded={false}>
+					<Textarea disabled rows={7} value={HELP_TEXT} />
+				</Folder>
+			</TabPage>
 
-		<Folder title="Cards ({deck.cards.length})" expanded={true}>
-			<List label="Card" bind:value={cardCursor} options={cardOptions} />
-			<Button title="Add card" on:click={addCard} />
-			{#if card}
-				<Text label="Code" bind:value={card.code} />
-				<Text label="Name" bind:value={card.name} />
-				<Button title="Duplicate card" on:click={duplicateCard} />
-				<Button title="Remove card" on:click={removeCard} />
-				{#key `${deckIndex}:${cardIndex}`}
-					<FaceRef title="Card face" value={card.face} onchange={(ref) => (card.face = ref)} />
-				{/key}
-			{/if}
-		</Folder>
-	{/if}
-
-	<Button title="Flip cards on table (F)" on:click={flipTableCards} />
-	<Textarea disabled rows={8} value={TABLE_HELP_TEXT} />
-</Pane>
-
-<Pane
-	position="draggable"
-	title="Board"
-	expanded={true}
-	y={8}
-	x={344}
-	width={320}
-	localStoreId="create-pane-board"
->
-	<Folder title="Pieces ({pack.pieces.length})" expanded={false}>
-		<List label="New kind" bind:value={newPieceKind} options={kindOptions} />
-		<Button title="Add {newPieceKind}" on:click={addPiece} />
-		{#if piece}
-			<List label="Piece" bind:value={pieceCursor} options={pieceOptions} />
-			<Text label="Name" bind:value={piece.name} />
-			<Color label="Color" bind:value={piece.color} />
-			{#if piece.kind === 'token' || piece.kind === 'bag'}
-				<Text label="Image URL" bind:value={piece.imageUrl} />
-			{/if}
-			<!--
-				States: the TTS `States` analog — one piece, several faces, cycled in
-				play with X or picked from its right-click menu. State 1 is the BASE
-				face (it replaces "Image URL" on export), so adding the first one
-				copies the image rather than blanking the piece.
-			-->
-			<Folder title="States ({piece.states.length})" expanded={false}>
-				<Button title="Add state" on:click={addPieceState} />
-				{#if piece.states.length > 0}
-					<List label="State" bind:value={stateCursor} options={stateOptions} />
-				{/if}
-				{#if pieceState}
-					<Text label="State name" bind:value={pieceState.name} />
-					<Checkbox
-						label="Spawns on this state"
-						value={piece.state === stateIndex}
-						on:change={(e) => (piece.state = e.detail.value ? stateIndex : 0)}
-					/>
-					<Button title="Remove state" on:click={removePieceState} />
-					<!-- keyed on the cursors: a fresh editor for whichever state is selected -->
-					{#key `${pieceIndex}:${stateIndex}`}
-						<FaceRef
-							title="State face"
-							value={pieceState.face}
-							onchange={(ref) => (pieceState.face = ref)}
-						/>
+			<TabPage title="Cards">
+				<!-- first row, above the cursors: it decides what the whole table shows -->
+				<List
+					label="Layout"
+					bind:value={$previewLayout}
+					options={{
+						'Deck — a pile per deck': 'deck',
+						'Spread — cards side by side (L)': 'spread'
+					}}
+				/>
+				<Separator />
+				<!-- pick, then create/destroy, THEN the selected deck's fields: the
+				     verbs used to sit between the selector and the fields they were
+				     nothing to do with (#108) -->
+				<List label="Deck" bind:value={deckCursor} options={deckOptions} />
+				<ButtonGrid
+					buttons={['Add deck', 'Remove deck']}
+					on:click={(e) => (e.detail.index === 0 ? addDeck() : removeDeck())}
+				/>
+				{#if deck}
+					<Text label="Slot" bind:value={deck.slot} />
+					<Text label="Name" bind:value={deck.name} />
+					<Checkbox label="Face up" bind:value={deck.isFaceUp} />
+					<!-- keyed on the cursor: a fresh editor for whichever deck is selected -->
+					{#key deckIndex}
+						<FaceRef title="Deck back" value={deck.back} onchange={(ref) => (deck.back = ref)} />
 					{/key}
+
+					<Separator />
+					<List label="Card" bind:value={cardCursor} options={cardOptions} />
+					<ButtonGrid
+						columns={3}
+						buttons={['Add card', 'Duplicate card', 'Remove card']}
+						on:click={(e) =>
+							e.detail.index === 0
+								? addCard()
+								: e.detail.index === 1
+									? duplicateCard()
+									: removeCard()}
+					/>
+					{#if card}
+						<Text label="Code" bind:value={card.code} />
+						<Text label="Name" bind:value={card.name} />
+						{#key `${deckIndex}:${cardIndex}`}
+							<FaceRef title="Card face" value={card.face} onchange={(ref) => (card.face = ref)} />
+						{/key}
+					{/if}
+
+					<Separator />
+					<Button
+						title={sheetOpen ? 'Close the sheet adder' : 'Add cards from a sheet…'}
+						on:click={() => (sheetOpen = !sheetOpen)}
+					/>
+					{#if sheetOpen}
+						<BulkSheet deckSlot={deck.slot} takenCodes={[...takenCodes]} onadd={addBulkCards} />
+					{/if}
 				{/if}
-			</Folder>
-			<AutoValue label="Radius" bind:value={piece.radius} />
-			{#if piece.kind === 'counter'}
-				<AutoValue label="Max value" bind:value={piece.maxValue} />
-			{/if}
-			{#if piece.kind === 'die'}
-				<List label="Sides" bind:value={piece.sides} options={sidesOptions} />
-			{/if}
-			{#if piece.kind === 'bag'}
-				<List label="Draw order" bind:value={piece.drawMode} options={drawModeOptions} />
-				<Checkbox label="Infinite" bind:value={piece.infinite} />
-				<Folder title="Bag contents ({piece.contents.length})" expanded={true}>
-					<List label="New item" bind:value={newBagItemKind} options={bagItemKindOptions} />
-					<Button title="Add {newBagItemKind} to bag" on:click={addBagItem} />
-					{#if bagItem}
-						<List label="Item" bind:value={bagItemCursor} options={bagItemOptions} />
-						<!-- one {#if} per field rather than a card/piece if-else pair: an
-						     {#if} that REPLACES a tweakpane blade tears the whole pane
-						     down (see BulkSheet.svelte), while adding and removing is safe -->
-						{#if bagItem.kind === 'card'}
-							<Text label="Code" bind:value={bagItem.code} />
+
+				<Separator />
+				<Button title="Flip cards on table (F)" on:click={flipTableCards} />
+				<Folder title="How this works" expanded={false}>
+					<Textarea disabled rows={9} value={TABLE_HELP_TEXT} />
+				</Folder>
+			</TabPage>
+
+			<TabPage title="Board">
+				<!-- one line while the board is empty, so a pack of cards never has to
+				     read past controls for things it does not have -->
+				<Element>
+					<div class="p-1 font-sans text-[11px] text-white/50">
+						Pieces {pack.pieces.length} · Overlays {pack.overlays.length}{pack.pieces.length +
+							pack.overlays.length ===
+						0
+							? ' — nothing on the board yet'
+							: ''}
+					</div>
+				</Element>
+				<Folder title="Pieces ({pack.pieces.length})" expanded={false}>
+					<List label="New kind" bind:value={newPieceKind} options={kindOptions} />
+					<Button title="Add {newPieceKind}" on:click={addPiece} />
+					{#if piece}
+						<Separator />
+						<List label="Piece" bind:value={pieceCursor} options={pieceOptions} />
+						<Text label="Name" bind:value={piece.name} />
+						<Color label="Color" bind:value={piece.color} />
+						{#if piece.kind === 'token' || piece.kind === 'bag'}
+							<Text label="Image URL" bind:value={piece.imageUrl} />
 						{/if}
-						<Text label="Item name" bind:value={bagItem.name} />
-						{#if bagItem.kind !== 'card'}
-							<Color label="Item color" bind:value={bagItem.color} />
-						{/if}
-						{#if bagItem.kind !== 'card'}
-							<Text label="Item image" bind:value={bagItem.imageUrl} />
-						{/if}
-						{#if bagItem.kind === 'counter'}
-							<Stepper label="Item max" bind:value={bagItem.maxValue} step={1} />
-						{/if}
-						{#if bagItem.kind === 'card'}
-							<!-- keyed on the cursor, like the deck's card face: a fresh
-							     editor for whichever item is selected -->
-							{#key `${pieceIndex}:${bagItemIndex}`}
-								<FaceRef
-									title="Item face"
-									value={bagItem.face}
-									onchange={(ref) => (bagItem.face = ref)}
+						<!--
+							States: the TTS `States` analog — one piece, several faces, cycled in
+							play with X or picked from its right-click menu. State 1 is the BASE
+							face (it replaces "Image URL" on export), so adding the first one
+							copies the image rather than blanking the piece.
+						-->
+						<Folder title="States ({piece.states.length})" expanded={false}>
+							<Button title="Add state" on:click={addPieceState} />
+							{#if piece.states.length > 0}
+								<List label="State" bind:value={stateCursor} options={stateOptions} />
+							{/if}
+							{#if pieceState}
+								<Text label="State name" bind:value={pieceState.name} />
+								<Checkbox
+									label="Spawns on this state"
+									value={piece.state === stateIndex}
+									on:change={(e) => (piece.state = e.detail.value ? stateIndex : 0)}
 								/>
-							{/key}
+								<Button title="Remove state" on:click={removePieceState} />
+								<!-- keyed on the cursors: a fresh editor for whichever state is selected -->
+								{#key `${pieceIndex}:${stateIndex}`}
+									<FaceRef
+										title="State face"
+										value={pieceState.face}
+										onchange={(ref) => (pieceState.face = ref)}
+									/>
+								{/key}
+							{/if}
+						</Folder>
+						<AutoValue label="Radius" bind:value={piece.radius} />
+						{#if piece.kind === 'counter'}
+							<AutoValue label="Max value" bind:value={piece.maxValue} />
 						{/if}
-						{#if bagItem.kind === 'card'}
-							<Text label="Item back" bind:value={bagItem.back} />
+						{#if piece.kind === 'die'}
+							<List label="Sides" bind:value={piece.sides} options={sidesOptions} />
 						{/if}
-						<Button title="Remove item" on:click={removeBagItem} />
+						{#if piece.kind === 'bag'}
+							<List label="Draw order" bind:value={piece.drawMode} options={drawModeOptions} />
+							<Checkbox label="Infinite" bind:value={piece.infinite} />
+							<Folder title="Bag contents ({piece.contents.length})" expanded={true}>
+								<List label="New item" bind:value={newBagItemKind} options={bagItemKindOptions} />
+								<Button title="Add {newBagItemKind} to bag" on:click={addBagItem} />
+								{#if bagItem}
+									<List label="Item" bind:value={bagItemCursor} options={bagItemOptions} />
+									<!-- one {#if} per field rather than a card/piece if-else pair: an
+									     {#if} that REPLACES a tweakpane blade tears the whole pane
+									     down (see BulkSheet.svelte), while adding and removing is safe -->
+									{#if bagItem.kind === 'card'}
+										<Text label="Code" bind:value={bagItem.code} />
+									{/if}
+									<Text label="Item name" bind:value={bagItem.name} />
+									{#if bagItem.kind !== 'card'}
+										<Color label="Item color" bind:value={bagItem.color} />
+									{/if}
+									{#if bagItem.kind !== 'card'}
+										<Text label="Item image" bind:value={bagItem.imageUrl} />
+									{/if}
+									{#if bagItem.kind === 'counter'}
+										<Stepper label="Item max" bind:value={bagItem.maxValue} step={1} />
+									{/if}
+									{#if bagItem.kind === 'card'}
+										<!-- keyed on the cursor, like the deck's card face: a fresh
+										     editor for whichever item is selected -->
+										{#key `${pieceIndex}:${bagItemIndex}`}
+											<FaceRef
+												title="Item face"
+												value={bagItem.face}
+												onchange={(ref) => (bagItem.face = ref)}
+											/>
+										{/key}
+									{/if}
+									{#if bagItem.kind === 'card'}
+										<Text label="Item back" bind:value={bagItem.back} />
+									{/if}
+									<Button title="Remove item" on:click={removeBagItem} />
+								{/if}
+							</Folder>
+						{/if}
+						<Point
+							label="Position"
+							value={{ x: piece.position[0], y: piece.position[1] }}
+							on:change={(e) => {
+								//@ts-expect-error: does exist
+								const x = e.detail.value?.x ?? piece.position[0];
+								//@ts-expect-error: does exist
+								const z = e.detail.value?.y ?? piece.position[1];
+								piece.position = [x, z];
+							}}
+						/>
+						<Button title="Remove piece" on:click={removePiece} />
 					{/if}
 				</Folder>
-			{/if}
-			<Point
-				label="Position"
-				value={{ x: piece.position[0], y: piece.position[1] }}
-				on:change={(e) => {
-					//@ts-expect-error: does exist
-					const x = e.detail.value?.x ?? piece.position[0];
-					//@ts-expect-error: does exist
-					const z = e.detail.value?.y ?? piece.position[1];
-					piece.position = [x, z];
-				}}
-			/>
-			<Button title="Remove piece" on:click={removePiece} />
-		{/if}
-	</Folder>
 
-	<Folder title="Overlays — boards/maps ({pack.overlays.length})" expanded={false}>
-		<Button title="Add overlay" on:click={addOverlay} />
-		{#if overlay}
-			<List label="Overlay" bind:value={overlayCursor} options={overlayOptions} />
-			<Text label="Image URL" bind:value={overlay.imageUrl} />
-			<AutoValue label="Ratio (w/h)" bind:value={overlay.ratio} />
-			<AutoValue label="Scale" bind:value={overlay.scale} />
-			<Button title="Remove overlay" on:click={removeOverlay} />
-		{/if}
-	</Folder>
-</Pane>
+				<Folder title="Overlays — boards/maps ({pack.overlays.length})" expanded={false}>
+					<Button title="Add overlay" on:click={addOverlay} />
+					{#if overlay}
+						<Separator />
+						<List label="Overlay" bind:value={overlayCursor} options={overlayOptions} />
+						<Text label="Image URL" bind:value={overlay.imageUrl} />
+						<AutoValue label="Ratio (w/h)" bind:value={overlay.ratio} />
+						<AutoValue label="Scale" bind:value={overlay.scale} />
+						<Button title="Remove overlay" on:click={removeOverlay} />
+					{/if}
+				</Folder>
+			</TabPage>
 
-<!--
-	`localStoreId` bumped to -v2 with the restructure: tweakpane persists collapse
-	state and position per id, so anyone who had once collapsed or dragged this
-	pane would never see the controls added to it (#93 §6).
--->
-<Pane
-	position="draggable"
-	title="Pack library / File"
-	expanded={true}
-	y={190}
-	x={344}
-	width={320}
-	localStoreId="create-pane-file-v2"
->
-	<Button title={isDirty ? 'Save to library •' : 'Save to library'} on:click={handleSavePack} />
-	<List label="Saved" bind:value={selectedPack} options={libraryOptions} />
-	<Button title="Edit selected" on:click={handleEditSelected} />
-	<Button title="Delete selected" on:click={handleDeleteSelected} />
-	<Button title="Export pack (.tbpp.json)" on:click={handleExport} />
-	<!-- top-level, not inside a folder: opening a file someone sent you is a
-	     starting move, and it was unfindable collapsed at the bottom (#93 §2) -->
-	<Button title="Open a pack (.tbpp.json)" on:click={() => packFileInput?.click()} />
-	<Folder title="Convert from another tool" expanded={false}>
-		<Button title="Open a TTS deck (.json) → pack" on:click={() => ttsFileInput?.click()} />
-	</Folder>
-	<Element>
-		<input
-			bind:this={ttsFileInput}
-			type="file"
-			accept=".json,application/json"
-			class="hidden"
-			onchange={handleOpenTts}
-		/>
-		<input
-			bind:this={packFileInput}
-			type="file"
-			accept=".json,application/json"
-			class="hidden"
-			onchange={handleOpenPack}
-		/>
-	</Element>
-</Pane>
+			<TabPage title="File">
+				<!-- top of the tab, never inside a folder: one tab click from anywhere
+				     in the editor to save or share what you have (#71 §4) -->
+				<Button
+					title={isDirty ? 'Save to library •' : 'Save to library'}
+					on:click={handleSavePack}
+				/>
+				<Button title="Export pack (.tbpp.json)" on:click={handleExport} />
+				<Separator />
+				<FileBlade
+					label="Open"
+					extensions={['.json']}
+					rows={3}
+					on:change={(e) => handleOpenFile(e.detail.value)}
+				/>
+				<Separator />
+				<List label="Saved" bind:value={selectedPack} options={libraryOptions} />
+				<ButtonGrid
+					buttons={['Edit selected', 'Delete selected']}
+					on:click={(e) => (e.detail.index === 0 ? handleEditSelected() : handleDeleteSelected())}
+				/>
+			</TabPage>
+		</TabGroup>
+	</Pane>
+{/if}
 
 <FileDropZone onfile={handleDroppedFile} />
-
-<!--
-	A fifth pane rather than a folder under "Decks & Cards": the grid it shows
-	is wider than a card's controls, and burying it would push Save / Export
-	back under a section (#71 §4).
--->
-<BulkSheet deckSlot={deck?.slot} takenCodes={[...takenCodes]} onadd={addBulkCards} />

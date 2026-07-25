@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Element, Folder, Pane, Stepper, Text, Textarea } from 'svelte-tweakpane-ui';
+	import { Button, Element, Folder, Stepper, Text, Textarea } from 'svelte-tweakpane-ui';
 	import toast from 'svelte-french-toast';
 	import { sliceCell } from '$lib/tts/slice';
 	import type { PackCardDef } from '$lib/packs/types';
@@ -16,6 +16,10 @@
 
 	/**
 	 * Bulk add: define a sheet's grid once, then add every cell as a card.
+	 *
+	 * A folder in whatever pane mounts it, not a pane of its own: it is opened
+	 * from the Cards tab next to the deck the batch lands in, and it used to sit
+	 * open at x=680 over the felt before anyone had a sheet URL (#108).
 	 *
 	 * The pane owns the grid it loaded (`loaded`), not the fields above it —
 	 * retyping the columns doesn't silently re-index the thumbnails you're
@@ -122,15 +126,7 @@
 	}
 </script>
 
-<Pane
-	position="draggable"
-	title="Bulk add from sheet"
-	expanded={true}
-	y={8}
-	x={680}
-	width={340}
-	localStoreId="create-pane-bulk"
->
+<Folder title="Bulk add from sheet" expanded={true}>
 	<Text label="Sheet URL" bind:value={url} />
 	<Stepper label="Columns" bind:value={cols} min={1} step={1} />
 	<Stepper label="Rows" bind:value={rows} min={1} step={1} />
@@ -222,4 +218,4 @@
 			on:click={addCards}
 		/>
 	{/if}
-</Pane>
+</Folder>

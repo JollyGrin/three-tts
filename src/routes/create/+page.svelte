@@ -50,14 +50,31 @@
 
 <svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
-<CreatePane />
-
-<div class="h-screen w-screen overflow-clip bg-gray-700">
-	<Canvas toneMapping={ACESFilmicToneMapping}>
-		{#if isReady}
-			<!-- no hand in the pack editor: a card dropped into the tray lands in
-			     state no pack can represent, and survives every preview respawn -->
-			<TableScene hand={false} />
-		{/if}
-	</Canvas>
+<!--
+	Two columns, not a table with windows floating over it: the editor's pane is
+	laid out `inline` inside a fixed-width scrolling column, so it can neither
+	overlap itself nor cover the felt the preview draws on (#108). Everything
+	right of the column belongs to the table, which is what makes the spread
+	fully visible and clickable.
+-->
+<div class="flex h-screen w-screen overflow-clip bg-gray-700">
+	<!--
+		368 = the pane's 352 plus a stable 16px scrollbar gutter: reserved whether
+		or not the column is scrolling, so the pane's right edge is never under
+		the scrollbar and never shifts when a folder opens.
+	-->
+	<div
+		class="w-[368px] shrink-0 overflow-y-auto border-r border-black/50 bg-neutral-900 [scrollbar-gutter:stable]"
+	>
+		<CreatePane />
+	</div>
+	<div class="min-w-0 flex-1">
+		<Canvas toneMapping={ACESFilmicToneMapping}>
+			{#if isReady}
+				<!-- no hand in the pack editor: a card dropped into the tray lands in
+				     state no pack can represent, and survives every preview respawn -->
+				<TableScene hand={false} />
+			{/if}
+		</Canvas>
+	</div>
 </div>
