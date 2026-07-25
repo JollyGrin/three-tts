@@ -3,7 +3,7 @@ import { gameActions } from '.';
 import { gameStore } from '../gameStore.svelte';
 import { degrees } from '$lib/utils/constants-rotation';
 import { COUNTER_MAX_DEFAULT, PIECE_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
-import type { GameDTO, PieceKind } from '../types';
+import type { GameDTO, PackOrigin, PieceKind } from '../types';
 
 type PieceState = NonNullable<NonNullable<GameDTO['pieces']>[string]>;
 
@@ -90,11 +90,16 @@ export type AddPieceOptions = {
 	/** resolved like card faces — a plain https:// url works */
 	imageUrl?: string;
 	radius?: number;
-	/** counters only; the piece spawns full (`value = maxValue`) */
+	/** counters only; the piece spawns full (`value = maxValue`) unless `value` says otherwise */
 	maxValue?: number;
+	/** counters only; restores a saved count (scenario loads) instead of spawning full */
+	value?: number;
 	/** defaults to the local player; the scenario editor passes placeholder seat ids */
 	ownerId?: string;
 	position?: [number, number, number];
+	rotation?: [number, number, number];
+	/** set when the piece comes from a pack, so a v2 scenario can reference it */
+	packOrigin?: PackOrigin;
 };
 
 /**
@@ -119,15 +124,16 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 		kind,
 		name,
 		position: opts.position ?? spawnPosition(ownerSeat(ownerId), owned),
-		rotation: [0, 0, 0],
+		rotation: opts.rotation ?? [0, 0, 0],
 		radius: opts.radius ?? PIECE_RADIUS[kind]
 	};
 	if (opts.color) piece.color = opts.color;
 	if (opts.imageUrl) piece.imageUrl = opts.imageUrl;
+	if (opts.packOrigin) piece.packOrigin = opts.packOrigin;
 	if (kind === 'counter') {
 		const maxValue = opts.maxValue ?? COUNTER_MAX_DEFAULT;
 		piece.maxValue = maxValue;
-		piece.value = maxValue;
+		piece.value = opts.value ?? maxValue;
 	}
 
 	gameStore.updateState({ pieces: { [id]: piece } });
