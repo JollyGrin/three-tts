@@ -3,7 +3,7 @@
  * functions directly — that's what proves the pane is wired to the draft and
  * that the draft reaches the table as a live preview.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import CreatePane from '../CreatePane.svelte';
@@ -12,6 +12,7 @@ import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 import { previewLayout } from '../preview-layout';
 import { pickCard } from '$lib/store/cardPick';
 import { SPREAD_MAX_CARDS, SPREAD_PITCH_X } from '$lib/packs/spread';
+import { serializePackFile } from '$lib/packs/file';
 import type { GamePackDef } from '$lib/packs/types';
 
 // the draggable Pane observes its own size; jsdom has no ResizeObserver
@@ -132,16 +133,16 @@ describe('CreatePane', () => {
 		expect(pieces[0]).toMatchObject({ kind: 'counter', value: 20, maxValue: 20 });
 	});
 
-	it('saves a draft to packs:v1 and reloads it', async () => {
+	it('saves the pack to the library (packs:v1) and re-opens it for editing', async () => {
 		const container = await mount();
-		button(container, 'Save draft')!.click();
+		button(container, 'Save to library')!.click();
 		await settle();
 
 		const stored = JSON.parse(localStorage.getItem('packs:v1') ?? '{}');
 		expect(Object.keys(stored)).toEqual(['my-pack']);
 		expect(stored['my-pack'].pack.decks[0].cards[0].face).toBe('gen:std52/AS');
 
-		button(container, 'Load selected')!.click();
+		button(container, 'Edit selected')!.click();
 		await settlePreview();
 		expect(Object.keys(get(gameStore).decks ?? {})).toEqual(['deck:preview:main']);
 	});
@@ -201,14 +202,14 @@ describe('CreatePane', () => {
 	it('bulk-adds a sheet grid into the selected deck', async () => {
 		const container = await mount();
 
-		// the bulk pane's own controls: URL, columns, rows, then Load grid
+		// the bulk pane's own controls: URL, columns, rows, then Preview grid
 		type(input(container, 'Sheet URL')!, 'https://example.test/sheet.png');
 		await settle();
 		type(input(container, 'Columns')!, '2');
 		await settle();
 		type(input(container, 'Rows')!, '2');
 		await settle();
-		button(container, 'Load grid')!.click();
+		button(container, 'Preview grid')!.click();
 		await settle();
 
 		button(container, 'Add 4 cards to main')!.click();
@@ -324,7 +325,7 @@ describe('CreatePane', () => {
 				get(gameStore).cards!['card:preview:main-card-1'].position
 			);
 
-			button(container, 'Save draft')!.click();
+			button(container, 'Save to library')!.click();
 			await settle();
 			const saved = JSON.parse(localStorage.getItem('packs:v1') ?? '{}');
 			expect(saved['my-pack'].pack.decks[0].cards[1].name).toBe('renamed');
@@ -366,7 +367,7 @@ describe('CreatePane', () => {
 
 			const container = await mount();
 			await spread(container);
-			button(container, 'Load selected')!.click();
+			button(container, 'Edit selected')!.click();
 			await settlePreview();
 
 			// piles, not 61 tiles — and the control follows the table
@@ -396,6 +397,89 @@ describe('CreatePane', () => {
 			pickCard('card:preview:main-AS');
 			await settle();
 			expect(input(container, 'Code')!.value).toBe('card-1'); // cursor unmoved
+		});
+	});
+
+	describe('opening a pack file', () => {
+		const OTHER: GamePackDef = {
+			id: 'ember-duel',
+			name: 'Ember Duel',
+			scope: 'player',
+			decks: [
+				{
+					slot: 'main',
+					name: 'Main',
+					back: 'https://example.com/back.png',
+					cards: [{ code: 'strike', face: 'https://example.com/strike.png' }]
+				}
+			]
+		};
+
+		/** the hidden picker behind "Open a pack (.tbpp.json)" */
+		async function openPackFile(container: HTMLElement) {
+			const input = [...container.querySelectorAll('input[type=file]')].at(-1) as HTMLInputElement;
+			Object.defineProperty(input, 'files', {
+				value: [new File([serializePackFile(OTHER)], 'ember.tbpp.json')],
+				configurable: true
+			});
+			input.dispatchEvent(new Event('change', { bubbles: true }));
+			await settlePreview();
+		}
+
+		it('is reachable without expanding a folder', async () => {
+			const container = await mount();
+			// tweakpane keeps a collapsed folder's buttons in the DOM, so "visible"
+			// has to mean "not inside a folder" — the bug was a folder, not display
+			const open = button(container, 'Open a pack (.tbpp.json)')!;
+			expect(open).toBeDefined();
+			expect(open.closest('.tp-fldv')).toBeNull();
+		});
+
+		it('loads the pack into the editor and the library', async () => {
+			const container = await mount();
+			await openPackFile(container);
+
+			expect(input(container, 'Id')!.value).toBe('ember-duel');
+			expect(Object.keys(JSON.parse(localStorage.getItem('packs:v1') ?? '{}'))).toEqual([
+				'ember-duel'
+			]);
+			expect(get(gameStore).decks?.['deck:preview:main'].cards).toHaveLength(1);
+		});
+
+		it('keeps an edited draft when the discard prompt is refused', async () => {
+			const container = await mount();
+			type(input(container, 'Name')!, 'Half Finished');
+			await settlePreview();
+
+			const confirmed = vi.spyOn(window, 'confirm').mockReturnValue(false);
+			await openPackFile(container);
+
+			expect(confirmed).toHaveBeenCalled();
+			expect(input(container, 'Id')!.value).toBe('my-pack'); // draft untouched
+			// the file is not lost either — it is in the library, just not open
+			expect(Object.keys(JSON.parse(localStorage.getItem('packs:v1') ?? '{}'))).toEqual([
+				'ember-duel'
+			]);
+		});
+
+		it('replaces the draft once the discard prompt is accepted', async () => {
+			const container = await mount();
+			type(input(container, 'Name')!, 'Half Finished');
+			await settlePreview();
+
+			vi.spyOn(window, 'confirm').mockReturnValue(true);
+			await openPackFile(container);
+
+			expect(input(container, 'Id')!.value).toBe('ember-duel');
+		});
+
+		it('does not prompt when the draft is untouched', async () => {
+			const container = await mount();
+			const confirmed = vi.spyOn(window, 'confirm').mockReturnValue(false);
+			await openPackFile(container);
+
+			expect(confirmed).not.toHaveBeenCalled();
+			expect(input(container, 'Id')!.value).toBe('ember-duel');
 		});
 	});
 

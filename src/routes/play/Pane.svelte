@@ -85,10 +85,16 @@
 			.sort()
 	);
 
-	function seedLobby() {
+	async function seedLobby() {
 		const scenario = getScenario(selectedScenario);
 		if (!scenario) return toast.error('No preset selected — build one at /setup');
-		applyScenario(scenario);
+		const report = await applyScenario(scenario);
+		// a pack the preset needs and this browser doesn't have (someone else's
+		// local pack, a dead url) has to be visible here too — the table would
+		// otherwise come up quietly missing that content
+		for (const { id, reason } of report.failedPacks) {
+			toast.error(`Pack '${id}' failed to load: ${reason}`, { duration: 6000 });
+		}
 		toast('Lobby seeded — everyone claim a seat to take its decks');
 	}
 

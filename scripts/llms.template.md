@@ -174,7 +174,7 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
 
 - **`specVersion`** — the scenario spec you generated against (§2.1). Currently `{{SCENARIO_SPEC_VERSION}}`.
 - **`name`**, **`createdAt`** — title and a Unix epoch timestamp in milliseconds.
-- **`packs[]`** — `{ id, source? }` for every pack the scenario draws from. `source` is `"builtin"` for packs shipped with the app (currently only `standard-52`), or an `https://` URL a `.tbpp.json` can be fetched from. A remote pack goes through the same validation as a local import.
+- **`packs[]`** — `{ id, source? }` for every pack the scenario draws from. `source` is `"builtin"` for packs shipped with the app (currently only `standard-52`), `"local"` for a pack held in the reader's own browser-local pack library, or an `https://` URL a `.tbpp.json` can be fetched from. A remote pack goes through the same validation as a local import. A scenario meant to travel to other people must use `"builtin"` or a URL: `"local"` resolves only on the machine that has the pack, and fails loudly (naming the pack id) anywhere else.
 - **`placements[]`** — one entry per spawned thing:
   - **`kind`** — `"deck"`, `"piece"` or `"overlay"`.
   - **`pack`** — the `packs[].id` this content comes from.

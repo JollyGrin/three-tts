@@ -62,7 +62,7 @@ async function loadGrid(cols = 3, rows = 2, props: Record<string, unknown> = {})
 	await settle();
 	type(input(container, 'Rows')!, String(rows));
 	await settle();
-	button(container, 'Load grid')!.click();
+	button(container, 'Preview grid')!.click();
 	await settle(150);
 
 	return { container, added };

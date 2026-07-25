@@ -31,7 +31,7 @@ export const PACK_SPEC_VERSION = '1.0.0';
  * "additive → minor" convention in docs/packs.md § Release convention is the
  * 1.x rule; it inverts under 0.x.)
  */
-export const SCENARIO_SPEC_VERSION = '0.1.2';
+export const SCENARIO_SPEC_VERSION = '0.1.3';
 
 export type Semver = { major: number; minor: number; patch: number };
 

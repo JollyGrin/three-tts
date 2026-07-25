@@ -19,7 +19,7 @@
 	 *
 	 * The pane owns the grid it loaded (`loaded`), not the fields above it —
 	 * retyping the columns doesn't silently re-index the thumbnails you're
-	 * looking at, you press "Load grid" again. Slicing is preview only: a cell
+	 * looking at, you press "Preview grid" again. Slicing is preview only: a cell
 	 * that can't be read is still a valid ref, so it stays addable and the
 	 * table falls back exactly as it would at play time.
 	 */
@@ -134,7 +134,7 @@
 	<Text label="Sheet URL" bind:value={url} />
 	<Stepper label="Columns" bind:value={cols} min={1} step={1} />
 	<Stepper label="Rows" bind:value={rows} min={1} step={1} />
-	<Button title="Load grid" on:click={loadGrid} />
+	<Button title="Preview grid" on:click={loadGrid} />
 
 	<!--
 		One `Element` blade, always mounted, its contents driven by expressions:
@@ -145,7 +145,7 @@
 	<Element>
 		<div class={cells.length ? 'hidden' : 'p-1 font-sans text-[11px] leading-snug text-white/50'}>
 			Paste a sprite sheet, say how many columns and rows it has, and every cell becomes a card —
-			named in bulk, one per line. Cells that can't be previewed still import.
+			named in bulk, one per line. Cells that can't be previewed are still added.
 		</div>
 		<div class={cells.length ? 'max-h-64 overflow-y-auto rounded bg-black/25 p-1' : 'hidden'}>
 			<div class="grid gap-1" style="grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));">

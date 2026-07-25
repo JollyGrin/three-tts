@@ -30,7 +30,7 @@
 								"title": "id"
 							},
 							"source": {
-								"description": "`'builtin'` or a URL a `.tbpp.json` can be fetched from; defaults to builtin lookup",
+								"description": "`'builtin'` (shipped with the app), `'local'` (this browser's pack\nlibrary) or a URL a `.tbpp.json` can be fetched from. Omitted refs are\nlooked up in the builtin registry, then the local library.",
 								"type": "string",
 								"title": "source"
 							}
@@ -695,7 +695,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.2",
-	"x-generated-at": "2026-07-25T13:38:51.890Z",
-	"x-tableplace-source-sha": "c1967e35f3217eb0cca78f79142f0730009865fc-dirty"
+	"x-tableplace-spec-version": "0.1.3",
+	"x-generated-at": "2026-07-25T13:44:22.562Z",
+	"x-tableplace-source-sha": "7640b7e13e912b433b42631b69e374b983c51a79-dirty"
 }

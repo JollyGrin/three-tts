@@ -141,7 +141,7 @@ describe('tbps v2 — pack refs instead of inlined content', () => {
 
 		expect(report.placed).toBe(0);
 		expect(report.failedPacks).toEqual([
-			{ id: 'nope', reason: "no builtin pack 'nope' and no source url" }
+			{ id: 'nope', reason: "no builtin or local pack 'nope' and no source url" }
 		]);
 		expect(get(gameStore).decks).toEqual({});
 		errors.mockRestore();

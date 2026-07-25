@@ -13,6 +13,7 @@ import PaneDecks from '../PaneDecks.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { claimSeat, ensureSeatPlaceholder } from '$lib/scenario/scenario';
+import { saveLibraryPack } from '$lib/packs/library';
 import type { GameDTO } from '$lib/store/game/types';
 
 // the draggable Pane observes its own size; jsdom has no ResizeObserver
@@ -88,5 +89,56 @@ describe('PaneDecks after an invite seat claim', () => {
 		// same cards, different order
 		expect(after?.slice().sort()).toEqual(before?.slice().sort());
 		expect(after).not.toEqual(before);
+	});
+});
+
+/**
+ * Bringing your own content onto a LIVE table used to be impossible from
+ * /play: Standard 52 was the only pack it could spawn and there was no file
+ * import at all (#93). Everything here goes through `gameStore.updateState`,
+ * which on /play is websocket-wrapped, so what lands on this table is what the
+ * lobby gets.
+ */
+describe('PaneDecks pack library', () => {
+	beforeEach(() => {
+		cleanup();
+		localStorage.clear();
+		gameStore.set({ players: {}, cards: {}, decks: {}, pieces: {} });
+		localStorage.setItem('myPlayerId', 'player9');
+		gameActions.addPlayer('player9');
+	});
+
+	it('spawns a library pack onto the table for me', async () => {
+		saveLibraryPack({
+			id: 'ember-duel',
+			name: 'Ember Duel',
+			scope: 'player',
+			decks: [
+				{
+					slot: 'main',
+					name: 'Main',
+					back: 'https://example.com/back.png',
+					cards: [{ code: 'strike', face: 'https://example.com/strike.png' }]
+				}
+			]
+		});
+		const { container } = render(PaneDecks);
+		await settle();
+
+		await fireEvent.click(button(container, 'Spawn selected')!);
+
+		expect(Object.keys(get(gameStore).decks ?? {})).toEqual(['deck:player9:main']);
+		expect(get(gameStore).decks?.['deck:player9:main']?.packOrigin).toEqual({
+			pack: 'ember-duel',
+			content: 'main',
+			source: 'local'
+		});
+	});
+
+	it('offers opening a pack file, not just the builtin', async () => {
+		const { container } = render(PaneDecks);
+		await settle();
+
+		expect(button(container, 'Open a pack (.tbpp.json)')).toBeDefined();
 	});
 });
