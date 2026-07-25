@@ -18,7 +18,7 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 	import { importTtsFile } from '$lib/tts/import';
-	import { spawnPack, STANDARD_52 } from '$lib/packs';
+	import { parsePackFile, spawnPack, STANDARD_52 } from '$lib/packs';
 	import {
 		saveScenario,
 		listScenarios,
@@ -33,6 +33,7 @@
 		type SeatIndex
 	} from '$lib/scenario/scenario';
 	import HUDPieces from '$lib/HUDPieces.svelte';
+	import { prewarmGameState } from '$lib/packs/prewarm-state';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import type { GameDTO } from '$lib/store/game/types';
@@ -42,6 +43,7 @@
 	const seatOptions = { 'Seat 0 (near)': 0, 'Seat 1 (far)': 1, 'Seat 2': 2, 'Seat 3': 3 };
 
 	let deckFileInput: HTMLInputElement | undefined = $state();
+	let packFileInput: HTMLInputElement | undefined = $state();
 	let scenarioFileInput: HTMLInputElement | undefined = $state();
 	let isImporting = $state(false);
 
@@ -76,6 +78,23 @@
 			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
 		} finally {
 			isImporting = false;
+			input.value = '';
+		}
+	}
+
+	async function handleImportPack(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		try {
+			const pack = parsePackFile(await file.text());
+			ensureSeatPlaceholder(activeSeat);
+			spawnPack(pack, { ownerId: seatPlaceholderId(activeSeat) });
+			void prewarmGameState($gameStore ?? undefined, () => gameStore.updateStateSilently({}));
+			toast(`Seat ${activeSeat}: spawned pack "${pack.name}"`, { duration: 5000 });
+		} catch (error) {
+			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
+		} finally {
 			input.value = '';
 		}
 	}
@@ -217,6 +236,10 @@
 			disabled={isImporting}
 			on:click={() => deckFileInput?.click()}
 		/>
+		<Button
+			title="Import pack (.tbpp.json) for seat {activeSeat}"
+			on:click={() => packFileInput?.click()}
+		/>
 		<Button title="View table from seat {activeSeat}" on:click={viewFromSeat} />
 		<Element>
 			<input
@@ -225,6 +248,13 @@
 				accept=".json,application/json"
 				class="hidden"
 				onchange={handleImportDeck}
+			/>
+			<input
+				bind:this={packFileInput}
+				type="file"
+				accept=".json,application/json"
+				class="hidden"
+				onchange={handleImportPack}
 			/>
 		</Element>
 	</Folder>
@@ -305,6 +335,6 @@
 	<Textarea
 		disabled
 		rows={4}
-		value={`Everything here is local — no lobby is touched. Spawn or import a deck per seat, place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
+		value={`Everything here is local — no lobby is touched. Spawn or import a deck per seat (a TTS save, or a pack authored in /create), place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
 	/>
 </Pane>
