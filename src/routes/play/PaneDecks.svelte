@@ -3,6 +3,7 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { spawnPack, STANDARD_52 } from '$lib/packs';
+	import PackLibrary from '$lib/packs/PackLibrary.svelte';
 	import { importTtsFile } from '$lib/tts/import';
 	import toast from 'svelte-french-toast';
 
@@ -26,7 +27,7 @@
 		isImporting = true;
 		try {
 			const report = await importTtsFile(await file.text());
-			const parts = [`Imported ${report.decks} deck(s), ${report.cards} cards`];
+			const parts = [`Opened ${report.decks} deck(s), ${report.cards} cards`];
 			if (report.pieces > 0) parts.push(`${report.pieces} piece(s)`);
 			if (report.missingArt > 0)
 				parts.push(`${report.missingArt} with dead art links (named placeholders used)`);
@@ -34,7 +35,9 @@
 				parts.push(`skipped ${report.skipped.length} unsupported objects`);
 			toast(parts.join(' — '), { duration: 6000 });
 		} catch (error) {
-			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
+			toast.error(
+				`Could not open the deck: ${error instanceof Error ? error.message : 'invalid file'}`
+			);
 		} finally {
 			isImporting = false;
 			input.value = '';
@@ -49,7 +52,7 @@
 	y={0}
 	x={310}
 	width={300}
-	localStoreId="table-decks"
+	localStoreId="table-decks-v2"
 >
 	{#if myDecks.length === 0}
 		<Element>
@@ -59,8 +62,11 @@
 		</Element>
 		<Button title="Spawn {STANDARD_52.name}" on:click={() => spawnPack(STANDARD_52)} />
 	{/if}
+	<!-- bringing your own content onto a LIVE table: spawning goes through the
+	     ws-wrapped store, so the whole lobby sees it -->
+	<PackLibrary />
 	<Button
-		title={isImporting ? 'Importing…' : 'Import TTS deck (.json)'}
+		title={isImporting ? 'Opening…' : 'Open a TTS deck (.json)'}
 		disabled={isImporting}
 		on:click={() => fileInput?.click()}
 	/>

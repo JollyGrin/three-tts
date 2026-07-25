@@ -19,7 +19,8 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 	import { importTtsFile } from '$lib/tts/import';
-	import { parsePackFile, spawnPack, STANDARD_52 } from '$lib/packs';
+	import { spawnPack, STANDARD_52 } from '$lib/packs';
+	import PackLibrary from '$lib/packs/PackLibrary.svelte';
 	import {
 		saveScenario,
 		listScenarios,
@@ -37,7 +38,8 @@
 	import { snapEditor, setSnapDefaults, setSnapPlacing } from '$lib/store/snapEditor';
 	import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
 	import HUDPieces from '$lib/HUDPieces.svelte';
-	import { prewarmGameState } from '$lib/packs/prewarm-state';
+	import FileDropZone from '$lib/files/FileDropZone.svelte';
+	import { openDroppedFile } from '$lib/files/drop';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import type { GameDTO } from '$lib/store/game/types';
@@ -47,7 +49,6 @@
 	const seatOptions = { 'Seat 0 (near)': 0, 'Seat 1 (far)': 1, 'Seat 2': 2, 'Seat 3': 3 };
 
 	let deckFileInput: HTMLInputElement | undefined = $state();
-	let packFileInput: HTMLInputElement | undefined = $state();
 	let scenarioFileInput: HTMLInputElement | undefined = $state();
 	let isImporting = $state(false);
 
@@ -86,23 +87,6 @@
 		}
 	}
 
-	async function handleImportPack(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file) return;
-		try {
-			const pack = parsePackFile(await file.text());
-			ensureSeatPlaceholder(activeSeat);
-			spawnPack(pack, { ownerId: seatPlaceholderId(activeSeat) });
-			void prewarmGameState($gameStore ?? undefined, () => gameStore.updateStateSilently({}));
-			toast(`Seat ${activeSeat}: spawned pack "${pack.name}"`, { duration: 5000 });
-		} catch (error) {
-			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
-		} finally {
-			input.value = '';
-		}
-	}
-
 	function viewFromSeat() {
 		gameActions.setSeat(activeSeat);
 		cameraTransforms.resetView();
@@ -117,22 +101,46 @@
 		toast(`Saved scenario: ${name}`);
 	}
 
-	async function handleLoad() {
-		const scenario = getScenario(selectedScenario);
-		if (!scenario) return toast.error('Pick a saved scenario first');
-		const report = await applyScenario(scenario);
-		scenarioName = scenario.name;
-		// reflect the loaded overlay in the controls (read from the store: a v2
-		// scenario's overlay may have come from a pack, not from `state`)
+	/**
+	 * Reflect the table's overlay in the controls after a scenario lands. Read
+	 * from the store, not from the file: a v2 scenario's overlay may have come
+	 * from a pack rather than from `state`.
+	 */
+	function syncOverlayControls() {
 		const overlay = $gameStore?.overlays?.table;
 		imageUrl = overlay?.imageUrl ?? '';
 		scale = overlay?.scale ?? 12;
 		rot = (overlay?.rotation?.[1] ?? 0) / DEG2RAD;
 		point3d = { x: overlay?.position?.[0] ?? 0, y: overlay?.position?.[2] ?? 0 };
+	}
+
+	async function handleLoad() {
+		const scenario = getScenario(selectedScenario);
+		if (!scenario) return toast.error('Pick a saved scenario first');
+		const report = await applyScenario(scenario);
+		scenarioName = scenario.name;
+		syncOverlayControls();
 		for (const { id, reason } of report.failedPacks) {
 			toast.error(`Pack '${id}' failed to load: ${reason}`, { duration: 6000 });
 		}
 		toast(`Loaded: ${scenario.name}`);
+	}
+
+	/**
+	 * A file dropped on the table routes by its own discriminator: a pack joins
+	 * the library and spawns for the seat being edited, a scenario is saved and
+	 * loaded. Same destinations as the buttons, one gesture.
+	 */
+	async function handleDroppedFile(file: File) {
+		const opened = await openDroppedFile(file, {
+			ownerId: seatPlaceholderId(activeSeat),
+			beforeSpawn: () => ensureSeatPlaceholder(activeSeat)
+		});
+		if (opened?.kind !== 'scenario') return;
+		refreshScenarios();
+		selectedScenario = opened.scenario.name;
+		scenarioName = opened.scenario.name;
+		syncOverlayControls();
 	}
 
 	/** Put pack content on the table for the active seat — the v2 authoring flow. */
@@ -155,7 +163,7 @@
 		exportScenarioToFile(scenario);
 	}
 
-	async function handleImportScenarioFile(event: Event) {
+	async function handleOpenScenarioFile(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
@@ -163,9 +171,11 @@
 			const scenario = importScenarioFromText(await file.text());
 			refreshScenarios();
 			selectedScenario = scenario.name;
-			toast(`Imported scenario: ${scenario.name}`);
+			toast(`Opened scenario: ${scenario.name} — "Load selected" puts it on the table`);
 		} catch (error) {
-			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
+			toast.error(
+				`Could not open the scenario: ${error instanceof Error ? error.message : 'invalid file'}`
+			);
 		} finally {
 			input.value = '';
 		}
@@ -248,7 +258,7 @@
 	y={0}
 	x={0}
 	width={320}
-	localStoreId="setup-pane"
+	localStoreId="setup-pane-v2"
 >
 	<Folder title="Seats" expanded={true}>
 		<List label="Editing seat" bind:value={activeSeat} options={seatOptions} />
@@ -256,14 +266,17 @@
 			title="Spawn {STANDARD_52.name} for seat {activeSeat}"
 			on:click={handleSpawnStandard52}
 		/>
-		<Button
-			title={isImporting ? 'Importing…' : `Import TTS deck for seat ${activeSeat}`}
-			disabled={isImporting}
-			on:click={() => deckFileInput?.click()}
+		<!-- the import-a-pack-into-a-scenario entry point: open once, then spawn
+		     the same pack for any seat without going back to the file -->
+		<PackLibrary
+			ownerId={seatPlaceholderId(activeSeat)}
+			spawnTitle="Spawn selected for seat {activeSeat}"
+			beforeSpawn={() => ensureSeatPlaceholder(activeSeat)}
 		/>
 		<Button
-			title="Import pack (.tbpp.json) for seat {activeSeat}"
-			on:click={() => packFileInput?.click()}
+			title={isImporting ? 'Opening…' : `Open a TTS deck (.json) for seat ${activeSeat}`}
+			disabled={isImporting}
+			on:click={() => deckFileInput?.click()}
 		/>
 		<Button title="View table from seat {activeSeat}" on:click={viewFromSeat} />
 		<Element>
@@ -273,13 +286,6 @@
 				accept=".json,application/json"
 				class="hidden"
 				onchange={handleImportDeck}
-			/>
-			<input
-				bind:this={packFileInput}
-				type="file"
-				accept=".json,application/json"
-				class="hidden"
-				onchange={handleImportPack}
 			/>
 		</Element>
 	</Folder>
@@ -403,8 +409,8 @@
 		<Button title="Save scenario" on:click={handleSave} />
 		<List label="Saved" bind:value={selectedScenario} options={scenarioOptions} />
 		<Button title="Load selected" on:click={handleLoad} />
-		<Button title="Export selected (.json)" on:click={handleExport} />
-		<Button title="Import scenario file" on:click={() => scenarioFileInput?.click()} />
+		<Button title="Export selected (.tbps.json)" on:click={handleExport} />
+		<Button title="Open a scenario (.tbps.json)" on:click={() => scenarioFileInput?.click()} />
 		<Button title="Delete selected" on:click={handleDelete} />
 		<Element>
 			<input
@@ -412,14 +418,16 @@
 				type="file"
 				accept=".json,application/json"
 				class="hidden"
-				onchange={handleImportScenarioFile}
+				onchange={handleOpenScenarioFile}
 			/>
 		</Element>
 	</Folder>
 	<Button title="Clear table" on:click={clearTable} />
 	<Textarea
 		disabled
-		rows={4}
-		value={`Everything here is local — no lobby is touched. Spawn or import a deck per seat (a TTS save, or a pack authored in /create), place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Snap points: arm "place on click" and click the felt, drag a ring to move it, right-click it to delete. They ride along in the scenario and pull dropped cards/tokens onto themselves in /play (hold Alt on release to ignore them); the rings only show here. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
+		rows={6}
+		value={`Everything here is local — no lobby is touched. Open a pack (or drop a .tbpp.json on the table) and it joins your pack library, ready to spawn for any seat without picking the file again. Place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Snap points: arm "place on click" and click the felt, drag a ring to move it, right-click it to delete. They ride along in the scenario and pull dropped cards/tokens onto themselves in /play (hold Alt on release to ignore them); the rings only show here. Your library lives in this browser only — share a pack by exporting its .tbpp.json. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
 	/>
 </Pane>
+
+<FileDropZone onfile={handleDroppedFile} />

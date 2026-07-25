@@ -32,8 +32,15 @@
 	import { previewLayout, type PreviewLayout } from './preview-layout';
 	import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 	import { parsePackFile, serializePackFile, packFileName } from '$lib/packs/file';
-	import { listPackDrafts, getPackDraft, savePackDraft, deletePackDraft } from '$lib/packs/drafts';
-	import type { PackPieceKind } from '$lib/packs/types';
+	import {
+		listLibraryPacks,
+		getLibraryPack,
+		saveLibraryPack,
+		deleteLibraryPack
+	} from '$lib/packs/library';
+	import FileDropZone from '$lib/files/FileDropZone.svelte';
+	import { openDroppedFile } from '$lib/files/drop';
+	import type { GamePackDef, PackPieceKind } from '$lib/packs/types';
 	import { parseSavedObject } from '$lib/tts/parse';
 	import { ttsToPack } from '$lib/tts/to-pack';
 	import { COUNTER_MAX_DEFAULT, PIECE_RADIUS } from '$lib/utils/constants-pieces';
@@ -54,9 +61,10 @@
 
 	const HELP_TEXT =
 		'A pack is a content library: decks (piles of cards), pieces, and board overlays. ' +
-		'Everything here is local — no lobby is touched, and drafts stay in this browser. ' +
-		'The table previews the pack live as you edit. Export validates against the tbpp ' +
-		'format (docs/packs.md), then /setup spawns the file onto a seat.';
+		'Everything here is local — no lobby is touched, and your pack library stays in ' +
+		'this browser. The table previews the pack live as you edit. Save to the library ' +
+		'and /setup and /play can spawn it straight onto a table; export writes a .tbpp.json ' +
+		'validated against the format (docs/packs.md) to share it.';
 
 	const TABLE_HELP_TEXT =
 		'Preview table: "Deck" shows one pile per deck — drag a card off to look at ' +
@@ -345,76 +353,146 @@
 		})
 	);
 
-	// ——— drafts (localStorage packs:v1) ———
-	let selectedDraft = $state(listPackDrafts()[0]?.pack.id ?? '');
-	let draftIds = $state(listPackDrafts().map((d) => d.pack.id));
-	const draftOptions = $derived(
-		draftIds.length ? Object.fromEntries(draftIds.map((id) => [id, id])) : { '(none saved)': '' }
+	// ——— the pack library (localStorage packs:v1, shared with /setup and /play) ———
+	let selectedPack = $state(listLibraryPacks()[0]?.pack.id ?? '');
+	let libraryIds = $state(listLibraryPacks().map((entry) => entry.pack.id));
+	const libraryOptions = $derived(
+		libraryIds.length
+			? Object.fromEntries(libraryIds.map((id) => [id, id]))
+			: { '(none saved)': '' }
 	);
 
-	function refreshDrafts() {
-		draftIds = listPackDrafts().map((d) => d.pack.id);
+	function refreshLibrary() {
+		libraryIds = listLibraryPacks().map((entry) => entry.pack.id);
 	}
 
-	function handleSaveDraft() {
+	/**
+	 * The draft as it last stood on disk. Anything else in the editor is unsaved
+	 * work, and every action that REPLACES the draft asks first — losing an hour
+	 * of authoring to a mis-click was the old behavior (#93).
+	 */
+	let savedSnapshot = $state(JSON.stringify(cleanForExport(emptyPack())));
+	const isDirty = $derived(JSON.stringify(exportable) !== savedSnapshot);
+
+	function markSaved(current = exportable) {
+		savedSnapshot = JSON.stringify(current);
+	}
+
+	function confirmDiscard(what: string): boolean {
+		if (!isDirty) return true;
+		return window.confirm(`Discard your unsaved edits to "${pack.name}" and ${what}?`);
+	}
+
+	/** Put a pack in the editor: it becomes the draft, and it is now saved. */
+	function editPack(next: GamePackDef) {
+		pack = withEditorDefaults(next);
+		markSaved(cleanForExport($state.snapshot(pack) as EditorPack));
+	}
+
+	function handleSavePack() {
 		if (!pack.id.trim()) return toast.error('Give the pack an id first');
-		savePackDraft(exportable);
-		refreshDrafts();
-		selectedDraft = pack.id;
-		toast(`Saved draft: ${pack.id}`);
+		saveLibraryPack(exportable);
+		markSaved();
+		refreshLibrary();
+		selectedPack = pack.id;
+		toast(`Saved to your pack library: ${pack.id}`);
 	}
 
-	function handleLoadDraft() {
-		const draft = getPackDraft(selectedDraft);
-		if (!draft) return toast.error('Pick a saved draft first');
-		pack = withEditorDefaults(draft.pack);
-		toast(`Loaded: ${draft.pack.id}`);
+	function handleEditSelected() {
+		const entry = getLibraryPack(selectedPack);
+		if (!entry) return toast.error('Pick a saved pack first');
+		if (!confirmDiscard(`edit "${entry.pack.name}"`)) return;
+		editPack(entry.pack);
+		toast(`Editing: ${entry.pack.id}`);
 	}
 
-	function handleDeleteDraft() {
-		if (!selectedDraft) return;
-		deletePackDraft(selectedDraft);
-		refreshDrafts();
-		selectedDraft = draftIds[0] ?? '';
+	function handleDeleteSelected() {
+		if (!selectedPack) return;
+		deleteLibraryPack(selectedPack);
+		refreshLibrary();
+		selectedPack = libraryIds[0] ?? '';
 	}
 
-	// ——— import / export ———
+	// ——— open / export ———
 	let ttsFileInput: HTMLInputElement | undefined = $state();
 	let packFileInput: HTMLInputElement | undefined = $state();
 
-	async function handleImportTts(event: Event) {
+	async function handleOpenTts(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
 		try {
 			const parsed = parseSavedObject(JSON.parse(await file.text()));
 			const imported = ttsToPack(parsed);
+			// converted, not authored: it is unsaved work until "Save to library"
+			if (!confirmDiscard(`open "${file.name}"`)) return;
 			pack = withEditorDefaults(imported);
 			const skipped = parsed.skipped.length ? ` (skipped: ${parsed.skipped.join(', ')})` : '';
 			toast(
-				`Imported ${imported.decks.length} deck(s), ${imported.pieces?.length ?? 0} piece(s)${skipped}`,
+				`Opened ${imported.decks.length} deck(s), ${imported.pieces?.length ?? 0} piece(s)${skipped}`,
 				{ duration: 5000 }
 			);
 		} catch (error) {
-			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
+			toast.error(
+				`Could not open the file: ${error instanceof Error ? error.message : 'invalid file'}`
+			);
 		} finally {
 			input.value = '';
 		}
 	}
 
-	async function handleImportPack(event: Event) {
+	/**
+	 * Opening a pack file both files it in the library and edits it — one
+	 * gesture is enough for it to be spawnable at /setup and /play from then on.
+	 *
+	 * The library write is unconditional, the editor swap is not: refusing the
+	 * discard prompt must not also throw away the file you just opened.
+	 * Returns whether the editor took it.
+	 */
+	function openPack(imported: GamePackDef): boolean {
+		saveLibraryPack(imported);
+		refreshLibrary();
+		selectedPack = imported.id;
+		if (!confirmDiscard(`open "${imported.name}"`)) return false;
+		editPack(imported);
+		return true;
+	}
+
+	async function handleOpenPack(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
 		try {
 			const imported = parsePackFile(await file.text());
-			pack = withEditorDefaults(imported);
-			toast(`Loaded pack: ${imported.name}`);
+			toast(
+				openPack(imported)
+					? `Opened pack: ${imported.name} — saved to your pack library`
+					: `Saved "${imported.name}" to your pack library — your draft is untouched`,
+				{ duration: 5000 }
+			);
 		} catch (error) {
-			toast.error(`Import failed: ${error instanceof Error ? error.message : 'invalid file'}`);
+			toast.error(
+				`Could not open the pack: ${error instanceof Error ? error.message : 'invalid file'}`
+			);
 		} finally {
 			input.value = '';
 		}
+	}
+
+	/**
+	 * A file dropped on the editor's table. A pack opens for editing rather
+	 * than spawning — the preview respawns from the draft on every edit, so
+	 * anything else spawned here would vanish on the next keystroke. A scenario
+	 * is saved for /setup and /play but not applied, for the same reason.
+	 */
+	async function handleDroppedFile(file: File) {
+		await openDroppedFile(file, {
+			onPack: (imported) => {
+				// the library keeps it either way — only the editor swap is refusable
+				if (!openPack(imported)) toast('Kept your draft; the pack is in your library');
+			},
+			onScenario: () => {}
+		});
 	}
 
 	function handleExport() {
@@ -560,41 +638,50 @@
 	</Folder>
 </Pane>
 
+<!--
+	`localStoreId` bumped to -v2 with the restructure: tweakpane persists collapse
+	state and position per id, so anyone who had once collapsed or dragged this
+	pane would never see the controls added to it (#93 §6).
+-->
 <Pane
 	position="draggable"
-	title="Drafts / File"
+	title="Pack library / File"
 	expanded={true}
 	y={190}
 	x={344}
 	width={320}
-	localStoreId="create-pane-file"
+	localStoreId="create-pane-file-v2"
 >
-	<Button title="Save draft" on:click={handleSaveDraft} />
-	<List label="Saved" bind:value={selectedDraft} options={draftOptions} />
-	<Button title="Load selected" on:click={handleLoadDraft} />
-	<Button title="Delete selected" on:click={handleDeleteDraft} />
+	<Button title={isDirty ? 'Save to library •' : 'Save to library'} on:click={handleSavePack} />
+	<List label="Saved" bind:value={selectedPack} options={libraryOptions} />
+	<Button title="Edit selected" on:click={handleEditSelected} />
+	<Button title="Delete selected" on:click={handleDeleteSelected} />
 	<Button title="Export pack (.tbpp.json)" on:click={handleExport} />
-	<Folder title="Start from an existing file" expanded={false}>
-		<Button title="Import TTS json → pack" on:click={() => ttsFileInput?.click()} />
-		<Button title="Open a pack (.tbpp.json)" on:click={() => packFileInput?.click()} />
-		<Element>
-			<input
-				bind:this={ttsFileInput}
-				type="file"
-				accept=".json,application/json"
-				class="hidden"
-				onchange={handleImportTts}
-			/>
-			<input
-				bind:this={packFileInput}
-				type="file"
-				accept=".json,application/json"
-				class="hidden"
-				onchange={handleImportPack}
-			/>
-		</Element>
+	<!-- top-level, not inside a folder: opening a file someone sent you is a
+	     starting move, and it was unfindable collapsed at the bottom (#93 §2) -->
+	<Button title="Open a pack (.tbpp.json)" on:click={() => packFileInput?.click()} />
+	<Folder title="Convert from another tool" expanded={false}>
+		<Button title="Open a TTS deck (.json) → pack" on:click={() => ttsFileInput?.click()} />
 	</Folder>
+	<Element>
+		<input
+			bind:this={ttsFileInput}
+			type="file"
+			accept=".json,application/json"
+			class="hidden"
+			onchange={handleOpenTts}
+		/>
+		<input
+			bind:this={packFileInput}
+			type="file"
+			accept=".json,application/json"
+			class="hidden"
+			onchange={handleOpenPack}
+		/>
+	</Element>
 </Pane>
+
+<FileDropZone onfile={handleDroppedFile} />
 
 <!--
 	A fifth pane rather than a folder under "Decks & Cards": the grid it shows

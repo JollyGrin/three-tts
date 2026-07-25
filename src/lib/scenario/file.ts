@@ -27,7 +27,11 @@ export type SeatIndex = 0 | 1 | 2 | 3;
 export type PackRef = {
 	/** pack id, e.g. 'standard-52' */
 	id: string;
-	/** `'builtin'` or a URL a `.tbpp.json` can be fetched from; defaults to builtin lookup */
+	/**
+	 * `'builtin'` (shipped with the app), `'local'` (this browser's pack
+	 * library) or a URL a `.tbpp.json` can be fetched from. Omitted refs are
+	 * looked up in the builtin registry, then the local library.
+	 */
 	source?: string;
 };
 
@@ -167,7 +171,7 @@ function parsePackRef(v: unknown, path: string): PackRef {
 	const ref: PackRef = { id: v.id };
 	if (v.source !== undefined) {
 		if (typeof v.source !== 'string' || v.source === '') {
-			fail(`${path}.source must be 'builtin' or a URL`);
+			fail(`${path}.source must be 'builtin', 'local' or a URL`);
 		}
 		ref.source = v.source;
 	}

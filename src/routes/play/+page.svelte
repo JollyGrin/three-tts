@@ -18,6 +18,8 @@
 	import { randomLobbyName } from '$lib/utils/lobby-name';
 	import PaneDecks from './PaneDecks.svelte';
 	import PlayerHud from '$lib/hud/PlayerHud.svelte';
+	import FileDropZone from '$lib/files/FileDropZone.svelte';
+	import { openDroppedFile } from '$lib/files/drop';
 	import toast from 'svelte-french-toast';
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -98,6 +100,10 @@
 <Pane />
 <PaneDecks />
 <PlayerHud />
+
+<!-- a pack or scenario dropped mid-game lands on the live table (and, for a
+     pack, in this browser's library) — no detour through /setup -->
+<FileDropZone onfile={async (file) => void (await openDroppedFile(file))} />
 
 <div
 	class="h-screen w-screen overflow-clip transition-all"

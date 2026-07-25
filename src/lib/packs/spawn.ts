@@ -3,6 +3,7 @@ import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { BUILTIN_PACKS, PACK_SOURCE_BUILTIN } from './builtin';
+import { hasLibraryPack, PACK_SOURCE_LOCAL } from './library';
 import type { SpreadTile } from './spread';
 import type { GamePackDef, PackDeckDef } from './types';
 import type { CardDTO, PackOrigin } from '$lib/store/game/types';
@@ -10,7 +11,10 @@ import type { CardDTO, PackOrigin } from '$lib/store/game/types';
 export type SpawnPackOptions = {
 	/** entity owner — defaults to the local player (the scenario editor passes `seat0`…`seat3`) */
 	ownerId?: string;
-	/** where this pack re-resolves from ('builtin' | URL); auto-detected for builtin packs */
+	/**
+	 * where this pack re-resolves from ('builtin' | 'local' | URL); auto-detected
+	 * for builtin packs and for packs held in this browser's library
+	 */
 	source?: string;
 };
 
@@ -47,9 +51,17 @@ function ownerSeat(ownerId: string): number {
 	return get(gameStore)?.players?.[ownerId]?.seat ?? 0;
 }
 
+/**
+ * Where a scenario should look for this pack again. Builtins re-resolve from
+ * the shipped registry; anything in the local library re-resolves from there,
+ * which is what makes a pack imported from disk survive a scenario save/load
+ * without being hosted anywhere. A pack that is in neither gets no stamp — a
+ * scenario referencing it will fail loudly by id rather than silently.
+ */
 function packSource(pack: GamePackDef, source?: string): string | undefined {
 	if (source) return source;
-	return BUILTIN_PACKS[pack.id] ? PACK_SOURCE_BUILTIN : undefined;
+	if (BUILTIN_PACKS[pack.id]) return PACK_SOURCE_BUILTIN;
+	return hasLibraryPack(pack.id) ? PACK_SOURCE_LOCAL : undefined;
 }
 
 function origin(pack: GamePackDef, content: string, source?: string): PackOrigin {

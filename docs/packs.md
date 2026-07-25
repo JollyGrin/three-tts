@@ -137,7 +137,7 @@ Scenarios are **seat-relative**: entities belong to placeholder players `seat0`�
 
 ### packs + placements (v2)
 
-- **`packs`** — every pack the scenario draws from: `{ id, source? }`. `source` is `"builtin"` (shipped with the app, e.g. `standard-52`) or a URL a `.tbpp.json` can be fetched from. That's enough to re-resolve the content, so the cards themselves are never copied into the scenario.
+- **`packs`** — every pack the scenario draws from: `{ id, source? }`. `source` is `"builtin"` (shipped with the app, e.g. `standard-52`), `"local"` (this browser's pack library — see below) or a URL a `.tbpp.json` can be fetched from. That's enough to re-resolve the content, so the cards themselves are never copied into the scenario.
 - **`placements`** — one entry per spawned thing: `{ kind, pack, content, seat?, position?, rotation?, … }`.
   - **`kind`** — `'deck' | 'piece' | 'overlay'`.
   - **`content`** — the deck's `slot`, or the index into the pack's `pieces`/`overlays`. With `packs[].id` this is the `<pack>/<slot>` addressing from the pack section.
@@ -173,6 +173,14 @@ Authoring lives in the /setup pane's **Snap points** folder plus direct manipula
 TTS save-level `SnapPoints` import is deliberately _not_ wired up here (issue #96 scope); the shape is kept close to TTS's position-plus-rotation so that mapping stays mechanical when the importer envelope work lands.
 
 Export decides per entity: content carrying pack provenance (a `packOrigin` stamp, written by `spawnPack`) becomes a pack ref + placement; everything else falls back to the raw snapshot. A table with no pack content at all still exports as **v1**.
+
+### The local pack library
+
+`source: "local"` resolves against the **pack library**: every pack this browser knows about, kept in localStorage (`packs:v1`, `src/lib/packs/library.ts`). A pack joins it by being opened from a file (at `/setup`, `/create`, `/play`, or by dropping a `.tbpp.json` on the table) or by being saved from the `/create` editor. Once it is there, `/setup` and `/play` spawn it from a list — no re-picking the file per seat or per session — and `spawnPack` stamps `source: "local"` onto the content it puts down, which is what makes a scenario built from it reload later.
+
+It exists because table.place hosts nothing (see `CONTENT_CREATION.md`): without it, the only packs able to survive a scenario save/load are the two builtins and packs you have published at a public URL, which leaves _your own_ packs as the case that doesn't work.
+
+The library is **device-local and not shareable**. A scenario referencing `source: "local"` opened on another machine — or in another browser — fails loudly, naming the pack id it could not find, and its placements are skipped rather than silently dropped. Sharing content is still the pack file: export the `.tbpp.json` and send it, and the recipient's own library takes it on the first open. A scenario meant to travel on its own should use a URL `source` instead.
 
 ### Versions
 
