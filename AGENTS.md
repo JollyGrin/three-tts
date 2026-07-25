@@ -148,7 +148,10 @@ must, in the same change, also update:
 - Runtime configuration is localStorage, not env vars: `serverurl` (host without
   scheme; `ws://` vs `wss://` is chosen automatically, path `/ws`), `myPlayerId`,
   `scenarios:v1`. `/play` also accepts `?lobby=`, `?server=`, `?seat=` query
-  params.
+  params. An empty/absent `serverurl` falls back to the public lobby relay
+  `lobby.table.place` (`connection.ts`) — *not* `api.table.place`, which is
+  reserved for the HTTP lobby-provisioning API. Precedence, widest to narrowest:
+  `?server=` → `localStorage.serverurl` → that default.
 - Sprite-sheet slicing needs canvas pixel access, so it retries through a
   hardcoded third-party CORS proxy (`https://corsproxy.innkeeper1.workers.dev/?url=`)
   when a host sends no CORS headers, and caches sliced cells in IndexedDB — a

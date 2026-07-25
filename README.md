@@ -68,3 +68,5 @@ localhost:8080
 ```
 
 The client reads this value from `localStorage.serverurl` and automatically prefixes `ws://` for local addresses or `wss://` for secure hosts, then connects at `/ws`.
+
+Leave the field empty and the client uses the public lobby relay, `lobby.table.place`, so a first-time visitor gets real multiplayer without configuring anything. A `?server=` query param on `/play` beats both the field and that default, for one visit only.
