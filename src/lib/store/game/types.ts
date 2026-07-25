@@ -9,6 +9,21 @@ export type CardDTO = {
 };
 
 export type CardInDeck = Omit<CardDTO, 'position' | 'rotation'> & { id: string };
+
+/**
+ * Provenance stamped on pack-spawned entities so a scenario export (tbps v2)
+ * can reference the pack instead of inlining its content. Wire-safe: the
+ * relay server merges state schema-agnostically.
+ */
+export type PackOrigin = {
+	/** pack id, e.g. 'standard-52' */
+	pack: string;
+	/** content id within the pack: deck slot, or piece/overlay index */
+	content: string;
+	/** where the pack re-resolves from: 'builtin' or a fetchable URL */
+	source?: string;
+};
+
 export type DeckDTO = {
 	/**
 	 * id format
@@ -26,6 +41,9 @@ export type DeckDTO = {
 	 * Cards in deck are an array instead of record
 	 * */
 	cards: CardInDeck[];
+	packOrigin?: PackOrigin;
+	/** scenario authoring intent (tbps v2): reshuffle this deck on scenario load */
+	shuffleOnLoad?: boolean;
 };
 
 interface SeatState {
@@ -72,6 +90,7 @@ export type PieceDTO = {
 	/** counter state */
 	value?: number;
 	maxValue?: number;
+	packOrigin?: PackOrigin;
 };
 
 export type OverlayDTO = {
@@ -84,6 +103,7 @@ export type OverlayDTO = {
 	 * */
 	ratio: number;
 	scale: number;
+	packOrigin?: PackOrigin;
 };
 
 // index signatures (not Record<…>) so the generated JSON Schema keeps the

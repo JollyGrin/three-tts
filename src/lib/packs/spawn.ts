@@ -1,33 +1,181 @@
+import { get } from 'svelte/store';
 import { gameActions } from '$lib/store/game/actions';
-import type { GamePackDef } from './types';
+import { gameStore } from '$lib/store/game/gameStore.svelte';
+import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
+import { BUILTIN_PACKS, PACK_SOURCE_BUILTIN } from './builtin';
+import type { GamePackDef, PackDeckDef } from './types';
+import type { PackOrigin } from '$lib/store/game/types';
+
+export type SpawnPackOptions = {
+	/** entity owner — defaults to the local player (the scenario editor passes `seat0`…`seat3`) */
+	ownerId?: string;
+	/** where this pack re-resolves from ('builtin' | URL); auto-detected for builtin packs */
+	source?: string;
+};
+
+type Vec3 = [number, number, number];
+
+export type SpawnDeckOptions = SpawnPackOptions & {
+	position?: Vec3;
+	rotation?: Vec3;
+	isFaceUp?: boolean;
+	/**
+	 * Explicit card order as pack card codes (deck-array order). Unknown codes
+	 * are skipped with a warning; omitted = the pack's declaration order.
+	 */
+	order?: string[];
+	/**
+	 * Explicit shuffle opt-in. Scenario loads pass the placement's
+	 * `shuffleOnLoad`; plain spawns pass `!isFaceUp` to keep the historical
+	 * "facedown decks spawn shuffled" behavior.
+	 */
+	shuffle?: boolean;
+	/** re-save authoring intent: stamped onto the deck so export round-trips it */
+	shuffleOnLoad?: boolean;
+	/** sideways slot when a pack spawns several decks */
+	index?: number;
+};
 
 /**
- * Spawn a pack's decks onto the table for the current player.
- * Packs are templates — this instantiates cards into the gameStore
- * (shuffled) and never mutates the pack itself.
+ * Seat of the acting owner — placeholder ids (`seat0`…`seat3`) matched by
+ * shape to avoid importing scenario.ts (which imports this package).
  */
-export function spawnPack(pack: GamePackDef) {
-	const playerId = gameActions.getMyId();
-	if (!playerId) return console.error('Cannot spawn a pack without a playerId');
+function ownerSeat(ownerId: string): number {
+	const placeholder = /^seat([0-3])$/.exec(ownerId);
+	if (placeholder) return Number(placeholder[1]);
+	return get(gameStore)?.players?.[ownerId]?.seat ?? 0;
+}
+
+function packSource(pack: GamePackDef, source?: string): string | undefined {
+	if (source) return source;
+	return BUILTIN_PACKS[pack.id] ? PACK_SOURCE_BUILTIN : undefined;
+}
+
+function origin(pack: GamePackDef, content: string, source?: string): PackOrigin {
+	const resolved = packSource(pack, source);
+	return { pack: pack.id, content, ...(resolved ? { source: resolved } : {}) };
+}
+
+/** Mirrors addDeck's two-seat defaults, but keyed off the OWNER's seat. */
+function deckDefaults(seat: number, index: number, isFaceUp: boolean) {
+	const x = 8.5 + (isFaceUp ? 2 : 0) + index * 2.5;
+	return seat % 2 === 1
+		? { position: [x, 0.4, -4.7] as Vec3, rotation: [0, Math.PI, 0] as Vec3 }
+		: { position: [x, 0.4, 4.5] as Vec3, rotation: [0, 0, 0] as Vec3 };
+}
+
+/**
+ * Spawn one of a pack's decks. Instantiates cards into the gameStore in an
+ * explicit order — order and shuffling are the CALLER's choice (tbps v2
+ * placements preserve authored order; shuffling is opt-in), never implied.
+ */
+export function spawnPackDeck(pack: GamePackDef, deck: PackDeckDef, opts: SpawnDeckOptions = {}) {
+	const ownerId = opts.ownerId ?? gameActions.getMyId();
+	if (!ownerId) return console.error('Cannot spawn a deck without an owner id');
+
+	const defs = opts.order
+		? opts.order
+				.map((code) => {
+					const def = deck.cards.find((c) => c.code === code);
+					if (!def) console.warn(`[spawnPackDeck] unknown card code '${code}' in ${pack.id}/${deck.slot}`);
+					return def;
+				})
+				.filter((def) => def !== undefined)
+		: deck.cards;
+
+	let cards = defs.map((card) => ({
+		id: `card:${ownerId}:${deck.slot}-${card.code}`,
+		faceImageUrl: card.face,
+		backImageUrl: deck.back
+	}));
+	if (opts.shuffle) cards = gameActions.shuffleCards(cards) ?? cards;
+
+	const isFaceUp = opts.isFaceUp ?? deck.isFaceUp ?? false;
+	const defaults = deckDefaults(ownerSeat(ownerId), opts.index ?? 0, isFaceUp);
+	const deckId = `deck:${ownerId}:${deck.slot}`;
+	gameActions.addDeck({
+		id: deckId,
+		deckId,
+		isFaceUp,
+		deckBackImageUrl: deck.back,
+		cards,
+		position: opts.position ?? defaults.position,
+		rotation: opts.rotation ?? defaults.rotation,
+		packOrigin: origin(pack, deck.slot, opts.source),
+		...(opts.shuffleOnLoad !== undefined ? { shuffleOnLoad: opts.shuffleOnLoad } : {})
+	});
+}
+
+export type SpawnPieceOptions = SpawnPackOptions & {
+	position?: Vec3;
+	rotation?: Vec3;
+	value?: number;
+};
+
+/** Spawn one of a pack's pieces (by index into `pack.pieces`). */
+export function spawnPackPiece(pack: GamePackDef, index: number, opts: SpawnPieceOptions = {}) {
+	const def = pack.pieces?.[index];
+	if (!def) return console.error(`[spawnPackPiece] ${pack.id} has no piece[${index}]`);
+	const ownerId = opts.ownerId ?? gameActions.getMyId();
+	if (!ownerId) return console.error('Cannot spawn a piece without an owner id');
+
+	// pack piece positions are authored for seat 0; mirror for the far side
+	const m = ownerSeat(ownerId) % 2 === 1 ? -1 : 1;
+	gameActions.addPiece(def.kind, {
+		ownerId,
+		name: def.name,
+		color: def.color,
+		imageUrl: def.imageUrl,
+		radius: def.radius,
+		maxValue: def.maxValue,
+		value: opts.value,
+		position: opts.position ?? [def.position[0] * m, PIECE_REST_Y, def.position[1] * m],
+		rotation: opts.rotation,
+		packOrigin: origin(pack, String(index), opts.source)
+	});
+}
+
+export type SpawnOverlayOptions = SpawnPackOptions & {
+	position?: Vec3;
+	rotation?: Vec3;
+	scale?: number;
+};
+
+/** Spawn one of a pack's overlays (by index into `pack.overlays`). */
+export function spawnPackOverlay(pack: GamePackDef, index: number, opts: SpawnOverlayOptions = {}) {
+	const def = pack.overlays?.[index];
+	if (!def) return console.error(`[spawnPackOverlay] ${pack.id} has no overlay[${index}]`);
+	// overlays are table-scoped (claimSeat never renames them) — key by pack
+	const id = `overlay:${pack.id}:${index}`;
+	gameStore.updateState({
+		overlays: {
+			[id]: {
+				id,
+				imageUrl: def.imageUrl,
+				ratio: def.ratio,
+				scale: opts.scale ?? def.scale,
+				position: opts.position ?? [0, 0.255, 0],
+				rotation: opts.rotation ?? [0, 0, 0],
+				packOrigin: origin(pack, String(index), opts.source)
+			}
+		}
+	});
+}
+
+/**
+ * Spawn a pack's full contents onto the table for an owner.
+ * Packs are templates — this instantiates cards into the gameStore and never
+ * mutates the pack itself. Facedown decks spawn shuffled (historical /play
+ * behavior); scenario loads use spawnPackDeck directly with explicit order.
+ */
+export function spawnPack(pack: GamePackDef, opts: SpawnPackOptions = {}) {
+	const ownerId = opts.ownerId ?? gameActions.getMyId();
+	if (!ownerId) return console.error('Cannot spawn a pack without a playerId');
 
 	pack.decks.forEach((deck, index) => {
-		const cards = deck.cards.map((card) => ({
-			id: `card:${playerId}:${deck.slot}-${card.code}`,
-			faceImageUrl: card.face,
-			backImageUrl: deck.back
-		}));
-
-		// first deck uses addDeck's seat-relative default; extras offset sideways
-		const position =
-			index > 0 ? ([8.5 + index * 2.5, 0.4, 4.5] as [number, number, number]) : undefined;
-
-		gameActions.addDeck({
-			id: `deck:${playerId}:${deck.slot}`,
-			deckId: `deck:${playerId}:${deck.slot}`,
-			isFaceUp: deck.isFaceUp ?? false,
-			deckBackImageUrl: deck.back,
-			cards: deck.isFaceUp ? cards : (gameActions.shuffleCards(cards) ?? cards),
-			position
-		});
+		const isFaceUp = deck.isFaceUp ?? false;
+		spawnPackDeck(pack, deck, { ...opts, ownerId, index, isFaceUp, shuffle: !isFaceUp });
 	});
+	pack.pieces?.forEach((_, index) => spawnPackPiece(pack, index, { ...opts, ownerId }));
+	pack.overlays?.forEach((_, index) => spawnPackOverlay(pack, index, { ...opts, ownerId }));
 }
