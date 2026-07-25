@@ -18,7 +18,17 @@ type Game struct {
 
 	out chan *PlayerMessage
 	mu  sync.Mutex
+
+	// pending offline broadcasts, keyed by player id — armed on disconnect,
+	// cancelled when the same id reconnects inside the grace period
+	offlineTimers map[string]*time.Timer
+	offlineGrace  time.Duration
 }
+
+// offlineGraceDefault is how long a disconnected player has to reconnect
+// before the lobby is told they went offline. Covers page refreshes and brief
+// network blips without the other clients ever seeing a flicker.
+const offlineGraceDefault = 5 * time.Second
 
 type PlayerMessage struct {
 	// TODO: Probably a better way to add addressing
@@ -31,11 +41,13 @@ func NewGame() (*Game, <-chan *PlayerMessage) {
 	out := make(chan *PlayerMessage, 50)
 	now := time.Now()
 	return &Game{
-		Players:      make(map[string]*Player),
-		out:          out,
-		Data:         map[string]any{},
-		CreatedAt:    now,
-		LastActivity: now,
+		Players:       make(map[string]*Player),
+		out:           out,
+		Data:          map[string]any{},
+		CreatedAt:     now,
+		LastActivity:  now,
+		offlineTimers: make(map[string]*time.Timer),
+		offlineGrace:  offlineGraceDefault,
 	}, out
 }
 
@@ -46,6 +58,11 @@ type Player struct {
 	JoinTimestamp int64  `json:"joinTimestamp"`
 	Connected     bool   `json:"connected"`
 	Seat          int    `json:"seat,omitempty"`
+
+	// live socket count for this player id — a reconnect can attach the new
+	// socket before the old one's close is noticed, and the player is only
+	// offline when the last socket is gone
+	conns int
 }
 
 // PlayerStat is a lock-free copy of a player's status for admin views.

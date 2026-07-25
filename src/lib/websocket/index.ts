@@ -1,11 +1,4 @@
-import {
-	connect,
-	joinLobby,
-	onMessage,
-	sendMessage,
-	type WebSocketMessage,
-	type ConnectedPlayer
-} from './connection';
+import { connect, joinLobby, onMessage, sendMessage, type WebSocketMessage } from './connection';
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
@@ -45,6 +38,15 @@ export async function initWebsocket(lobbyId: string, serverUrl?: string): Promis
 		// Set up event listeners for incoming messages
 		setupMessageHandlers();
 
+		// Re-publish my player row now that the socket is open. addPlayer()
+		// above ran before connect(), so its patch was dropped (sendMessage has
+		// no queue) — without this, peers only ever receive seat/tray/connected
+		// patches for this player, and the HUD's ghost-row guard (rows without
+		// a joinTimestamp are not players yet) would hide the row forever.
+		// Only id + joinTimestamp: re-sending the fresh local row's seat would
+		// clobber the seat a reconnecting player already holds in lobby state.
+		publishMyPlayerRow();
+
 		return true;
 	} catch (error) {
 		console.error('Error initializing websocket:', error);
@@ -53,39 +55,24 @@ export async function initWebsocket(lobbyId: string, serverUrl?: string): Promis
 }
 
 /**
+ * Broadcast the minimal row that marks the local player as a real player in
+ * the lobby state. Goes through gameStore.updateState, which storeIntegration
+ * wraps to send over the (now open) websocket.
+ */
+function publishMyPlayerRow(): void {
+	const me = gameActions.getMe();
+	if (!me?.id) return;
+	gameStore.updateState({
+		players: { [me.id]: { id: me.id, joinTimestamp: me.joinTimestamp ?? Date.now() } }
+	});
+}
+
+/**
  * Set up handlers for different message types
  */
 function setupMessageHandlers(): void {
 	onMessage((message: WebSocketMessage) => {
 		switch (message.type) {
-			case 'connect':
-				console.log(`Player ${message.playerId} connected`);
-				toast(`Player ${message.playerId} connected`);
-				break;
-
-			case 'disconnect':
-				console.log(`Player ${message.playerId} disconnected`);
-				// We keep the player in the store to preserve their data
-				// but could mark them as offline if needed
-				break;
-
-			case 'playerList':
-				console.log('Received player list:', message.players);
-				if (message.players && message.players.length > 0) {
-					// Update all players in the store
-					message.players.forEach((player: ConnectedPlayer) => {
-						gameStore?.updateStateSilently({
-							players: {
-								[player.id]: {
-									id: player.id,
-									joinTimestamp: player.joinTimestamp
-								}
-							}
-						});
-					});
-				}
-				break;
-
 			case 'sync':
 				console.log('Received sync message, updating local state', message);
 				gameStore.updateStateSilently(message.value);

@@ -1,18 +1,15 @@
 import { gameActions } from '$lib/store/game/actions';
 import toast from 'svelte-french-toast';
 
-export type ConnectedPlayer = {
-	id: string;
-	joinTimestamp: number;
-};
-
 export type WebSocketMessage = {
-	type: 'connect' | 'sync' | 'update' | 'error' | 'disconnect' | 'playerList';
+	// 'connect' is outbound-only: the join handshake sent by joinLobby().
+	// Inbound traffic is 'sync' | 'update' | 'error' — presence arrives as an
+	// ordinary 'update' merge patch on players[id].connected.
+	type: 'connect' | 'sync' | 'update' | 'error';
 	path?: string[];
 	value?: any;
 	playerId: string;
 	timestamp: number;
-	players?: ConnectedPlayer[];
 };
 
 // Config

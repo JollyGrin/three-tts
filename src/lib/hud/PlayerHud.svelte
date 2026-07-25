@@ -91,6 +91,16 @@
 								<span class="block italic">Seat {row.seat} — open</span>
 							{:else}
 								<span class="flex items-baseline gap-1">
+									<!-- presence dot: green = connected; hollow = offline or unknown
+									     (a client that never got a presence patch must not show green) -->
+									<span
+										class={[
+											'h-2 w-2 shrink-0 self-center rounded-full',
+											row.connected ? 'bg-emerald-400' : 'border border-white/40 opacity-60'
+										]}
+										data-connected={row.connected}
+										title={row.connected ? 'online' : 'offline'}
+									></span>
 									<span class="truncate font-medium" title={row.id}>{row.id}</span>
 									{#if row.isMe}
 										<span class="shrink-0 text-[0.6rem] text-emerald-300 uppercase">you</span>
