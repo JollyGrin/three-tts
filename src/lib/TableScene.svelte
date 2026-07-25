@@ -14,6 +14,8 @@
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { clampToTable } from './utils/transforms/drop';
+	import { cancelActiveDrag, commitActiveDrag } from './drop/commit';
+	import { onMount } from 'svelte';
 	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
 	import { PIECE_DRAG_Y } from '$lib/utils/constants-pieces';
 	import { TABLE_TOP_Y } from '$lib/utils/constants-table';
@@ -65,6 +67,28 @@
 	});
 
 	const cards = $derived(Object.entries($gameStore?.cards ?? {}) as [string, CardDTO][]);
+
+	// Drag safety, registered once for the whole scene (so both /play and
+	// /setup get it):
+	// - pointerup anywhere: a release that never reaches the table mesh (off
+	//   canvas, over the HUD) used to leave the card stuck in the lifted
+	//   state. Bubble phase, so an on-table release has already committed and
+	//   this no-ops.
+	// - Esc: return the card to where it was picked up.
+	onMount(() => {
+		const onPointerUp = () => commitActiveDrag();
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') cancelActiveDrag();
+		};
+		window.addEventListener('pointerup', onPointerUp);
+		window.addEventListener('pointercancel', onPointerUp);
+		window.addEventListener('keydown', onKeyDown);
+		return () => {
+			window.removeEventListener('pointerup', onPointerUp);
+			window.removeEventListener('pointercancel', onPointerUp);
+			window.removeEventListener('keydown', onKeyDown);
+		};
+	});
 </script>
 
 <TableCamera />

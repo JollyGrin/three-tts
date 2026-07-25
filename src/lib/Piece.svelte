@@ -65,7 +65,8 @@
 	let dragMoved = false;
 
 	function liftIntoDrag() {
-		dragStart(id, position[1]);
+		// origin (pre-lift store position) is what Esc returns the piece to
+		dragStart(id, position[1], piece?.position as [number, number, number] | undefined);
 		height.target = PIECE_DRAG_Y;
 	}
 

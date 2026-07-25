@@ -1,40 +1,19 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import { dragEnd, dragStore } from './store/dragStore.svelte';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
-	import { gameActions } from './store/game/actions';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
-	import { resolveDrop } from './utils/transforms/drop';
+	import { commitActiveDrag } from './drop/commit';
 	import { TABLE_TOP_Y } from './utils/constants-table';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
 
-	// The drop is resolved by the same pure function the DropIndicator previews
-	// with, so what the player saw while dragging is what gets committed.
-	function handleDragEnd() {
-		const id = $dragStore.isDragging;
-		if (!id) return;
-
-		const drop = resolveDrop($gameStore, id, $dragStore.intersectionPoint, {
-			deckId: $dragStore.isDeckHovered,
-			tray: $dragStore.isTrayHovered
-		});
-
-		if (drop?.kind === 'tray') {
-			gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
-		} else if (drop?.kind === 'deck' && drop.targetId) {
-			gameActions.placeOnTopOfDeck(drop.targetId, id);
-		} else if (drop && id.startsWith('piece:')) {
-			gameStore.updateState({ pieces: { [id]: { position: drop.position } } });
-		} else if (drop) {
-			gameStore.updateState({ cards: { [id]: { position: drop.position } } });
-		}
-
-		dragEnd();
-	}
+	// The drop lives in drop/commit.ts — shared with the window-level release
+	// fallback, and resolved by the same pure function the DropIndicator
+	// previews with, so what the player saw while dragging is what lands.
+	const handleDragEnd = commitActiveDrag;
 
 	// Create procedural felt texture. Built synchronously: this component only
 	// mounts client-side (inside <Canvas>, behind isConnected), so the material

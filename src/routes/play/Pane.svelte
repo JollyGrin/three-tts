@@ -174,6 +174,8 @@
 		<Text label="Tap card" value="T" disabled />
 		<Text label="Reverse Tap card" value="R" disabled />
 		<Text label="Flip card" value="F" disabled />
+		<Text label="Group stack into deck" value="G" disabled />
+		<Text label="Cancel drag" value="Esc" disabled />
 		<Text label="Nudge card higher" value="Arrow Up" disabled />
 		<Text label="Nudge card lower" value="Arrow Up" disabled />
 	</Folder>

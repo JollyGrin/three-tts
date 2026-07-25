@@ -2,7 +2,7 @@ import type { GameDTO } from '$lib/store/game/types';
 import { CARD_WIDTH, CARD_HEIGHT, CARD_REST_Y } from '$lib/utils/constants-cards';
 import { PIECE_DEFAULT_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { EDGE_MARGIN, TABLE_HALF_X, TABLE_HALF_Z, TABLE_TOP_Y } from '$lib/utils/constants-table';
-import { resolveStackHeight } from './stacking';
+import { resolveStack } from './stacking';
 
 export type DropKind =
 	/** lands on bare felt (or an overlay) */
@@ -118,12 +118,14 @@ export function resolveDrop(
 		};
 	}
 
-	const restY = resolveStackHeight(state?.cards, dragId, x, z);
+	// landing on a pile squares up to its base XZ (resolveStack), so cards
+	// dropped roughly together settle into a neat stack instead of a fan
+	const stack = resolveStack(state?.cards, dragId, x, z);
 	return {
-		kind: restY > CARD_REST_Y ? 'stack' : 'table',
-		position: [x, restY, z],
+		kind: stack.count > 0 ? 'stack' : 'table',
+		position: [stack.x, stack.restY, stack.z],
 		rotation,
 		footprint,
-		footprintY: restY
+		footprintY: stack.restY
 	};
 }

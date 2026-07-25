@@ -4,6 +4,7 @@
 	import { dragStart, dragStore } from './store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
+	import type { IntersectionEvent } from '@threlte/extras';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { degrees } from '$lib/utils/constants-rotation';
 	import { gameStore } from './store/game/gameStore.svelte';
@@ -115,14 +116,48 @@
 		rotationTap.target = baseRotation[2];
 	});
 
-	function handleDragStart() {
-		dragStart(id, position[1]); // Pass current height
+	// px the pointer may travel between down and up and still count as a click
+	const DRAG_THRESHOLD_PX = 5;
+	let pendingDrag: { x: number; y: number } | null = null;
+
+	function liftIntoDrag() {
+		// origin is the store position from before the lift, so Esc can put the
+		// card back exactly where it was
+		dragStart(id, position[1], (cardState?.position as Vec3Array) ?? undefined);
 
 		// Animate to raised height with some extra bounce. Settles on
 		// CARD_DRAG_Y — the same height the store records mid-drag, so the drop
 		// indicator's connector meets the card instead of stopping short.
 		height.target = CARD_DRAG_Y + 0.2;
 		setTimeout(() => (height.target = CARD_DRAG_Y), 150);
+	}
+
+	// Defer the lift until the pointer actually travels: a plain click used to
+	// pick the card up and drop it again under the cursor, nudging it for no
+	// reason. Same threshold the counter piece uses.
+	function onPendingMove(ne: PointerEvent) {
+		if (!pendingDrag) return;
+		if (Math.hypot(ne.clientX - pendingDrag.x, ne.clientY - pendingDrag.y) < DRAG_THRESHOLD_PX)
+			return;
+		cancelPendingDrag();
+		liftIntoDrag();
+	}
+
+	function cancelPendingDrag() {
+		pendingDrag = null;
+		window.removeEventListener('pointermove', onPendingMove);
+		window.removeEventListener('pointerup', cancelPendingDrag);
+	}
+
+	$effect(() => cancelPendingDrag);
+
+	function handleDragStart(e: IntersectionEvent<PointerEvent>) {
+		if (e.nativeEvent.button !== 0) return; // right-click is contextmenu, not drag
+		// keep OrbitControls from rotating during the pre-threshold pixels
+		e.stopImmediatePropagation();
+		pendingDrag = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+		window.addEventListener('pointermove', onPendingMove);
+		window.addEventListener('pointerup', cancelPendingDrag);
 	}
 
 	function handlePointerEnter() {
