@@ -2,21 +2,18 @@ import { get } from 'svelte/store';
 import { gameActions } from '.';
 import { gameStore } from '../gameStore.svelte';
 import { degrees } from '$lib/utils/constants-rotation';
+import { DIE_SIDES_DEFAULT, PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import {
-	COUNTER_MAX_DEFAULT,
-	DIE_SIDES_DEFAULT,
-	PIECE_RADIUS,
-	PIECE_REST_Y
-} from '$lib/utils/constants-pieces';
-import type {
-	BagDrawMode,
-	BagItem,
-	DieSides,
-	GameDTO,
-	PackOrigin,
-	PieceKind,
-	PieceStateDTO
-} from '../types';
+	composePiece,
+	currentPieceState,
+	nextPieceId as nextFreePieceId,
+	slugify,
+	type PieceProps
+} from '$lib/compose/piece';
+import type { GameDTO, PieceKind } from '../types';
+
+// re-exported so `slugify` keeps its historical home here (bag.ts imports it)
+export { slugify };
 
 export type PieceState = NonNullable<NonNullable<GameDTO['pieces']>[string]>;
 
@@ -39,19 +36,6 @@ function incrementCounter(pieceId: string, delta: number) {
 	const max = piece.maxValue ?? 99;
 	const value = Math.min(max, Math.max(0, (piece.value ?? max) + delta));
 	return gameStore.updateState({ pieces: { [pieceId]: { value } } });
-}
-
-/**
- * The state index a piece is actually showing: clamped into its `states`
- * array, and 0 for a piece that has none. Shared by the renderer and the
- * cycle/select verbs so they can never disagree about what is on the table.
- */
-function currentPieceState(
-	piece: { states?: PieceStateDTO[]; state?: number } | null | undefined
-): number {
-	const count = piece?.states?.length ?? 0;
-	if (count === 0) return 0;
-	return Math.min(Math.max(Math.trunc(piece?.state ?? 0), 0), count - 1);
 }
 
 /**
@@ -115,22 +99,6 @@ const SPAWN_SPACING = 1.6;
 const SPAWN_PER_ROW = 8;
 const SPAWN_EDGE_Z = 4.5;
 
-const KIND_LABEL: Record<PieceKind, string> = {
-	token: 'Token',
-	pawn: 'Pawn',
-	counter: 'Counter',
-	die: 'Die',
-	bag: 'Bag'
-};
-
-export function slugify(name: string, fallback: string): string {
-	const slug = name
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-+|-+$/g, '');
-	return slug || fallback;
-}
-
 /**
  * Seat of the acting owner. The scenario editor owns entities with
  * `seat0`…`seat3` placeholders (see scenario.ts) — matched here by shape
@@ -162,40 +130,13 @@ function spawnPosition(seat: number, index: number): [number, number, number] {
 
 /** ids are `kind:owner:slug` (claimSeat renames the owner segment) — `-n` disambiguates repeats */
 export function nextPieceId(ownerId: string, slug: string): string {
-	const pieces = get(gameStore)?.pieces ?? {};
-	let n = 0;
-	while (pieces[`piece:${ownerId}:${slug}-${n}`]) n++;
-	return `piece:${ownerId}:${slug}-${n}`;
+	return nextFreePieceId(new Set(Object.keys(get(gameStore)?.pieces ?? {})), ownerId, slug);
 }
 
-export type AddPieceOptions = {
-	name?: string;
-	color?: string;
-	/** resolved like card faces — a plain https:// url works */
-	imageUrl?: string;
-	/** multi-state pieces: every face, `states[0]` being the base one */
-	states?: PieceStateDTO[];
-	/** which of `states` to spawn showing (default 0) */
-	state?: number;
-	radius?: number;
-	/** counters only; the piece spawns full (`value = maxValue`) unless `value` says otherwise */
-	maxValue?: number;
-	/** counters only; restores a saved count (scenario loads) instead of spawning full */
-	value?: number;
-	/** dice only; how many faces (defaults to a d6) */
-	sides?: DieSides;
+export type AddPieceOptions = PieceProps & {
 	/** defaults to the local player; the scenario editor passes placeholder seat ids */
 	ownerId?: string;
 	position?: [number, number, number];
-	rotation?: [number, number, number];
-	/** bags only; the hidden pool a draw pulls from */
-	contents?: BagItem[];
-	/** bags only; defaults to 'random' */
-	drawMode?: BagDrawMode;
-	/** bags only; a draw clones instead of removing */
-	infinite?: boolean;
-	/** set when the piece comes from a pack, so a v2 scenario can reference it */
-	packOrigin?: PackOrigin;
 };
 
 /**
@@ -203,6 +144,10 @@ export type AddPieceOptions = {
  * piece and something else in ONE state patch (a bag draw writes the drawn
  * item and the bag's shrunken contents together) doesn't have to broadcast two.
  * Returns null when there is no owner to spawn for.
+ *
+ * The piece itself is shaped by `compose/piece.ts` — everything this adds is
+ * the two answers only a live table can give: who is acting, and where the
+ * next spawn fans out to. That is what a headless composer supplies for itself.
  */
 export function buildPiece(
 	kind: PieceKind,
@@ -214,52 +159,14 @@ export function buildPiece(
 		return null;
 	}
 
-	const sides = opts.sides ?? DIE_SIDES_DEFAULT;
-	// dice name themselves after their shape: `d20`, not `Die` — the shape is
-	// the only thing that distinguishes one from another at a glance
-	const name = opts.name?.trim() || (kind === 'die' ? `d${sides}` : KIND_LABEL[kind]);
-	const id = nextPieceId(ownerId, slugify(name, kind));
-	const owned = Object.keys(get(gameStore)?.pieces ?? {}).filter((key) =>
-		key.includes(`:${ownerId}:`)
-	).length;
-
-	const piece: Partial<PieceState> = {
-		kind,
-		name,
-		position: opts.position ?? spawnPosition(ownerSeat(ownerId), owned),
-		rotation: opts.rotation ?? [0, 0, 0],
-		radius: opts.radius ?? PIECE_RADIUS[kind]
-	};
-	if (opts.color) piece.color = opts.color;
-	if (opts.imageUrl) piece.imageUrl = opts.imageUrl;
-	// Not on a die or a bag: a die's faces are geometry and a bag's is a pouch,
-	// so states would be dead weight on the wire and would hand either a state
-	// menu it has no use for. Dropped here rather than rejected at parse time so
-	// a pack that carries them anyway still imports — it just spawns plain.
-	if (kind !== 'die' && kind !== 'bag' && opts.states?.length) {
-		piece.states = opts.states.map((s) => ({ face: s.face, ...(s.name ? { name: s.name } : {}) }));
-		piece.state = currentPieceState({ states: opts.states, state: opts.state });
-	}
-	if (opts.packOrigin) piece.packOrigin = opts.packOrigin;
-	if (kind === 'counter') {
-		const maxValue = opts.maxValue ?? COUNTER_MAX_DEFAULT;
-		piece.maxValue = maxValue;
-		piece.value = opts.value ?? maxValue;
-	}
-	if (kind === 'die') {
-		piece.sides = sides;
-		piece.value = opts.value ?? 1;
-		// a fresh die has never been rolled, so nothing animates on spawn
-		piece.rollSeq = 0;
-	}
-	if (kind === 'bag') {
-		// always written, even empty: a bag with no `contents` key would leave
-		// nothing for a return-to-bag patch to merge into
-		piece.contents = opts.contents ?? [];
-		piece.drawMode = opts.drawMode ?? 'random';
-		if (opts.infinite) piece.infinite = true;
-	}
-	return { id, piece };
+	const taken = new Set(Object.keys(get(gameStore)?.pieces ?? {}));
+	const owned = [...taken].filter((key) => key.includes(`:${ownerId}:`)).length;
+	return composePiece(kind, {
+		...opts,
+		ownerId,
+		taken,
+		position: opts.position ?? spawnPosition(ownerSeat(ownerId), owned)
+	});
 }
 
 /**

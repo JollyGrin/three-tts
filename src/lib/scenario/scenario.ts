@@ -15,8 +15,15 @@ import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { snapPointIds } from '$lib/store/game/actions/snap';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
-import { spawnPackDeck, spawnPackPiece, spawnPackOverlay } from '$lib/packs/spawn';
-import type { GamePackDef } from '$lib/packs/types';
+import { packSource } from '$lib/packs/spawn';
+import {
+	composePlayers,
+	composeScenario,
+	composeSnapPoints,
+	isSeatPlaceholder,
+	placedCount,
+	seatPlaceholderId
+} from '$lib/compose/scenario';
 import type { DeckDTO, GameDTO, OverlayDTO, PackOrigin, PieceDTO } from '$lib/store/game/types';
 import {
 	parseScenarioFile,
@@ -35,8 +42,9 @@ const STORAGE_KEY = 'scenarios:v1';
 export type SeatIndex = 0 | 1 | 2 | 3;
 type StateUpdate = Parameters<typeof gameStore.updateState>[0];
 
-export const seatPlaceholderId = (seat: SeatIndex) => `seat${seat}`;
-export const isSeatPlaceholder = (id: string) => /^seat[0-3]$/.test(id);
+// the seat-placeholder grammar itself lives with the composer, since composing
+// a table headlessly is the other thing that has to agree about it
+export { isSeatPlaceholder, seatPlaceholderId };
 
 export type { Scenario };
 
@@ -152,16 +160,6 @@ function collectSnapPoints(s: Partial<GameDTO> | undefined | null): SnapPoint[] 
 		});
 }
 
-/** The store patch that puts a file's snap points on the table, ids reassigned. */
-function snapPointUpdate(snapPoints: SnapPoint[] | undefined): Record<string, unknown> {
-	const update: Record<string, unknown> = {};
-	(snapPoints ?? []).forEach((point, index) => {
-		const id = `snap:${index}`;
-		update[id] = { id, ...point };
-	});
-	return update;
-}
-
 /**
  * Snapshot the current table as a scenario. Real players (and their trays)
  * are NOT saved — only placeholder seat players survive, so the preset stays
@@ -259,68 +257,33 @@ function clearUpdate(): Record<string, Record<string, unknown>> {
 }
 
 /**
- * v1/v0 load: the scenario's `state` snapshot *is* the table. Synchronous, so
- * legacy scenarios apply in the same tick they always did.
+ * Write a composed table into the store.
+ *
+ * Everything but the decks rides one patch — `base` lets a caller send the
+ * clear along with it, so a legacy load still lands in a single message the
+ * way it always did. Each deck then goes in its own: decks carry full card
+ * lists, and one all-in-one update can blow past the server's websocket read
+ * limit (server/lobby/server.go), after which the server silently drops the
+ * whole seed and joiners sync stale state.
  */
-function applyStateSnapshot(state: Partial<GameDTO> | undefined, snapPoints?: SnapPoint[]) {
-	const update = clearUpdate();
-	Object.assign(update.snapPoints, snapPointUpdate(snapPoints));
-	// small payloads ride with the clear — direct assignment overwrites the
-	// null for reused keys. `state` goes last, since it is the override layer:
-	// a `state.snapPoints` entry beats the top-level array rather than being
-	// silently dropped, same as it does for every other collection.
+function applyComposed(
+	composed: Partial<GameDTO>,
+	base: Record<string, Record<string, unknown>> = {}
+) {
+	const update: Record<string, Record<string, unknown>> = {
+		cards: {},
+		pieces: {},
+		overlays: {},
+		snapPoints: {},
+		players: {},
+		...base
+	};
 	for (const collection of ['cards', 'pieces', 'overlays', 'snapPoints', 'players'] as const) {
-		for (const [key, value] of Object.entries(state?.[collection] ?? {})) {
-			update[collection][key] = value;
-		}
+		Object.assign(update[collection], composed[collection] ?? {});
 	}
 	gameStore.updateState(update as StateUpdate);
-	// each deck in its own message
-	for (const [key, value] of Object.entries(state?.decks ?? {})) {
+	for (const [key, value] of Object.entries(composed.decks ?? {})) {
 		gameStore.updateState({ decks: { [key]: value } } as StateUpdate);
-	}
-}
-
-/** Spawn one placement's content from its resolved pack. */
-function applyPlacement(placement: PackPlacement, pack: GamePackDef, source?: string) {
-	const ownerId = placement.seat !== undefined ? seatPlaceholderId(placement.seat) : undefined;
-	const common = { ownerId, source };
-
-	if (placement.kind === 'deck') {
-		const deck = pack.decks.find((d) => d.slot === placement.content);
-		if (!deck)
-			return console.error(`[scenario] pack '${pack.id}' has no deck '${placement.content}'`);
-		spawnPackDeck(pack, deck, {
-			...common,
-			position: placement.position,
-			rotation: placement.rotation,
-			isFaceUp: placement.isFaceUp,
-			// authored order is the default; shuffling is an explicit opt-in
-			order: placement.order,
-			shuffle: placement.shuffleOnLoad === true,
-			shuffleOnLoad: placement.shuffleOnLoad
-		});
-		return;
-	}
-	const index = Number(placement.content);
-	if (!Number.isInteger(index)) {
-		return console.error(`[scenario] ${placement.kind} placement content must be an index`);
-	}
-	if (placement.kind === 'piece') {
-		spawnPackPiece(pack, index, {
-			...common,
-			position: placement.position,
-			rotation: placement.rotation,
-			value: placement.value,
-			state: placement.state
-		});
-	} else {
-		spawnPackOverlay(pack, index, {
-			...common,
-			position: placement.position,
-			rotation: placement.rotation,
-			scale: placement.scale
-		});
 	}
 }
 
@@ -336,36 +299,31 @@ export type ApplyReport = {
  * /play (ws-wrapped) it broadcasts to the whole lobby. Real player entries are
  * kept. Sheet refs are prewarmed locally, then a re-render sweep repaints.
  *
- * Sent as several messages, one per deck: decks carry full card lists, and a
- * single all-in-one update can blow past the server's websocket read limit —
- * the server then silently drops the whole seed and joiners sync stale state.
+ * A thin wrapper over `compose/scenario.ts`: resolve the pack refs, compose
+ * the table, push it. Everything about *what* the table is — entity ids, seat
+ * placeholders, card order, `packOrigin` stamps — lives in the composer, which
+ * is why a bun script can lay out the same table without a browser
+ * (`scripts/seed-lobby.ts`).
  *
- * v2 scenarios resolve their pack refs first, spawn each placement from the
- * pack, then lay the `state` overrides on top. v1/v0 take the original
- * synchronous snapshot path untouched. Never rejects — an un-awaited call
- * (the /play seed button) can't produce an unhandled rejection; resolution
- * failures come back in the report.
+ * v1/v0 files compose too: with no placements the composition is just their
+ * `state` snapshot, so they still apply synchronously in one tick as they
+ * always did. Never rejects — an un-awaited call (the /play seed button) can't
+ * produce an unhandled rejection; resolution failures come back in the report.
  */
 export async function applyScenario(scenario: Scenario): Promise<ApplyReport> {
 	if (scenarioVersion(scenario) === 1) {
-		applyStateSnapshot(scenario.state, scenario.snapPoints);
+		applyComposed(composeScenario(scenario, new Map()), clearUpdate());
 		prewarmGameState(scenario.state, () => gameStore.updateStateSilently({}));
 		return { version: 1, placed: 0, failedPacks: [] };
 	}
 
-	const placements = scenario.placements ?? [];
-	// clear, and seat the placeholders the placements need, before any await
+	// clear, and seat the placeholders the placements need, before any await:
+	// the table must not sit on the old scenario while packs are being fetched,
+	// and a `?seat=N` joiner can start waiting on its placeholder immediately
 	const update = clearUpdate();
-	for (const [key, value] of Object.entries(scenario.state?.players ?? {})) {
-		update.players[key] = value;
-	}
-	for (const seat of new Set(placements.map((p) => p.seat))) {
-		if (seat === undefined) continue;
-		const id = seatPlaceholderId(seat);
-		update.players[id] ??= { id, seat, joinTimestamp: 0, tray: {}, metadata: {} };
-	}
+	Object.assign(update.players, composePlayers(scenario));
 	// snap points are pure data — they ride with the clear, no pack to resolve
-	Object.assign(update.snapPoints, snapPointUpdate(scenario.snapPoints));
+	Object.assign(update.snapPoints, composeSnapPoints(scenario.snapPoints));
 	gameStore.updateState(update as StateUpdate);
 
 	const { packs, failed } = await resolvePacks(scenario.packs ?? []);
@@ -373,37 +331,21 @@ export async function applyScenario(scenario: Scenario): Promise<ApplyReport> {
 		console.error(`[scenario] could not resolve pack '${ref.id}': ${reason}`);
 	}
 
-	const sources = new Map((scenario.packs ?? []).map((ref) => [ref.id, ref.source]));
-	let placed = 0;
-	for (const placement of placements) {
-		const pack = packs.get(placement.pack);
-		if (!pack) continue; // already reported via failedPacks
-		applyPlacement(placement, pack, sources.get(placement.pack));
-		placed += 1;
-	}
-
-	// overrides land on top of pack-spawned content (ad-hoc pieces, tweaks)
-	const overrides: Record<string, Record<string, unknown>> = {
-		cards: {},
-		pieces: {},
-		overlays: {},
-		snapPoints: {}
-	};
-	for (const collection of ['cards', 'pieces', 'overlays', 'snapPoints'] as const) {
-		for (const [key, value] of Object.entries(scenario.state?.[collection] ?? {})) {
-			overrides[collection][key] = value;
-		}
-	}
-	gameStore.updateState(overrides as StateUpdate);
-	for (const [key, value] of Object.entries(scenario.state?.decks ?? {})) {
-		gameStore.updateState({ decks: { [key]: value } } as StateUpdate);
-	}
+	applyComposed(
+		composeScenario(scenario, packs, {
+			// the browser knows one thing the composer's default doesn't: which
+			// packs live in this device's library, and so re-resolve as 'local'
+			sourceOf: (ref, pack) => packSource(pack, ref.source),
+			// one shuffle implementation on the client, wherever it is called from
+			shuffleWith: (cards) => gameActions.shuffleCards(cards)
+		})
+	);
 
 	// pack content only exists in the store now, so prewarm the result
 	prewarmGameState(get(gameStore), () => gameStore.updateStateSilently({}));
 	return {
 		version: 2,
-		placed,
+		placed: placedCount(scenario, packs),
 		failedPacks: failed.map(({ ref, reason }) => ({ id: ref.id, reason }))
 	};
 }

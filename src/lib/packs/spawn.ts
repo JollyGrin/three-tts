@@ -1,12 +1,17 @@
 import { get } from 'svelte/store';
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
-import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
+import {
+	composePackDeck,
+	composePackOverlay,
+	composePackPiece,
+	placeholderSeat
+} from '$lib/compose/pack';
 import { BUILTIN_PACKS, PACK_SOURCE_BUILTIN } from './builtin';
 import { hasLibraryPack, PACK_SOURCE_LOCAL } from './library';
 import type { SpreadTile } from './spread';
-import type { GamePackDef, PackDeckDef, PackPieceDef } from './types';
-import type { BagItem, CardDTO, PackOrigin } from '$lib/store/game/types';
+import type { GamePackDef, PackDeckDef } from './types';
+import type { CardDTO } from '$lib/store/game/types';
 
 export type SpawnPackOptions = {
 	/** entity owner — defaults to the local player (the scenario editor passes `seat0`…`seat3`) */
@@ -46,9 +51,7 @@ export type SpawnDeckOptions = SpawnPackOptions & {
  * shape to avoid importing scenario.ts (which imports this package).
  */
 function ownerSeat(ownerId: string): number {
-	const placeholder = /^seat([0-3])$/.exec(ownerId);
-	if (placeholder) return Number(placeholder[1]);
-	return get(gameStore)?.players?.[ownerId]?.seat ?? 0;
+	return placeholderSeat(ownerId) ?? get(gameStore)?.players?.[ownerId]?.seat ?? 0;
 }
 
 /**
@@ -57,74 +60,40 @@ function ownerSeat(ownerId: string): number {
  * which is what makes a pack imported from disk survive a scenario save/load
  * without being hosted anywhere. A pack that is in neither gets no stamp — a
  * scenario referencing it will fail loudly by id rather than silently.
+ *
+ * The browser's answer to the question `compose/` deliberately doesn't ask:
+ * the local library is localStorage, which a headless composer has no access
+ * to and no business inventing.
  */
-function packSource(pack: GamePackDef, source?: string): string | undefined {
+export function packSource(pack: GamePackDef, source?: string): string | undefined {
 	if (source) return source;
 	if (BUILTIN_PACKS[pack.id]) return PACK_SOURCE_BUILTIN;
 	return hasLibraryPack(pack.id) ? PACK_SOURCE_LOCAL : undefined;
 }
 
-function origin(pack: GamePackDef, content: string, source?: string): PackOrigin {
-	const resolved = packSource(pack, source);
-	return { pack: pack.id, content, ...(resolved ? { source: resolved } : {}) };
-}
-
-/** Mirrors addDeck's two-seat defaults, but keyed off the OWNER's seat. */
-function deckDefaults(seat: number, index: number, isFaceUp: boolean) {
-	const x = 8.5 + (isFaceUp ? 2 : 0) + index * 2.5;
-	return seat % 2 === 1
-		? { position: [x, 0.4, -4.7] as Vec3, rotation: [0, Math.PI, 0] as Vec3 }
-		: { position: [x, 0.4, 4.5] as Vec3, rotation: [0, 0, 0] as Vec3 };
-}
-
 /**
- * Spawn one of a pack's decks. Instantiates cards into the gameStore in an
- * explicit order — order and shuffling are the CALLER's choice (tbps v2
- * placements preserve authored order; shuffling is opt-in), never implied.
+ * Spawn one of a pack's decks. Shapes the deck with `composePackDeck` — the
+ * same pure builder a headless scenario composition uses — and writes it to
+ * the gameStore.
+ *
+ * Written directly rather than via `addDeck`: that helper derives id, seat and
+ * position from the LOCAL player, but a pack spawns for an arbitrary owner (a
+ * `seatN` placeholder in the scenario editor). One update per deck keeps each
+ * card list under the server's websocket read limit.
  */
 export function spawnPackDeck(pack: GamePackDef, deck: PackDeckDef, opts: SpawnDeckOptions = {}) {
 	const ownerId = opts.ownerId ?? gameActions.getMyId();
 	if (!ownerId) return console.error('Cannot spawn a deck without an owner id');
 
-	const defs = opts.order
-		? opts.order
-				.map((code) => {
-					const def = deck.cards.find((c) => c.code === code);
-					if (!def)
-						console.warn(`[spawnPackDeck] unknown card code '${code}' in ${pack.id}/${deck.slot}`);
-					return def;
-				})
-				.filter((def) => def !== undefined)
-		: deck.cards;
-
-	let cards = defs.map((card) => ({
-		id: `card:${ownerId}:${deck.slot}-${card.code}`,
-		faceImageUrl: card.face,
-		backImageUrl: deck.back
-	}));
-	if (opts.shuffle) cards = gameActions.shuffleCards(cards) ?? cards;
-
-	const isFaceUp = opts.isFaceUp ?? deck.isFaceUp ?? false;
-	const defaults = deckDefaults(ownerSeat(ownerId), opts.index ?? 0, isFaceUp);
-	const deckId = `deck:${ownerId}:${deck.slot}`;
-	// written directly rather than via addDeck: that helper derives id, seat and
-	// position from the LOCAL player, but a pack spawns for an arbitrary owner
-	// (a `seatN` placeholder in the scenario editor). One update per deck keeps
-	// each card list under the server's websocket read limit.
-	gameStore.updateState({
-		decks: {
-			[deckId]: {
-				id: deckId,
-				isFaceUp,
-				deckBackImageUrl: deck.back,
-				cards,
-				position: opts.position ?? defaults.position,
-				rotation: opts.rotation ?? defaults.rotation,
-				packOrigin: origin(pack, deck.slot, opts.source),
-				...(opts.shuffleOnLoad !== undefined ? { shuffleOnLoad: opts.shuffleOnLoad } : {})
-			}
-		}
+	const composed = composePackDeck(pack, deck, {
+		...opts,
+		ownerId,
+		seat: ownerSeat(ownerId),
+		source: packSource(pack, opts.source),
+		// one shuffle implementation on the client, whatever spawned the deck
+		shuffleWith: (cards) => gameActions.shuffleCards(cards)
 	});
+	gameStore.updateState({ decks: { [composed.id]: composed.deck } });
 }
 
 export type SpawnDeckSpreadOptions = SpawnPackOptions & {
@@ -179,45 +148,20 @@ export type SpawnPieceOptions = SpawnPackOptions & {
 	state?: number;
 };
 
-/**
- * A pack bag item and a live bag item are the same shape by design — the pack
- * says what is in the bag, the store holds that same list as the bag's state.
- * Cloned per spawn so two bags from one pack never share an array.
- */
-function bagContents(def: PackPieceDef): BagItem[] {
-	return (def.contents ?? []).map((item) => ({ ...item }) as BagItem);
-}
-
 /** Spawn one of a pack's pieces (by index into `pack.pieces`). */
 export function spawnPackPiece(pack: GamePackDef, index: number, opts: SpawnPieceOptions = {}) {
-	const def = pack.pieces?.[index];
-	if (!def) return console.error(`[spawnPackPiece] ${pack.id} has no piece[${index}]`);
 	const ownerId = opts.ownerId ?? gameActions.getMyId();
 	if (!ownerId) return console.error('Cannot spawn a piece without an owner id');
 
-	// pack piece positions are authored for seat 0; mirror for the far side
-	const m = ownerSeat(ownerId) % 2 === 1 ? -1 : 1;
-	gameActions.addPiece(def.kind, {
+	const composed = composePackPiece(pack, index, {
+		...opts,
 		ownerId,
-		name: def.name,
-		color: def.color,
-		// states[0] IS the base face (see PackPieceDef.states), so a piece that
-		// declares states never falls back to imageUrl
-		imageUrl: def.states?.length ? def.states[0].face : def.imageUrl,
-		states: def.states,
-		// the placement's choice wins over the pack's own default
-		state: opts.state ?? def.state,
-		radius: def.radius,
-		maxValue: def.maxValue,
-		sides: def.sides,
-		value: opts.value,
-		...(def.kind === 'bag'
-			? { contents: bagContents(def), drawMode: def.drawMode, infinite: def.infinite }
-			: {}),
-		position: opts.position ?? [def.position[0] * m, PIECE_REST_Y, def.position[1] * m],
-		rotation: opts.rotation,
-		packOrigin: origin(pack, String(index), opts.source)
+		seat: ownerSeat(ownerId),
+		source: packSource(pack, opts.source),
+		taken: new Set(Object.keys(get(gameStore)?.pieces ?? {}))
 	});
+	if (!composed) return;
+	gameStore.updateState({ pieces: { [composed.id]: composed.piece } });
 }
 
 export type SpawnOverlayOptions = SpawnPackOptions & {
@@ -228,23 +172,12 @@ export type SpawnOverlayOptions = SpawnPackOptions & {
 
 /** Spawn one of a pack's overlays (by index into `pack.overlays`). */
 export function spawnPackOverlay(pack: GamePackDef, index: number, opts: SpawnOverlayOptions = {}) {
-	const def = pack.overlays?.[index];
-	if (!def) return console.error(`[spawnPackOverlay] ${pack.id} has no overlay[${index}]`);
-	// overlays are table-scoped (claimSeat never renames them) — key by pack
-	const id = `overlay:${pack.id}:${index}`;
-	gameStore.updateState({
-		overlays: {
-			[id]: {
-				id,
-				imageUrl: def.imageUrl,
-				ratio: def.ratio,
-				scale: opts.scale ?? def.scale,
-				position: opts.position ?? [0, 0.255, 0],
-				rotation: opts.rotation ?? [0, 0, 0],
-				packOrigin: origin(pack, String(index), opts.source)
-			}
-		}
+	const composed = composePackOverlay(pack, index, {
+		...opts,
+		source: packSource(pack, opts.source)
 	});
+	if (!composed) return;
+	gameStore.updateState({ overlays: { [composed.id]: composed.overlay } });
 }
 
 /**
