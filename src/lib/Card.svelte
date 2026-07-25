@@ -20,6 +20,7 @@
 	} from '$lib/utils/constants-cards';
 	import { fanOffset } from '$lib/utils/transforms/stacking';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import { claimPointerDown } from '$lib/utils/single-hit-pointerdown';
 	type Vec3Array = [number, number, number];
 
 	let { id }: { id: string } = $props();
@@ -46,12 +47,24 @@
 		precision: 0.0001
 	});
 
-	// Single source of truth for resting height: stays lifted while a flip is
+	// Single source of truth for height: entirely derived from this card's own
+	// drag ownership and store state, so nothing outside this effect ever
+	// writes height.target. That makes an orphaned card impossible — even a
+	// handler that misfires and starts a drag this card never actually wins
+	// (dragStore.isDragging goes to some other id) leaves isDragging false
+	// here, so this effect keeps settling it at restY instead of leaving
+	// whatever height a stray handler last poked it to.
+	// While dragging: brief overshoot bounce, then settle on CARD_DRAG_Y — the
+	// same height the store records mid-drag, so the drop indicator's
+	// connector meets the card. Otherwise: stays lifted while a flip is
 	// mid-rotation (so the card can't clip the table), settles to the store's
-	// stack height once the rotation completes. Replaces the old setTimeout
-	// settle hack and the per-frame sync effect that fought it.
+	// stack height once the rotation completes.
 	$effect(() => {
-		if (isDragging) return; // drag handlers own the height while dragging
+		if (isDragging) {
+			height.target = CARD_DRAG_Y + 0.2;
+			const handle = setTimeout(() => (height.target = CARD_DRAG_Y), 150);
+			return () => clearTimeout(handle);
+		}
 		const flipping = Math.abs(rotation.current - rotation.target) > 2;
 		const restY = cardState?.position?.[1] ?? CARD_REST_Y;
 		height.target = flipping ? Math.max(1.5, restY) : restY;
@@ -144,12 +157,6 @@
 		// origin is the store position from before the lift, so Esc can put the
 		// card back exactly where it was
 		dragStart(id, position[1], (cardState?.position as Vec3Array) ?? undefined);
-
-		// Animate to raised height with some extra bounce. Settles on
-		// CARD_DRAG_Y — the same height the store records mid-drag, so the drop
-		// indicator's connector meets the card instead of stopping short.
-		height.target = CARD_DRAG_Y + 0.2;
-		setTimeout(() => (height.target = CARD_DRAG_Y), 150);
 	}
 
 	// Defer the lift until the pointer actually travels: a plain click used to
@@ -172,9 +179,9 @@
 	$effect(() => cancelPendingDrag);
 
 	function handleDragStart(e: IntersectionEvent<PointerEvent>) {
-		if (e.nativeEvent.button !== 0) return; // right-click is contextmenu, not drag
-		// keep OrbitControls from rotating during the pre-threshold pixels
-		e.stopImmediatePropagation();
+		// claims the pointerdown for the topmost card in a pile — see
+		// claimPointerDown — so the rest of the stack never sees this event
+		if (!claimPointerDown(e)) return;
 		pendingDrag = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
 		window.addEventListener('pointermove', onPendingMove);
 		window.addEventListener('pointerup', cancelPendingDrag);
