@@ -1,5 +1,5 @@
 {
-	"description": "table.place pack (.tbpp.json) — see docs/packs.md",
+	"description": "table.place pack (.tbpp.json) — see docs/packs.md and llms.txt",
 	"allOf": [
 		{
 			"type": "object",

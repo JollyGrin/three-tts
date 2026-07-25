@@ -1,5 +1,5 @@
 {
-	"description": "table.place scenario (.tbps.json) — see docs/packs.md",
+	"description": "table.place scenario (.tbps.json) — UNSTABLE, generated from the live types, no compatibility promise. See docs/packs.md and llms.txt.",
 	"allOf": [
 		{
 			"type": "object",
