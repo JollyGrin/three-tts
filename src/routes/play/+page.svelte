@@ -12,6 +12,7 @@
 	import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 	import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
 	import { cycleHoveredPieceState } from '$lib/hotkeys/piece-state';
+	import { isTyping } from '$lib/hotkeys/is-typing';
 	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import { startAutoClaim } from '$lib/scenario/autoClaim';
 	import Pane from './Pane.svelte';
@@ -25,6 +26,9 @@
 	import toast from 'svelte-french-toast';
 
 	function handleKeyDown(event: KeyboardEvent) {
+		// a key typed into a pane field is text, not a table command — and this
+		// table is synced, so a stray G would group a pile for everyone
+		if (isTyping(event.target)) return;
 		// hover-target routing: a hovered deck takes the key, otherwise it
 		// falls through to the hovered-card behavior
 		const hoveredDeck = get(dragStore).isDeckHovered;
@@ -53,6 +57,7 @@
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
+		if (isTyping(event.target)) return;
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
 	}
 

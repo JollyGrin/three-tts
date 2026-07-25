@@ -10,11 +10,14 @@
 	import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 	import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
 	import { cycleHoveredPieceState } from '$lib/hotkeys/piece-state';
+	import { isTyping } from '$lib/hotkeys/is-typing';
 	import { disconnect } from '$lib/websocket/connection';
 	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import SetupPane from './SetupPane.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
+		// a key typed into a pane field is text, not a table command
+		if (isTyping(event.target)) return;
 		// hover-target routing: a hovered deck takes the key, otherwise it
 		// falls through to the hovered-card behavior (mirrors /play)
 		const hoveredDeck = get(dragStore).isDeckHovered;
@@ -43,6 +46,7 @@
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
+		if (isTyping(event.target)) return;
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
 	}
 
