@@ -1,0 +1,405 @@
+{
+	"description": "table.place scenario (.tbps.json) — see docs/packs.md",
+	"allOf": [
+		{
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"title": "name"
+				},
+				"createdAt": {
+					"type": "number",
+					"title": "createdAt"
+				},
+				"state": {
+					"$ref": "#/definitions/Partial%3CGameDTO%3E",
+					"title": "state"
+				}
+			},
+			"required": ["createdAt", "name", "state"]
+		},
+		{
+			"type": "object",
+			"properties": {
+				"tbps": {
+					"description": "format discriminator + version",
+					"type": "number",
+					"const": 1,
+					"title": "tbps"
+				},
+				"$schema": {
+					"description": "optional editor-validation hint; always written on export",
+					"type": "string",
+					"title": "$schema"
+				}
+			},
+			"required": ["tbps"]
+		}
+	],
+	"definitions": {
+		"Partial<GameDTO>": {
+			"title": "Partial<GameDTO>",
+			"type": "object",
+			"properties": {
+				"cards": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/Partial%3CCardDTO%3E"
+					},
+					"title": "cards"
+				},
+				"decks": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/Partial%3CDeckDTO%3E"
+					},
+					"title": "decks"
+				},
+				"players": {
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/definitions/Partial%3CPlayerDTO%3E"
+					},
+					"title": "players"
+				},
+				"overlays": {
+					"description": "null = remove",
+					"type": "object",
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/Partial%3COverlayDTO%3E"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"title": "overlays"
+				},
+				"pieces": {
+					"description": "null = remove",
+					"type": "object",
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/Partial%3CPieceDTO%3E"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"title": "pieces"
+				}
+			}
+		},
+		"Partial<CardDTO>": {
+			"title": "Partial<CardDTO>",
+			"type": "object",
+			"properties": {
+				"position": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "position"
+				},
+				"rotation": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "rotation"
+				},
+				"faceImageUrl": {
+					"type": "string",
+					"title": "faceImageUrl"
+				},
+				"backImageUrl": {
+					"type": "string",
+					"title": "backImageUrl"
+				}
+			}
+		},
+		"Partial<DeckDTO>": {
+			"title": "Partial<DeckDTO>",
+			"type": "object",
+			"properties": {
+				"id": {
+					"description": "id format\ndeck:playername:id",
+					"type": "string",
+					"title": "id"
+				},
+				"deckBackImageUrl": {
+					"type": "string",
+					"title": "deckBackImageUrl"
+				},
+				"isFaceUp": {
+					"description": "true if the deck is face up (like discard pile)",
+					"type": "boolean",
+					"title": "isFaceUp"
+				},
+				"position": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "position"
+				},
+				"rotation": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "rotation"
+				},
+				"cards": {
+					"description": "Cards in deck are an array instead of record",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/CardInDeck"
+					},
+					"title": "cards"
+				}
+			}
+		},
+		"CardInDeck": {
+			"title": "CardInDeck",
+			"allOf": [
+				{
+					"$ref": "#/definitions/Omit%3CCardDTO%2C%22position%22%7C%22rotation%22%3E"
+				},
+				{
+					"type": "object",
+					"properties": {
+						"id": {
+							"type": "string",
+							"title": "id"
+						}
+					},
+					"required": ["id"]
+				}
+			]
+		},
+		"Omit<CardDTO,\"position\"|\"rotation\">": {
+			"title": "Omit<CardDTO,\"position\"|\"rotation\">",
+			"type": "object",
+			"properties": {
+				"faceImageUrl": {
+					"type": "string",
+					"title": "faceImageUrl"
+				},
+				"backImageUrl": {
+					"type": "string",
+					"title": "backImageUrl"
+				}
+			},
+			"required": ["faceImageUrl"]
+		},
+		"Partial<PlayerDTO>": {
+			"title": "Partial<PlayerDTO>",
+			"type": "object",
+			"properties": {
+				"seat": {
+					"enum": [0, 1, 2, 3],
+					"type": "number",
+					"title": "seat"
+				},
+				"id": {
+					"type": "string",
+					"title": "id"
+				},
+				"joinTimestamp": {
+					"type": "number",
+					"title": "joinTimestamp"
+				},
+				"tray": {
+					"$ref": "#/definitions/Record%3Cstring%2CPartial%3CCardDTO%7Cnull%3E%3E",
+					"title": "tray"
+				},
+				"metadata": {
+					"description": "extend for future use with life/resources",
+					"title": "metadata"
+				}
+			}
+		},
+		"Record<string,Partial<CardDTO|null>>": {
+			"title": "Record<string,Partial<CardDTO|null>>",
+			"type": "object"
+		},
+		"Partial<OverlayDTO>": {
+			"title": "Partial<OverlayDTO>",
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"title": "id"
+				},
+				"position": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "position"
+				},
+				"rotation": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "rotation"
+				},
+				"imageUrl": {
+					"type": "string",
+					"title": "imageUrl"
+				},
+				"ratio": {
+					"description": "ratio of width/height",
+					"type": "number",
+					"title": "ratio"
+				},
+				"scale": {
+					"type": "number",
+					"title": "scale"
+				}
+			}
+		},
+		"Partial<PieceDTO>": {
+			"title": "Partial<PieceDTO>",
+			"type": "object",
+			"properties": {
+				"position": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "position"
+				},
+				"rotation": {
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 3,
+					"maxItems": 3,
+					"title": "rotation"
+				},
+				"kind": {
+					"description": "Non-card table objects (tokens, pawns, counters). One generic shape\nwith a kind discriminator — see SPEC.md §4a.",
+					"enum": ["counter", "pawn", "token"],
+					"type": "string",
+					"title": "kind"
+				},
+				"name": {
+					"type": "string",
+					"title": "name"
+				},
+				"color": {
+					"description": "hex tint; pawns/counters without images render in this color",
+					"type": "string",
+					"title": "color"
+				},
+				"imageUrl": {
+					"description": "token top-face image ref (resolved like card faces)",
+					"type": "string",
+					"title": "imageUrl"
+				},
+				"radius": {
+					"description": "world radius of the piece footprint",
+					"type": "number",
+					"title": "radius"
+				},
+				"value": {
+					"description": "counter state",
+					"type": "number",
+					"title": "value"
+				},
+				"maxValue": {
+					"type": "number",
+					"title": "maxValue"
+				}
+			}
+		}
+	},
+	"$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -1,15 +1,15 @@
 /**
  * Cards on the Table
  * */
-type CardDTO = {
+export type CardDTO = {
 	position: [number, number, number];
 	rotation: [number, number, number];
 	faceImageUrl: string;
 	backImageUrl?: string;
 };
 
-type CardInDeck = Omit<CardDTO, 'position' | 'rotation'> & { id: string };
-type DeckDTO = {
+export type CardInDeck = Omit<CardDTO, 'position' | 'rotation'> & { id: string };
+export type DeckDTO = {
 	/**
 	 * id format
 	 * deck:playername:id
@@ -36,7 +36,7 @@ interface SeatState {
 		| 3; // 270deg
 }
 
-type PlayerDTO = SeatState & {
+export type PlayerDTO = SeatState & {
 	id: string;
 	joinTimestamp: number;
 	tray: Record<string, Partial<CardDTO | null>>;
@@ -52,7 +52,7 @@ type PlayerDTO = SeatState & {
  */
 export type PieceKind = 'token' | 'pawn' | 'counter';
 
-type PieceDTO = {
+export type PieceDTO = {
 	position: [number, number, number];
 	rotation: [number, number, number];
 	kind: PieceKind;
@@ -68,7 +68,7 @@ type PieceDTO = {
 	maxValue?: number;
 };
 
-type OverlayDTO = {
+export type OverlayDTO = {
 	id: string;
 	position: [number, number, number];
 	rotation: [number, number, number];
@@ -80,10 +80,14 @@ type OverlayDTO = {
 	scale: number;
 };
 
+// index signatures (not Record<…>) so the generated JSON Schema keeps the
+// entity value shapes — typescript-json-schema drops Record value types
 export interface GameDTO {
-	cards: Record<string, Partial<CardDTO>>; // cardId, state
-	decks: Record<string, Partial<DeckDTO>>; // deckId, state
-	players: Record<string, Partial<PlayerDTO>>; // playerId, state
-	overlays?: Record<string, Partial<OverlayDTO> | null>; // overlayId, state (null = remove)
-	pieces?: Record<string, Partial<PieceDTO> | null>; // pieceId, state (null = remove)
+	cards: { [cardId: string]: Partial<CardDTO> };
+	decks: { [deckId: string]: Partial<DeckDTO> };
+	players: { [playerId: string]: Partial<PlayerDTO> };
+	/** null = remove */
+	overlays?: { [overlayId: string]: Partial<OverlayDTO> | null };
+	/** null = remove */
+	pieces?: { [pieceId: string]: Partial<PieceDTO> | null };
 }

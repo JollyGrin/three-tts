@@ -189,12 +189,13 @@ A **pack** is a named, serializable definition of a game's contents — how many
 
 ```typescript
 type GamePackDef = {
-  id: string;                 // 'standard-52', 'imported:<hash>'
+  id: string;                 // 'standard-52', 'imported:<slug>'
   name: string;
   scope: 'table' | 'player';  // see "Two pack scopes" below
   decks: PackDeckDef[];
-  pieces?: ImportedObject[];  // tokens/tiles/boards etc. (§1 union)
+  pieces?: PackPieceDef[];    // tokens/pawns/counters (§4a shapes)
   overlays?: { imageUrl: string; ratio: number; scale: number }[];
+  source?: 'tts';             // provenance stamp written by converters
 };
 type PackDeckDef = {
   slot: string;               // 'main', 'discard' — stable id within the pack
@@ -205,9 +206,11 @@ type PackDeckDef = {
 };
 ```
 
+**File formats (tbpp/tbps):** packs travel as `<name>.tbpp.json` — a `GamePackDef` plus an in-band discriminator `"tbpp": 1` (the format version). Saved scenarios (arrangements: where things start, seat ownership, initial state — built in `/setup`) travel as `<name>.tbps.json` with `"tbps": 1`; legacy `scenario-*.json` exports (no marker) still parse as v0. The discriminator, not the filename, identifies the format — files get renamed and piped. JSON Schemas generated from the TS types (`bun run schemas`) are served as `/pack.schema.json` and `/scenario.schema.json` so files can carry a `$schema` line for editor validation; `parsePackFile`/`parseScenarioFile` validate at import time with field-level errors. Full format docs with examples: **`docs/packs.md`**.
+
 **Sources of packs:**
 1. **Built-in:** `standard-52` — a full playing-card deck with **procedurally generated faces** (canvas-drawn pips/courts, zero image assets, zero copyright surface — same posture as §2 primitives). It is the default content when a lobby starts empty, and doubles as fixture data for tests.
-2. **TTS import (§1/§5):** the parser's output is exactly a pack — `ImportedObject[]` grouped into `GamePackDef`. The import report screen is "pack preview."
+2. **TTS import (§1/§5):** `ttsToPack` (src/lib/tts/to-pack.ts) converts the parser's output into a `GamePackDef` stamped `source: 'tts'`. The import report screen is "pack preview." TTS is an import *boundary*: every TTS concept maps into pack primitives, and TTS mechanics (CardID math, sprite-sheet objects, Lua) never enter the tbpp format.
 3. **User packs:** the same JSON format hand-authored or exported/re-imported, enabling a pack picker later ("choose any card game"). The creator tooling for this — JSON Schema, CSV converters, visual builder, TTS round-trip export — is designed in **`CONTENT_CREATION.md`**.
 
 **Face refs — three URL schemes, resolved only at render time:**
