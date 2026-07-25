@@ -2,6 +2,8 @@ import { connect, joinLobby, onMessage, sendMessage, type WebSocketMessage } fro
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
+import { remoteCameraActions } from '$lib/store/remoteCameraStore.svelte';
+import { requestCameraBroadcast } from '$lib/store/cameraStore.svelte';
 import toast from 'svelte-french-toast';
 
 /**
@@ -47,6 +49,10 @@ export async function initWebsocket(lobbyId: string, serverUrl?: string): Promis
 		// clobber the seat a reconnecting player already holds in lobby state.
 		publishMyPlayerRow();
 
+		// announce our camera to whoever is already here — the ephemeral tier is
+		// never replayed, so without this we stay invisible until we orbit
+		requestCameraBroadcast();
+
 		return true;
 	} catch (error) {
 		console.error('Error initializing websocket:', error);
@@ -65,6 +71,34 @@ function publishMyPlayerRow(): void {
 	gameStore.updateState({
 		players: { [me.id]: { id: me.id, joinTimestamp: me.joinTimestamp ?? Date.now() } }
 	});
+}
+
+/**
+ * React to #48's presence patches on behalf of the camera avatars.
+ *
+ * Presence rides the ordinary `update` channel as `players[id].connected`, so
+ * there is no connect/disconnect message to hook — this reads the same patch
+ * the HUD dots read:
+ *  - a peer going `true` is a joiner who missed every camera sample we sent
+ *    before they attached (the ephemeral tier is never replayed), so we answer
+ *    with one of ours or stay invisible until we next orbit;
+ *  - a peer going `false` has really left, so their avatar goes immediately
+ *    rather than lingering until the staleness timeout.
+ */
+function applyPresenceToCameras(value: unknown): void {
+	const players = (
+		value as { players?: Record<string, { connected?: boolean } | null> } | undefined
+	)?.players;
+	if (!players) return;
+
+	const myId = gameActions.getMyId();
+	let peerCameOnline = false;
+	for (const [id, player] of Object.entries(players)) {
+		if (!player || id === myId) continue;
+		if (player.connected === true) peerCameOnline = true;
+		else if (player.connected === false) remoteCameraActions.forget(id);
+	}
+	if (peerCameOnline) requestCameraBroadcast();
 }
 
 /**
@@ -93,6 +127,17 @@ function setupMessageHandlers(): void {
 				console.log('Received update message', message);
 				gameStore.updateStateSilently(message.value);
 				prewarmGameState(message.value, () => gameStore.updateStateSilently({}));
+				applyPresenceToCameras(message.value);
+				break;
+
+			case 'camera':
+				// Ephemeral presence (SPEC.md §4c). Deliberately NOT routed through
+				// gameStore: any updateState here would echo straight back onto the
+				// wire and persist a pose in lobby state.
+				// The server already excludes the sender, but guard anyway — a
+				// self-echo would draw our own camera in our own face.
+				if (message.playerId && message.playerId !== gameActions.getMyId())
+					remoteCameraActions.receive(message.playerId, message.value);
 				break;
 
 			case 'error':

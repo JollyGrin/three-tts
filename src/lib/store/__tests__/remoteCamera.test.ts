@@ -1,0 +1,188 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { get } from 'svelte/store';
+import type { Vec3 } from '$lib/websocket/cameraStream';
+import {
+	CAMERA_EXPIRE_MS,
+	CAMERA_FADE_MS,
+	CAMERA_MIN_OPACITY,
+	CAMERA_SEQ_RESET_GAP,
+	CAMERA_STALE_MS,
+	applyCameraSample,
+	cameraOpacity,
+	parseCameraSample,
+	pruneExpiredCameras,
+	remoteCameraActions,
+	remoteCameraStore,
+	type RemoteCameraMap
+} from '../remoteCameraStore.svelte';
+
+const sample = (seq: number, x = 0) => ({ p: [x, 25, 0], t: [0, 0, 0], seq });
+
+describe('parseCameraSample', () => {
+	it('accepts a well-formed payload', () => {
+		expect(parseCameraSample(sample(1))).toEqual({ p: [0, 25, 0], t: [0, 0, 0], seq: 1 });
+	});
+
+	it.each([
+		['null', null],
+		['a string', 'nope'],
+		['a missing target', { p: [0, 0, 0], seq: 1 }],
+		['a short vector', { p: [0, 0], t: [0, 0, 0], seq: 1 }],
+		['a non-numeric vector', { p: [0, '25', 0], t: [0, 0, 0], seq: 1 }],
+		['NaN', { p: [0, NaN, 0], t: [0, 0, 0], seq: 1 }],
+		['a missing seq', { p: [0, 0, 0], t: [0, 0, 0] }]
+	])('rejects %s', (_label, value) => {
+		expect(parseCameraSample(value)).toBeNull();
+	});
+});
+
+describe('applyCameraSample', () => {
+	const empty: RemoteCameraMap = {};
+
+	it('stores the first sample with its arrival time', () => {
+		const next = applyCameraSample(empty, 'bob', sample(1, 3), 1_000);
+		expect(next.bob).toEqual({ p: [3, 25, 0], t: [0, 0, 0], seq: 1, lastSeen: 1_000 });
+	});
+
+	it('applies a newer seq', () => {
+		const first = applyCameraSample(empty, 'bob', sample(1, 3), 1_000);
+		const second = applyCameraSample(first, 'bob', sample(2, 7), 1_400);
+		expect(second.bob).toMatchObject({ p: [7, 25, 0], seq: 2, lastSeen: 1_400 });
+	});
+
+	it('drops a reordered (older) sample, keeping the newest pose', () => {
+		const first = applyCameraSample(empty, 'bob', sample(5, 7), 1_000);
+		const stale = applyCameraSample(first, 'bob', sample(4, 3), 1_100);
+		expect(stale).toBe(first); // same object → no subscriber churn
+		expect(stale.bob).toMatchObject({ p: [7, 25, 0], seq: 5, lastSeen: 1_000 });
+	});
+
+	it('drops a duplicate seq', () => {
+		const first = applyCameraSample(empty, 'bob', sample(5, 7), 1_000);
+		expect(applyCameraSample(first, 'bob', sample(5, 3), 1_100)).toBe(first);
+	});
+
+	it('accepts a restarted stream — a peer that reloaded begins at seq 1 again', () => {
+		const first = applyCameraSample(empty, 'bob', sample(CAMERA_SEQ_RESET_GAP + 50, 7), 1_000);
+		const restarted = applyCameraSample(first, 'bob', sample(1, 3), 9_000);
+		expect(restarted.bob).toMatchObject({ p: [3, 25, 0], seq: 1, lastSeen: 9_000 });
+	});
+
+	it('keeps players independent', () => {
+		let map = applyCameraSample(empty, 'bob', sample(9), 1_000);
+		map = applyCameraSample(map, 'ana', sample(1), 1_050);
+		expect(Object.keys(map).sort()).toEqual(['ana', 'bob']);
+	});
+
+	it('ignores malformed payloads and empty ids', () => {
+		expect(applyCameraSample(empty, 'bob', { nope: true }, 1)).toBe(empty);
+		expect(applyCameraSample(empty, '', sample(1), 1)).toBe(empty);
+	});
+});
+
+describe('pruneExpiredCameras', () => {
+	const stale = (lastSeen: number) => ({
+		p: [0, 0, 0] as Vec3,
+		t: [0, 0, 0] as Vec3,
+		seq: 1,
+		lastSeen
+	});
+	const NOW = 100_000;
+
+	it('drops only entries past the expiry window', () => {
+		const map: RemoteCameraMap = {
+			fresh: stale(NOW),
+			gone: stale(NOW - CAMERA_EXPIRE_MS - 1)
+		};
+		expect(Object.keys(pruneExpiredCameras(map, NOW))).toEqual(['fresh']);
+	});
+
+	it('returns the same map when nothing expired', () => {
+		const map: RemoteCameraMap = { fresh: stale(NOW) };
+		expect(pruneExpiredCameras(map, NOW)).toBe(map);
+	});
+
+	// #48 gave us a real presence flag, so a silent-but-present player must not
+	// blink out just because their camera has not moved. The sender goes quiet
+	// on purpose when a camera settles — expiry alone would punish sitting still.
+	it('keeps a long-silent player the server says is still connected', () => {
+		const map: RemoteCameraMap = { parked: stale(NOW - CAMERA_EXPIRE_MS * 10) };
+		const kept = pruneExpiredCameras(map, NOW, CAMERA_EXPIRE_MS, {
+			parked: { connected: true }
+		});
+		expect(Object.keys(kept)).toEqual(['parked']);
+	});
+
+	it('drops a player the server reports offline, without waiting out the expiry', () => {
+		const map: RemoteCameraMap = { left: stale(NOW) };
+		expect(pruneExpiredCameras(map, NOW, CAMERA_EXPIRE_MS, { left: { connected: false } })).toEqual(
+			{}
+		);
+	});
+
+	it('falls back to expiry when presence is unknown', () => {
+		const map: RemoteCameraMap = {
+			unknown: stale(NOW - CAMERA_EXPIRE_MS - 1),
+			noRow: stale(NOW)
+		};
+		// a row with no `connected` field yet is offline-unknown, not connected
+		const kept = pruneExpiredCameras(map, NOW, CAMERA_EXPIRE_MS, { unknown: {}, noRow: null });
+		expect(Object.keys(kept)).toEqual(['noRow']);
+	});
+});
+
+describe('cameraOpacity', () => {
+	it('is fully opaque until the sample goes stale', () => {
+		expect(cameraOpacity(0)).toBe(1);
+		expect(cameraOpacity(CAMERA_STALE_MS)).toBe(1);
+	});
+
+	it('fades to the floor and stays there', () => {
+		expect(cameraOpacity(CAMERA_STALE_MS + CAMERA_FADE_MS / 2)).toBeCloseTo(
+			1 - (1 - CAMERA_MIN_OPACITY) / 2
+		);
+		expect(cameraOpacity(CAMERA_STALE_MS + CAMERA_FADE_MS)).toBeCloseTo(CAMERA_MIN_OPACITY);
+		expect(cameraOpacity(CAMERA_EXPIRE_MS)).toBeCloseTo(CAMERA_MIN_OPACITY);
+	});
+});
+
+describe('remoteCameraActions', () => {
+	beforeEach(() => remoteCameraActions.reset());
+
+	it('receive → tick expiry removes an avatar that stopped sending', () => {
+		remoteCameraActions.receive('bob', sample(1), 1_000);
+		expect(get(remoteCameraStore).bob).toBeDefined();
+
+		remoteCameraActions.tick(1_000 + CAMERA_EXPIRE_MS - 1);
+		expect(get(remoteCameraStore).bob).toBeDefined();
+
+		remoteCameraActions.tick(1_000 + CAMERA_EXPIRE_MS);
+		expect(get(remoteCameraStore).bob).toBeUndefined();
+	});
+
+	it('tick keeps a connected player past expiry and drops a disconnected one', () => {
+		remoteCameraActions.receive('bob', sample(1), 1_000);
+		remoteCameraActions.receive('ana', sample(1), 1_000);
+
+		remoteCameraActions.tick(1_000 + CAMERA_EXPIRE_MS * 5, {
+			bob: { connected: true },
+			ana: { connected: false }
+		});
+
+		expect(Object.keys(get(remoteCameraStore))).toEqual(['bob']);
+	});
+
+	it('forget drops one player', () => {
+		remoteCameraActions.receive('bob', sample(1), 1_000);
+		remoteCameraActions.receive('ana', sample(1), 1_000);
+		remoteCameraActions.forget('bob');
+		expect(Object.keys(get(remoteCameraStore))).toEqual(['ana']);
+	});
+
+	it('retain keeps only players still in the roster', () => {
+		remoteCameraActions.receive('bob', sample(1), 1_000);
+		remoteCameraActions.receive('ana', sample(1), 1_000);
+		remoteCameraActions.retain(['ana']);
+		expect(Object.keys(get(remoteCameraStore))).toEqual(['ana']);
+	});
+});

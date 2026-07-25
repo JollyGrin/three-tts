@@ -11,11 +11,16 @@
 	import Piece from './Piece.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
+	import RemoteCameraAvatar from './RemoteCameraAvatar.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
+	import { gameActions } from './store/game/actions';
+	import { remoteCameraActions, remoteCameraStore } from './store/remoteCameraStore.svelte';
+	import { playerColor } from './hud/players';
 	import { clampToTable } from './utils/transforms/drop';
 	import { cancelActiveDrag, commitActiveDrag } from './drop/commit';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
 	import { PIECE_DRAG_Y } from '$lib/utils/constants-pieces';
 	import { TABLE_TOP_Y } from '$lib/utils/constants-table';
@@ -89,6 +94,31 @@
 			window.removeEventListener('keydown', onKeyDown);
 		};
 	});
+
+	/**
+	 * Remote camera avatars. Never our own — the store filters it on receive,
+	 * this filters it again because the id can arrive before we have one.
+	 */
+	const remoteCameras = $derived(
+		Object.keys($remoteCameraStore)
+			.filter((id) => id !== gameActions.getMyId())
+			.map((id) => ({ id, color: playerColor(id, $gameStore?.players?.[id]?.seat) }))
+	);
+
+	// One shared clock for the presence fade + expiry, instead of a timer per
+	// avatar. Cheap enough to leave running; it only touches a store. The
+	// roster goes in so a player the server says is still connected keeps their
+	// avatar however long they sit still — expiry is only the fallback for
+	// peers we have no presence for (see remoteCameraStore).
+	$effect(() => {
+		// `get`, not `$gameStore`: reading the store reactively here would make
+		// the effect re-run — and rebuild the interval — on every state change
+		const handle = setInterval(
+			() => remoteCameraActions.tick(Date.now(), get(gameStore)?.players),
+			500
+		);
+		return () => clearInterval(handle);
+	});
 </script>
 
 <TableCamera />
@@ -118,4 +148,8 @@
 
 {#each Object.keys($gameStore?.pieces ?? {}).filter((key) => $gameStore?.pieces?.[key]) as id (id)}
 	<Piece {id} />
+{/each}
+
+{#each remoteCameras as { id, color } (id)}
+	<RemoteCameraAvatar playerId={id} {color} />
 {/each}

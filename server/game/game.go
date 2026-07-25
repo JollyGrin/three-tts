@@ -27,6 +27,12 @@ func (g *Game) HandleMessage(from *Player, msg Message) {
 		return
 	case "update":
 		g.update(msg)
+	case "camera":
+		// Ephemeral tier (SPEC.md §4c). Presence-only traffic — remote camera
+		// poses today. Deliberately does NOT touch g.Data: it must never be
+		// persisted, never appear in a `sync` snapshot and never replay to a
+		// joiner. Falling straight through to the broadcast below *is* the
+		// contract; this case exists so nobody "fixes" it into an update.
 	}
 
 	// For whatever reason, we broadcast every message.
