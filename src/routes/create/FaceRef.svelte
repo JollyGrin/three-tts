@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { AutoValue, Folder, List, Text } from 'svelte-tweakpane-ui';
 	import { buildFaceRef, parseFaceRef, FACE_SCHEME_OPTIONS, type FaceDraft } from './face-ref';
+	import RefThumb from './RefThumb.svelte';
 
 	/**
 	 * Inline face authoring for whatever the pane is editing right now — a
@@ -63,5 +64,8 @@
 		<AutoValue label="Rows" bind:value={sheetRows} />
 		<AutoValue label="Cell index" bind:value={sheetIndex} />
 	{/if}
+	<!-- the ref row stays: it is the string you copy, and the thumbnail is not
+	     something you can paste into another card -->
 	<Text label="Ref" value={built} disabled />
+	<RefThumb value={built} label={title.toLowerCase()} />
 </Folder>
