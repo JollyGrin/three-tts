@@ -8,6 +8,7 @@
 	import { disconnect } from '$lib/websocket/connection';
 	import CreatePane from './CreatePane.svelte';
 	import { togglePreviewLayout } from './preview-layout';
+	import { EDITOR_GUTTER, editorPaneWidth } from './column';
 	import { isTyping } from '$lib/hotkeys/is-typing';
 	import toast from 'svelte-french-toast';
 
@@ -59,12 +60,15 @@
 -->
 <div class="flex h-screen w-screen overflow-clip bg-gray-700">
 	<!--
-		368 = the pane's 352 plus a stable 16px scrollbar gutter: reserved whether
-		or not the column is scrolling, so the pane's right edge is never under
-		the scrollbar and never shifts when a folder opens.
+		The pane's width plus a stable scrollbar gutter, so the pane's right edge
+		is never under the scrollbar and never shifts when a folder opens. A flex
+		COLUMN, because what is under the pane matters: the tabs are short (File
+		is four rows) and the viewport is not, so CreatePane's footer takes the
+		remainder with `mt-auto` rather than leaving a dark slab.
 	-->
 	<div
-		class="w-[368px] shrink-0 overflow-y-auto border-r border-black/50 bg-neutral-900 [scrollbar-gutter:stable]"
+		class="flex shrink-0 flex-col overflow-y-auto border-r border-black/50 bg-neutral-900 [scrollbar-gutter:stable]"
+		style="width: {$editorPaneWidth + EDITOR_GUTTER}px"
 	>
 		<CreatePane />
 	</div>

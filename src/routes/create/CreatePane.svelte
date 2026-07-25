@@ -15,8 +15,7 @@
 		Stepper,
 		TabGroup,
 		TabPage,
-		Text,
-		Textarea
+		Text
 	} from 'svelte-tweakpane-ui';
 	import { tick } from 'svelte';
 	import { get } from 'svelte/store';
@@ -37,6 +36,7 @@
 	} from '$lib/packs/spread';
 	import { onCardPick } from '$lib/store/cardPick';
 	import { previewLayout, type PreviewLayout } from './preview-layout';
+	import { editorPaneWidth } from './column';
 	import { CARD_BACK_DEFAULT, STANDARD_52 } from '$lib/packs/standard52';
 	import { parsePackFile, serializePackFile, packFileName } from '$lib/packs/file';
 	import {
@@ -77,9 +77,6 @@
 
 	/** Everything the /create preview spawns is owned by this placeholder id */
 	const PREVIEW_OWNER = 'preview';
-
-	/** the editor column's width — the pane fills it exactly (see +page.svelte) */
-	const PANE_WIDTH = 352;
 
 	const HELP_TEXT =
 		'A pack is a content library: decks (piles of cards), pieces (including bags — a ' +
@@ -152,6 +149,20 @@
 	const bagItem = $derived(piece?.kind === 'bag' ? piece.contents[bagItemIndex] : undefined);
 	const overlayIndex = $derived(Math.min(overlayCursor, Math.max(0, overlays.length - 1)));
 	const overlay = $derived(overlays[overlayIndex]);
+
+	/**
+	 * What is in the draft, for the column's footer. Counts only — the marker
+	 * for whether it is SAVED is #110's, and belongs in the pane's title.
+	 */
+	const cardCount = $derived(decks.reduce((total, d) => total + d.cards.length, 0));
+	const packSummary = $derived(
+		[
+			`${decks.length} deck${decks.length === 1 ? '' : 's'}`,
+			`${cardCount} card${cardCount === 1 ? '' : 's'}`,
+			...(pieces.length ? [`${pieces.length} piece${pieces.length === 1 ? '' : 's'}`] : []),
+			...(overlays.length ? [`${overlays.length} overlay${overlays.length === 1 ? '' : 's'}`] : [])
+		].join(' · ')
+	);
 
 	const deckOptions = $derived(
 		decks.length
@@ -755,7 +766,7 @@
 		tree: replacing one blade with another tears a tweakpane pane down, while
 		mounting and unmounting a whole <Pane> is plain Svelte and safe.
 	-->
-	<Pane position="inline" title="new pack" userExpandable={false} width={PANE_WIDTH}>
+	<Pane position="inline" title="new pack" userExpandable={false} width={$editorPaneWidth}>
 		<Element>
 			<div class="p-2 font-sans text-[11px] leading-snug text-white/60">
 				A pack is a content library — decks, pieces and board overlays — authored here and kept in
@@ -779,7 +790,7 @@
 		{/if}
 	</Pane>
 {:else}
-	<Pane position="inline" title="pack editor" userExpandable={false} width={PANE_WIDTH}>
+	<Pane position="inline" title="pack editor" userExpandable={false} width={$editorPaneWidth}>
 		<!--
 			The breadcrumb row: what is selected, above the tabs, always mounted so
 			#109 can fill it in with `pack › deck › card N of M` without touching the
@@ -802,11 +813,6 @@
 				/>
 				<Separator />
 				<Button title="Close pack" on:click={closePack} />
-				<!-- collapsed by default, and the home for the per-control help #115
-				     rewrites: the editor should open on controls, not on prose -->
-				<Folder title="How this works" expanded={false}>
-					<Textarea disabled rows={7} value={HELP_TEXT} />
-				</Folder>
 			</TabPage>
 
 			<TabPage title="Cards">
@@ -869,9 +875,6 @@
 
 				<Separator />
 				<Button title="Flip cards on table (F)" on:click={flipTableCards} />
-				<Folder title="How this works" expanded={false}>
-					<Textarea disabled rows={9} value={TABLE_HELP_TEXT} />
-				</Folder>
 			</TabPage>
 
 			<TabPage title="Board">
@@ -1028,5 +1031,38 @@
 		</TabGroup>
 	</Pane>
 {/if}
+
+<!--
+	The column is viewport-tall; a tab's controls are not — File is four rows —
+	so everything under the pane used to be a flat slab down to the bottom edge.
+	It carries the two things the editor otherwise has nowhere to say: how any of
+	this works, and what is in the draft.
+
+	Plain markup rather than a tweakpane folder: this is the home #115 rewrites
+	into per-control help, and prose in a disabled Textarea can neither wrap to
+	the column nor be selected and copied. It takes the remainder (`flex-1`) and
+	centres in it, so what is left over on a tall screen is two small margins
+	rather than one dead half — `safe` centring, so a long tab still scrolls
+	from the top rather than centring its overflow out of reach.
+-->
+<section
+	class="flex flex-1 flex-col [justify-content:safe_center] border-t border-black/40 px-3 pt-2 pb-3 font-sans text-[11px] leading-relaxed text-white/45"
+>
+	<h2 class="mb-1 font-mono text-[10px] tracking-widest text-white/45 uppercase">How this works</h2>
+	<p class="mb-2">{HELP_TEXT}</p>
+	<p>{TABLE_HELP_TEXT}</p>
+</section>
+
+<!--
+	A status bar, and the reason the column has no dead bottom edge at any
+	height: `mt-auto` drops it to the foot of a short column, `sticky` keeps it
+	there while a long one scrolls behind it. Counts only — whether the draft is
+	SAVED is #110's marker, and belongs in the pane's title.
+-->
+<footer
+	class="sticky bottom-0 mt-auto border-t border-black/40 bg-neutral-900 px-3 py-1.5 font-mono text-[10px] tracking-wide text-white/65 uppercase"
+>
+	{pack ? packSummary : 'no pack open'}
+</footer>
 
 <FileDropZone onfile={handleDroppedFile} />

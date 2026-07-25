@@ -682,6 +682,45 @@ describe('CreatePane', () => {
 		}
 	});
 
+	describe('the column below the pane', () => {
+		const status = (container: HTMLElement) =>
+			container.querySelector('footer')?.textContent?.trim();
+
+		it('says what is in the draft, on every tab', async () => {
+			const container = await mount();
+			// the start state has no draft to count, and still closes the column
+			expect(status(container)).toBe('no pack open');
+
+			button(container, 'New empty pack')!.click();
+			await settle();
+			expect(status(container)).toBe('1 deck · 0 cards');
+
+			button(container, 'Add card')!.click();
+			await settle();
+			button(container, 'Add deck')!.click();
+			await settle();
+			expect(status(container)).toBe('2 decks · 1 card');
+
+			// pieces and overlays only once the pack has any — a deck of cards
+			// should not have to read past zeroes
+			choose(listWith(container, 'Counter'), 'Counter');
+			await settle();
+			button(container, 'Add counter')!.click();
+			await settle();
+			expect(status(container)).toBe('2 decks · 1 card · 1 piece');
+		});
+
+		it('carries the help the tabs no longer do, outside every folder', async () => {
+			const container = await startNew();
+			const help = container.querySelector('section');
+			expect(help?.textContent).toContain('A pack is a content library');
+			expect(help?.textContent).toContain('Preview table');
+			// it is markup, not a blade: a tweakpane folder would collapse it back
+			// into the pane it was moved out of
+			expect(help?.closest('.tp-fldv')).toBeNull();
+		});
+	});
+
 	it('previews only under the preview owner, leaving other entities alone', async () => {
 		gameStore.set({
 			players: {},
