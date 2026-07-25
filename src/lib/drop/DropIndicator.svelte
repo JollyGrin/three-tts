@@ -6,6 +6,7 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { tableFeatures } from '$lib/store/tableFeatures';
 	import { resolveDrop } from '$lib/utils/transforms/drop';
+	import { SNAP_DROP_COLOR } from '$lib/utils/constants-snap';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import DropFootprint from './DropFootprint.svelte';
 
@@ -21,7 +22,7 @@
 
 	// clear of the table Grid (0.255) and the map overlay plane (0.258)
 	const SURFACE_CLEARANCE = 0.0025;
-	const COLORS = { table: '#5ee7ff', stack: '#ffc94a' } as const;
+	const COLORS = { table: '#5ee7ff', stack: '#ffc94a', snap: SNAP_DROP_COLOR } as const;
 
 	const dragId = $derived($dragStore.isDragging);
 
@@ -39,7 +40,17 @@
 
 	// the deck / tray highlights are the cue for those targets — a table
 	// footprint there would promise a landing that isn't going to happen
-	const visible = $derived(drop?.kind === 'table' || drop?.kind === 'stack');
+	const visible = $derived(
+		drop?.kind === 'table' || drop?.kind === 'stack' || drop?.kind === 'snap'
+	);
+
+	/**
+	 * A caught snap point is the whole feedback for snapping in /play, where the
+	 * markers themselves aren't drawn (see `store/tableFeatures`): the footprint
+	 * jumps onto the point, in its own colour, already turned to the authored
+	 * yaw. The ring behind it shows what caught it.
+	 */
+	const snapRing = $derived(drop?.kind === 'snap' ? (drop.snap?.radius ?? 0) : 0);
 
 	// primitives, not the resolved objects: all of this recomputes on every
 	// pointer move, and threlte rebuilds a geometry whenever its `args` array
@@ -48,7 +59,9 @@
 	const w = $derived(drop?.footprint.shape === 'rect' ? drop.footprint.w : 0);
 	const h = $derived(drop?.footprint.shape === 'rect' ? drop.footprint.h : 0);
 	const r = $derived(drop?.footprint.shape === 'circle' ? drop.footprint.r : 0);
-	const color = $derived(drop?.kind === 'stack' ? COLORS.stack : COLORS.table);
+	const color = $derived(
+		drop?.kind === 'snap' ? COLORS.snap : drop?.kind === 'stack' ? COLORS.stack : COLORS.table
+	);
 	const posX = $derived(drop?.position[0] ?? 0);
 	const posZ = $derived(drop?.position[2] ?? 0);
 	const surfaceY = $derived((drop?.footprintY ?? 0) + SURFACE_CLEARANCE);
@@ -82,6 +95,12 @@
 
 {#if visible}
 	<T.Group position={[posX, surfaceY, posZ]}>
+		{#if snapRing > 0}
+			<!-- unrotated: the ring belongs to the point, not to what lands on it -->
+			<T.Group rotation.x={-Math.PI / 2}>
+				<DropFootprint shape="circle" r={snapRing} color={COLORS.snap} fill={0.1} border={0.04} />
+			</T.Group>
+		{/if}
 		<T.Group rotation.y={yaw}>
 			<T.Group rotation.x={-Math.PI / 2}>
 				<DropFootprint {shape} {w} {h} {r} {color} />

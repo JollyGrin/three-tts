@@ -3,10 +3,15 @@
 	import * as THREE from 'three';
 	import { onDestroy } from 'svelte';
 	import { Grid } from '@threlte/extras';
+	import { get } from 'svelte/store';
 	import { gameStore } from './store/game/gameStore.svelte';
+	import { gameActions } from './store/game/actions';
 	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
 	import { commitActiveDrag } from './drop/commit';
-	import { setNoSnap } from './store/dragStore.svelte';
+	import { dragStore, setNoSnap } from './store/dragStore.svelte';
+	import { snapEditor } from './store/snapEditor';
+	import { tableFeatures } from './store/tableFeatures';
+	import { DRAG_THRESHOLD_PX } from './utils/counter-input';
 	import type { IntersectionEvent } from '@threlte/extras';
 	import { TABLE_TOP_Y } from './utils/constants-table';
 
@@ -21,6 +26,38 @@
 	function handleDragEnd(event: IntersectionEvent<PointerEvent>) {
 		setNoSnap(event.nativeEvent.altKey);
 		commitActiveDrag();
+	}
+
+	/**
+	 * Snap-point placement (the /setup layer, armed from its pane): a plain click
+	 * on bare felt drops a snap point where it landed.
+	 *
+	 * Two things have to be excluded, because the browser fires `click` for both:
+	 * a card drag that happened to be released over the table (its pointerdown
+	 * was claimed by the card, so the felt never saw one), and an OrbitControls
+	 * camera drag that started on the felt (same down/up element, just moved) —
+	 * hence the travel threshold.
+	 */
+	let pressedFelt: { x: number; y: number } | null = null;
+
+	function handlePointerDown(event: IntersectionEvent<PointerEvent>) {
+		pressedFelt = get(dragStore).isDragging
+			? null
+			: { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+	}
+
+	function handleClick(event: IntersectionEvent<MouseEvent>) {
+		const pressed = pressedFelt;
+		pressedFelt = null;
+		const { placing, rotation, radius } = get(snapEditor);
+		if (!placing || !pressed || !get(tableFeatures).snapEditing) return;
+		const travel = Math.hypot(
+			event.nativeEvent.clientX - pressed.x,
+			event.nativeEvent.clientY - pressed.y
+		);
+		if (travel >= DRAG_THRESHOLD_PX) return; // that was a camera orbit
+		event.stopPropagation();
+		gameActions.addSnapPoint({ position: [event.point.x, event.point.z], rotation, radius });
 	}
 
 	// Create procedural felt texture. Built synchronously: this component only
@@ -122,7 +159,13 @@
 	infiniteGrid
 />
 <T.Group position={[0, 0, 0]}>
-	<T.Mesh receiveShadow bind:ref={mesh} onpointerup={handleDragEnd}>
+	<T.Mesh
+		receiveShadow
+		bind:ref={mesh}
+		onpointerup={handleDragEnd}
+		onpointerdown={handlePointerDown}
+		onclick={handleClick}
+	>
 		<T.BoxGeometry args={[60, 0.5, 30]} />
 		<!-- one stable material with its map from birth.
 		     (swapping whole materials via {#if}+<T is> detaches without reattaching in threlte 8.5) -->

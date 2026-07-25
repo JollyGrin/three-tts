@@ -3,7 +3,7 @@ import { dragEnd, dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { tableFeatures } from '$lib/store/tableFeatures';
-import { resolveDrop } from '$lib/utils/transforms/drop';
+import { resolveDrop, type DropTarget } from '$lib/utils/transforms/drop';
 
 /**
  * Ending a drag, in one place.
@@ -42,14 +42,29 @@ export function commitActiveDrag() {
 	} else if (drop?.kind === 'deck' && drop.targetId) {
 		gameActions.placeOnTopOfDeck(drop.targetId, id);
 	} else if (drop && id.startsWith('piece:')) {
-		gameStore.updateState({ pieces: { [id]: { position: drop.position } } });
+		gameStore.updateState({ pieces: { [id]: dropPatch(drop) } });
 	} else if (drop && id.startsWith('deck:')) {
-		gameStore.updateState({ decks: { [id]: { position: drop.position } } });
+		gameStore.updateState({ decks: { [id]: dropPatch(drop) } });
 	} else if (drop) {
-		gameStore.updateState({ cards: { [id]: { position: drop.position } } });
+		gameStore.updateState({ cards: { [id]: dropPatch(drop) } });
 	}
 
 	dragEnd();
+}
+
+/**
+ * The state patch a landing writes. Position always; rotation only when the
+ * drop actually turned the entity — a snap point with an authored yaw. Every
+ * other kind resolves the rotation the entity already has, and re-sending it
+ * would put an unchanged field on the wire on every single drop.
+ */
+function dropPatch(drop: DropTarget): {
+	position: [number, number, number];
+	rotation?: [number, number, number];
+} {
+	return drop.snap?.rotation !== undefined
+		? { position: drop.position, rotation: drop.rotation }
+		: { position: drop.position };
 }
 
 /**
@@ -77,10 +92,9 @@ export function cancelActiveDrag() {
 
 function commitActiveDragAtRest(id: string) {
 	const drop = resolveDrop(get(gameStore), id, null);
-	if (drop && id.startsWith('piece:'))
-		gameStore.updateState({ pieces: { [id]: { position: drop.position } } });
+	if (drop && id.startsWith('piece:')) gameStore.updateState({ pieces: { [id]: dropPatch(drop) } });
 	else if (drop && id.startsWith('deck:'))
-		gameStore.updateState({ decks: { [id]: { position: drop.position } } });
-	else if (drop) gameStore.updateState({ cards: { [id]: { position: drop.position } } });
+		gameStore.updateState({ decks: { [id]: dropPatch(drop) } });
+	else if (drop) gameStore.updateState({ cards: { [id]: dropPatch(drop) } });
 	dragEnd();
 }

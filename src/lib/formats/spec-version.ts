@@ -23,8 +23,15 @@ export const PACK_SPEC_VERSION = '1.0.0';
  * The scenario spec is deliberately 0.x: it is unstable and carries no
  * compatibility promise (issue #39), and semver's 0.x rule — where the minor
  * is the breaking component — says exactly that.
+ *
+ * Which means, while this is 0.x, an **additive** change bumps the PATCH, not
+ * the minor. `breakingRank` below ranks 0.x by minor, so bumping the minor for
+ * a new optional field claims a break that did not happen, and every 0.1.x
+ * build then refuses files it could have read perfectly well. (The general
+ * "additive → minor" convention in docs/packs.md § Release convention is the
+ * 1.x rule; it inverts under 0.x.)
  */
-export const SCENARIO_SPEC_VERSION = '0.1.1';
+export const SCENARIO_SPEC_VERSION = '0.1.2';
 
 export type Semver = { major: number; minor: number; patch: number };
 

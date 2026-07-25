@@ -64,6 +64,29 @@ export type PackPlacement = {
 	scale?: number;
 };
 
+/**
+ * An authored placement guide: a spot on the felt that a dropped card or piece
+ * finishes exactly on. Scenario-level and table-space — a snap point belongs
+ * to the board, not to a seat, so it is not mirrored per seat the way pack
+ * piece positions are.
+ *
+ * Deliberately shaped like TTS's save-level `SnapPoints` (position + optional
+ * rotation) so importing those stays a mechanical mapping.
+ */
+export type SnapPoint = {
+	/** table-space `[x, z]`; no y — snap points live on the felt */
+	position: [number, number];
+	/**
+	 * Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's
+	 * own rotation alone. Degrees, not the radians `placements` use, because
+	 * this is a single table yaw and it maps 1:1 onto both the card DTO's tap
+	 * rotation and TTS's snap-point rotation.
+	 */
+	rotation?: number;
+	/** catch radius in world units; omitted means the app default (0.9) */
+	radius?: number;
+};
+
 export type Scenario = {
 	name: string;
 	createdAt: number;
@@ -73,6 +96,13 @@ export type Scenario = {
 	packs?: PackRef[];
 	/** v2: where that content goes */
 	placements?: PackPlacement[];
+	/**
+	 * Placement guides for whatever ends up on the table, pack-derived or not —
+	 * and the only place a file should author them. Additive: a scenario without
+	 * them behaves exactly as it did before they existed, and they don't decide
+	 * the file version (a hand-placed table with snap points is still v1).
+	 */
+	snapPoints?: SnapPoint[];
 };
 
 /** The on-disk shape of a `.tbps.json` file. */
@@ -184,6 +214,32 @@ function parsePlacement(v: unknown, path: string): PackPlacement {
 	return placement;
 }
 
+function parseSnapPoint(v: unknown, path: string): SnapPoint {
+	if (!isRecord(v)) fail(`${path} must be an object`);
+	const position = v.position;
+	if (
+		!Array.isArray(position) ||
+		position.length !== 2 ||
+		position.some((n) => typeof n !== 'number' || !Number.isFinite(n))
+	) {
+		fail(`${path}.position must be [x, z] in table space`);
+	}
+	const point: SnapPoint = { position: position as [number, number] };
+	if (v.rotation !== undefined) {
+		if (typeof v.rotation !== 'number' || !Number.isFinite(v.rotation)) {
+			fail(`${path}.rotation must be a yaw in degrees`);
+		}
+		point.rotation = v.rotation;
+	}
+	if (v.radius !== undefined) {
+		if (typeof v.radius !== 'number' || !Number.isFinite(v.radius) || v.radius <= 0) {
+			fail(`${path}.radius must be a positive number of world units`);
+		}
+		point.radius = v.radius;
+	}
+	return point;
+}
+
 /**
  * Parse + validate a scenario file. Accepts v2 (pack-referencing), v1
  * (self-contained snapshot) and, as a v0 fallback, the legacy
@@ -229,6 +285,12 @@ export function parseScenarioFile(text: string): Scenario {
 	if (obj.placements !== undefined) {
 		if (!Array.isArray(obj.placements)) throw new Error('`placements` must be an array');
 		scenario.placements = obj.placements.map((p, i) => parsePlacement(p, `placements[${i}]`));
+	}
+	// additive and version-gated by absence: a file without `snapPoints` parses
+	// to a scenario without the key, byte-identical to how it always did
+	if (obj.snapPoints !== undefined) {
+		if (!Array.isArray(obj.snapPoints)) throw new Error('`snapPoints` must be an array');
+		scenario.snapPoints = obj.snapPoints.map((p, i) => parseSnapPoint(p, `snapPoints[${i}]`));
 	}
 	return scenario;
 }

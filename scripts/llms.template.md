@@ -184,17 +184,37 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
   - **`order`** _(decks)_ — the card sequence as pack card `code`s, top of the deck first. **Order is preserved by default**, so a rigged opening or a fixed encounter deck reloads exactly as authored. It is a list of ids, never card bodies. Unknown codes are skipped with a warning.
   - **`shuffleOnLoad`** _(decks, default `false`)_ — shuffle on load instead of restoring `order`. Per placement, so one scenario can hold a stacked encounter deck and a shuffled draw deck side by side.
   - **`isFaceUp`** _(decks)_, **`value`** _(counter pieces)_, **`scale`** _(overlays)_ — override the pack's defaults.
+- **`snapPoints[]`** _(optional)_ — placement guides on the felt (§7.2 below). Independent of `placements`: they steer what players drop, not what the scenario spawns.
 - **`state`** — a partial snapshot for everything _not_ pack-derived: hand-placed cards, ad-hoc pieces. Applied on top of the placements, so it can also override them. This is the part of the format most likely to change; keep as little in it as you can.
 
 Scenarios are **seat-relative**. Entities belong to placeholder players `seat0`–`seat3`, and entity ids follow `kind:owner:slug` — `deck:seat0:main`, `card:seat0:main-AS`, `piece:seat0:hp-0`. Overlays are table-scoped and keyed `overlay:<packId>:<index>`. When a real player claims a seat, every id containing that placeholder is renamed to them. Never put a real player id in a file.
 
-### 7.2 JSON Schema
+### 7.2 Snap points — placement guides
+
+`snapPoints` is how a scenario makes a board _playable_ rather than merely arranged. Each entry is a spot on the felt that pulls drops onto itself:
+
+```json
+"snapPoints": [
+	{ "position": [0, 2.5], "rotation": 0, "radius": 1 },
+	{ "position": [-4, 0] }
+]
+```
+
+- **`position`** — `[x, z]` in table space (§4). Two elements, no y: a snap point is a spot on the felt, and what lands on it keeps its own resting height, so a card dropped on an occupied point still stacks on what is already there.
+- **`rotation`** _(optional)_ — the yaw a caught drop turns to, in **degrees**. Note the unit: `placements[].rotation` is radians, this is degrees, because it maps 1:1 onto a card's own tap rotation and onto TTS snap points. Omit it for a position-only guide, which leaves whatever lands facing as it was.
+- **`radius`** _(optional)_ — catch radius in world units. Omitted means `SNAP_RADIUS_DEFAULT` (§4). A drop lands on a point when its release is inside the radius; when radii overlap, the nearest point wins.
+
+Snap points are **table-scoped, not seat-relative**: unlike a pack piece's `[x, z]`, they are never mirrored for the far side of the table. Author both ends explicitly — one at `[0, 2.5]` facing `0`, one at `[0, -2.5]` facing `180`.
+
+They are inert data. Nothing spawns from them, they claim no ids, they are drawn only in the scenario editor, and a player can always ignore one by holding Alt as they release. A scenario with no `snapPoints` behaves exactly as it did before the field existed.
+
+### 7.3 JSON Schema
 
 {{SCENARIO_SCHEMA}}
 
-### 7.3 Worked example
+### 7.4 Worked example
 
-Two packs — one builtin, one fetched from `{{EXAMPLE_PACK_URL}}` (the pack in §6.3) — with a stacked deck for seat 0, a shuffled deck for seat 1, a counter, a board overlay, and one hand-placed token in `state`.
+Two packs — one builtin, one fetched from `{{EXAMPLE_PACK_URL}}` (the pack in §6.3) — with a stacked deck for seat 0, a shuffled deck for seat 1, a counter, a board overlay, three snap points, and one hand-placed token in `state`.
 
 {{SCENARIO_EXAMPLE}}
 
@@ -206,6 +226,7 @@ Deliberately unresolved. Do not invent syntax for these — a file using it will
 - **Pack content versioning.** `tbpp` is the _format_ version; a pack cannot declare its own version ("Ember Duel v1.2"). There is no field for it and no upgrade story for a pack whose contents changed under a scenario that references it.
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing or registry. Two authors can both publish `ember-duel`, and a scenario referencing `ember-duel` by a URL that later serves different content will silently resolve differently. Until this is decided, prefer a distinctive `id` and always pin `source` to a URL you control.
 - **Pieces and overlays in scenarios beyond the fields above** — piece rotation, stacking and zones are not expressible.
+- **Snapping beyond single points.** `snapPoints` is a list of discrete spots. Grids (square/hex), per-object opt-outs, and hidden/layout/randomize zones have no syntax; a snap point cannot restrict _what_ may land on it either.
 
 ## 9. Before you emit a file
 

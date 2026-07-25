@@ -147,6 +147,31 @@ Scenarios are **seat-relative**: entities belong to placeholder players `seat0`�
   - **`isFaceUp`** (decks), **`value`** (counter pieces), **`scale`** (overlays) — arrangement details that override the pack's defaults.
 - **`state`** — a `Partial<GameDTO>` snapshot (`src/lib/store/game/types.ts`) for everything _not_ pack-derived: ad-hoc pieces, hand-placed cards, TTS-imported decks. It is applied on top of the spawned placements, so it can also override them.
 
+### snapPoints — placement guides
+
+`snapPoints` (optional, any version) is a flat array of authored spots on the felt that dropped cards and pieces gravitate to — TTS's core placement primitive, and what turns an imported pile of floating objects into a playable board.
+
+```json
+"snapPoints": [
+	{ "position": [0, 2.5], "rotation": 0, "radius": 1 },
+	{ "position": [-4, 0] }
+]
+```
+
+- **`position`** — table-space `[x, z]`. Two elements, no y: the point is a spot on the felt and what lands there keeps its own resting height, so a second card on the same point still stacks on the first.
+- **`rotation`** (optional) — the yaw a caught drop turns to, in **degrees**. Placements use radians; this uses degrees, because it is a single table yaw that maps 1:1 onto the card DTO's tap rotation (`actions/card.ts`) and onto TTS's `SnapPoints`. Omitted means "position only — leave the facing alone".
+- **`radius`** (optional) — catch radius in world units, defaulting to `SNAP_RADIUS_DEFAULT` (`utils/constants-snap.ts`). Nearest point wins where radii overlap.
+
+Snap points are **table-scoped and not seat-relative** — unlike a pack piece's `[x, z]` they are never mirrored, so both ends of a board are authored explicitly. In the store they live in `GameDTO.snapPoints` keyed `snap:<n>`; the file drops those ids (nothing references them) and reassigns them on load, which is why the field is an array rather than a record.
+
+**How it lands, and why there is no new sync machinery.** `resolveSnap` (`utils/transforms/snap.ts`) is a pure nearest-point-within-radius search; `resolveDrop` calls it and returns `kind: 'snap'`, and the commit writes that final position — plus the rotation, but only when a point authored one — through the same move path as any other drop. The relay carries that one patch, so both clients end on the identical transform. Resolution order is tray → hovered deck → Alt's opt-out → snap point → loose-pile square-up: aimed-at targets beat authored intent, and authored intent beats where cards happen to have drifted.
+
+**Visibility.** Markers are drawn only in /setup (`TableFeatures.snapEditing`). In /play the board stays clean and the feedback is the drop preview instead: when a drag is caught, the footprint jumps onto the point in its own colour, already turned to the authored yaw, with a ring showing what caught it. Permanent rings under every authored slot would clutter exactly the boards that use snap points most.
+
+Authoring lives in the /setup pane's **Snap points** folder plus direct manipulation in the scene: arm "place on click" and click the felt, drag a marker to move it, right-click to delete. `gameActions.addSnapPoint` / `moveSnapPoint` / `updateSnapPoint` / `removeSnapPoint` (`store/game/actions/snap.ts`) are ordinary surgical patches, `null` to delete, exactly like a piece's.
+
+TTS save-level `SnapPoints` import is deliberately _not_ wired up here (issue #96 scope); the shape is kept close to TTS's position-plus-rotation so that mapping stays mechanical when the importer envelope work lands.
+
 Export decides per entity: content carrying pack provenance (a `packOrigin` stamp, written by `spawnPack`) becomes a pack ref + placement; everything else falls back to the raw snapshot. A table with no pack content at all still exports as **v1**.
 
 ### Versions
@@ -210,5 +235,7 @@ Open questions the format deliberately does **not** answer yet. They are listed 
 - **Card multiplicity.** `PackCardDef` has no `count`. Three copies of a card means three entries with distinct `code`s (`strike-1`, `strike-2`, …), because `code` is the per-deck identity that scenario `order` arrays reference. Whether multiplicity becomes a first-class field — and what it would do to `order` — is undecided.
 - **Pack content versioning.** `tbpp` versions the _format_, not the pack. A pack cannot declare "Ember Duel v1.2", and there is no upgrade story for a pack whose cards changed underneath a scenario that references it by URL.
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing, registry, or ownership check. Two authors can both ship `ember-duel`, and `resolve-packs.ts` only warns when a fetched pack's `id` disagrees with the ref. Until this is decided, the practical advice is a distinctive `id` plus a `source` URL you control.
+
+- **Snapping beyond discrete points.** `snapPoints` is a list of spots. Grids (square/hex), per-object snap opt-outs, and hidden/layout/randomize zones have no syntax, and a snap point cannot restrict what is allowed to land on it. Pack-level snap sets (a snap layout that travels with an overlay, rather than with the scenario) are also unresolved — that would pull the pack schema and /create in under the parity rule, so it is deliberately left to a follow-up.
 
 `GamePackDef` also does not carry a board/table definition (SPEC §4d mentions one); overlays are the closest thing today.

@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { clampToTable, resolveDrop } from '../drop';
 import type { GameDTO } from '$lib/store/game/types';
-import { CARD_WIDTH, CARD_HEIGHT, CARD_REST_Y, CARD_THICKNESS } from '$lib/utils/constants-cards';
+import {
+	CARD_WIDTH,
+	CARD_HEIGHT,
+	CARD_REST_Y,
+	CARD_THICKNESS,
+	CARD_DRAG_Y,
+	deckHeightForCount
+} from '$lib/utils/constants-cards';
 import { PIECE_DEFAULT_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { EDGE_MARGIN, TABLE_HALF_X, TABLE_HALF_Z, TABLE_TOP_Y } from '$lib/utils/constants-table';
 
@@ -199,6 +206,178 @@ describe('resolveDrop', () => {
 		it('changes nothing when the modifier is not held', () => {
 			expect(resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: false })).toEqual(
 				resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 })
+			);
+		});
+	});
+
+	describe('authored snap points', () => {
+		const withSnap = (over: Partial<GameDTO> = {}) =>
+			state({
+				snapPoints: {
+					'snap:0': { id: 'snap:0', position: [4, 2], radius: 1, rotation: 90 },
+					'snap:1': { id: 'snap:1', position: [-4, 2], radius: 1 }
+				},
+				...over
+			});
+
+		it('pulls a card exactly onto the point and applies its yaw', () => {
+			const s = withSnap({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 4.4, z: 2.3 });
+			expect(drop).toMatchObject({
+				kind: 'snap',
+				position: [4, CARD_REST_Y, 2],
+				rotation: [0, 0, 90],
+				snap: { id: 'snap:0', radius: 1 }
+			});
+		});
+
+		it('leaves the facing alone for a point with no authored rotation', () => {
+			const s = withSnap({ cards: { a: card(0, 2, 0, [180, 0, 45]) } });
+			const drop = resolveDrop(s, 'a', { x: -4, z: 2 });
+			expect(drop?.kind).toBe('snap');
+			expect(drop?.rotation).toEqual([180, 0, 45]);
+		});
+
+		/**
+		 * A whole dragged deck (tableplace-88) has to snap as well, and it is the
+		 * case the two features had to be composed for: the deck branch resolves
+		 * before the card path, so it has to consult the snap itself rather than
+		 * returning at the raw pointer.
+		 */
+		describe('a dragged deck', () => {
+			const deck = (n: number, rotation: [number, number, number] = [0, 0, 0]) => ({
+				id: 'deck:me:main',
+				position: [0, CARD_DRAG_Y, 0] as [number, number, number],
+				rotation,
+				cards: Array.from({ length: n }, (_, i) => ({ id: `c${i}`, faceImageUrl: 'f.png' }))
+			});
+			const restY = (n: number) => TABLE_TOP_Y + deckHeightForCount(n) / 2;
+
+			it('lands exactly on the point, keeping its own half-height', () => {
+				const s = withSnap({ decks: { 'deck:me:main': deck(20) } });
+				const drop = resolveDrop(s, 'deck:me:main', { x: 4.5, z: 2.2 });
+				expect(drop).toMatchObject({
+					kind: 'snap',
+					position: [4, restY(20), 2],
+					snap: { id: 'snap:0', radius: 1 }
+				});
+			});
+
+			it('takes the authored yaw in RADIANS, unlike a card', () => {
+				const s = withSnap({ decks: { 'deck:me:main': deck(20) } });
+				// snap:0 authors 90°, and a deck's rotation triple is radians
+				const [rx, ry, rz] = resolveDrop(s, 'deck:me:main', { x: 4, z: 2 })!.rotation;
+				expect([rx, rz]).toEqual([0, 0]);
+				expect(ry).toBeCloseTo(Math.PI / 2);
+			});
+
+			it('keeps its facing when the point authored no rotation', () => {
+				const s = withSnap({ decks: { 'deck:me:main': deck(20, [0, Math.PI, 0]) } });
+				const drop = resolveDrop(s, 'deck:me:main', { x: -4, z: 2 });
+				expect(drop?.kind).toBe('snap');
+				expect(drop?.rotation).toEqual([0, Math.PI, 0]);
+			});
+
+			it('still settles at the pointer when no point is in range', () => {
+				const s = withSnap({ decks: { 'deck:me:main': deck(8) } });
+				const drop = resolveDrop(s, 'deck:me:main', { x: 9, z: -3 });
+				expect(drop).toMatchObject({ kind: 'table', position: [9, restY(8), -3] });
+				expect(drop?.snap).toBeUndefined();
+			});
+
+			it('is opted out of by Alt, like every other snap', () => {
+				const s = withSnap({ decks: { 'deck:me:main': deck(8) } });
+				const drop = resolveDrop(s, 'deck:me:main', { x: 4.2, z: 2 }, {}, { noSnap: true });
+				expect(drop).toMatchObject({ kind: 'table', position: [4.2, restY(8), 2] });
+			});
+
+			it('is unaffected by a hovered deck or tray — a pile only ever settles', () => {
+				const s = withSnap({ decks: { 'deck:me:main': deck(8) } });
+				const hovered = resolveDrop(
+					s,
+					'deck:me:main',
+					{ x: 4, z: 2 },
+					{
+						tray: true,
+						deckId: 'deck:other:main'
+					}
+				);
+				expect(hovered?.kind).toBe('snap');
+				expect([hovered?.position[0], hovered?.position[2]]).toEqual([4, 2]);
+			});
+		});
+
+		it('pulls a piece onto the point too, at piece rest height', () => {
+			const s = withSnap({
+				pieces: { 'piece:me:t': { position: [0, 1.2, 0], rotation: [0, 0, 0], kind: 'token' } }
+			});
+			const drop = resolveDrop(s, 'piece:me:t', { x: 3.6, z: 2 });
+			expect(drop).toMatchObject({
+				kind: 'snap',
+				position: [4, PIECE_REST_Y, 2],
+				// a piece keeps its table yaw in y, not z (see applySnapRotation)
+				rotation: [0, 90, 0],
+				footprint: { shape: 'circle', r: PIECE_DEFAULT_RADIUS }
+			});
+		});
+
+		it('does nothing to a drop outside every radius', () => {
+			const s = withSnap({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 6, z: 2 });
+			expect(drop).toMatchObject({ kind: 'table', position: [6, CARD_REST_Y, 2] });
+			expect(drop?.snap).toBeUndefined();
+		});
+
+		it('stacks on a card already sitting on the point instead of clipping into it', () => {
+			const s = withSnap({
+				cards: { a: card(0, 2, 0), resting: card(4, CARD_REST_Y, 2) }
+			});
+			const drop = resolveDrop(s, 'a', { x: 4.3, z: 2 });
+			expect(drop).toMatchObject({
+				kind: 'snap',
+				position: [4, CARD_REST_Y + CARD_THICKNESS, 2]
+			});
+		});
+
+		it('beats a loose pile that the drop also overlaps', () => {
+			// a card resting just off the point: without snapping the drop would
+			// square up to it, with snapping the authored spot wins the XZ
+			const s = withSnap({
+				cards: { a: card(0, 2, 0), loose: card(4.6, CARD_REST_Y, 2.4) }
+			});
+			const drop = resolveDrop(s, 'a', { x: 4.4, z: 2.2 });
+			expect(drop?.kind).toBe('snap');
+			expect([drop?.position[0], drop?.position[2]]).toEqual([4, 2]);
+		});
+
+		it('loses to the aimed-at targets: tray and deck still win', () => {
+			const s = withSnap({ cards: { a: card(0, 2, 0) }, decks: { 'deck:1': { cards: [] } } });
+			expect(resolveDrop(s, 'a', { x: 4, z: 2 }, { tray: true })?.kind).toBe('tray');
+			expect(resolveDrop(s, 'a', { x: 4, z: 2 }, { deckId: 'deck:1' })?.kind).toBe('deck');
+		});
+
+		it('is opted out of by Alt, for both cards and pieces', () => {
+			const s = withSnap({
+				cards: { a: card(0, 2, 0) },
+				pieces: { 'piece:me:t': { position: [0, 1.2, 0], rotation: [0, 0, 0], kind: 'token' } }
+			});
+			expect(resolveDrop(s, 'a', { x: 4.2, z: 2 }, {}, { noSnap: true })).toMatchObject({
+				kind: 'table',
+				position: [4.2, CARD_REST_Y, 2]
+			});
+			expect(resolveDrop(s, 'piece:me:t', { x: 4.2, z: 2 }, {}, { noSnap: true })).toMatchObject({
+				kind: 'table',
+				position: [4.2, PIECE_REST_Y, 2]
+			});
+		});
+
+		it('changes nothing for a table that has no snap points', () => {
+			const s = state({ cards: { a: card(0, 2, 0) } });
+			expect(resolveDrop(s, 'a', { x: 4.4, z: 2.3 })).toEqual(
+				resolveDrop(state({ cards: { a: card(0, 2, 0) }, snapPoints: {} }), 'a', {
+					x: 4.4,
+					z: 2.3
+				})
 			);
 		});
 	});

@@ -11,6 +11,7 @@
 		Wheel,
 		AutoValue,
 		Checkbox,
+		Slider,
 		TabGroup,
 		TabPage
 	} from 'svelte-tweakpane-ui';
@@ -32,6 +33,9 @@
 		importScenarioFromText,
 		type SeatIndex
 	} from '$lib/scenario/scenario';
+	import { snapPointIds } from '$lib/store/game/actions/snap';
+	import { snapEditor, setSnapDefaults, setSnapPlacing } from '$lib/store/snapEditor';
+	import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
 	import HUDPieces from '$lib/HUDPieces.svelte';
 	import { prewarmGameState } from '$lib/packs/prewarm-state';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
@@ -174,9 +178,10 @@
 			decks: {},
 			pieces: {},
 			overlays: {},
+			snapPoints: {},
 			players: {}
 		};
-		for (const collection of ['cards', 'decks', 'pieces', 'overlays'] as const) {
+		for (const collection of ['cards', 'decks', 'pieces', 'overlays', 'snapPoints'] as const) {
 			for (const key of Object.keys(s?.[collection] ?? {})) update[collection][key] = null;
 		}
 		for (const key of Object.keys(s?.players ?? {})) {
@@ -193,6 +198,26 @@
 
 	function setDeckField(deckId: string, patch: Record<string, unknown>) {
 		gameStore.updateState({ decks: { [deckId]: patch } });
+	}
+
+	// Snap points — authored placement guides. The scene has the direct
+	// manipulation (click to place while armed, drag a marker to move,
+	// right-click to delete); these are the exact numbers.
+	let newRadius = $state(SNAP_RADIUS_DEFAULT);
+	let newRotation = $state(0);
+	const snapIds = $derived(snapPointIds($gameStore));
+
+	$effect(() => {
+		// what a click-placed point gets stamped with
+		setSnapDefaults({ radius: newRadius, rotation: newRotation || undefined });
+	});
+
+	function addSnapPoint() {
+		gameActions.addSnapPoint({
+			position: [0, 0],
+			radius: newRadius,
+			rotation: newRotation || undefined
+		});
 	}
 
 	// overlay controls — same shape as the /play settings pane
@@ -307,6 +332,66 @@
 		ownerId={seatPlaceholderId(activeSeat)}
 		beforeSpawn={() => ensureSeatPlaceholder(activeSeat)}
 	/>
+	<Folder title="Snap points" expanded={false}>
+		<Checkbox
+			label="place on click"
+			value={$snapEditor.placing}
+			on:change={(e) => setSnapPlacing(!!e.detail.value)}
+		/>
+		<Slider label="new radius" bind:value={newRadius} min={0.2} max={6} step={0.1} />
+		<Wheel
+			label="new rotation"
+			bind:value={newRotation}
+			format={(v) => (v === 0 ? 'none' : `${(((v % 360) + 360) % 360).toFixed(0)}°`)}
+		/>
+		<Button title="Add at table centre" on:click={addSnapPoint} />
+		{#if snapIds.length > 0}
+			<TabGroup>
+				{#each snapIds as snapId (snapId)}
+					{@const point = $gameStore?.snapPoints?.[snapId]}
+					{@const position = point?.position ?? [0, 0]}
+					<TabPage title={snapId.replace('snap:', '#')}>
+						<Point
+							label="position"
+							value={[position[0], position[1]]}
+							on:change={(e) => {
+								//@ts-expect-error: does exist
+								const x = e.detail.value?.x ?? position[0];
+								//@ts-expect-error: does exist
+								const z = e.detail.value?.y ?? position[1];
+								gameActions.moveSnapPoint(snapId, [x, z]);
+							}}
+						/>
+						<Slider
+							label="radius"
+							value={point?.radius ?? SNAP_RADIUS_DEFAULT}
+							min={0.2}
+							max={6}
+							step={0.1}
+							on:change={(e) =>
+								gameActions.updateSnapPoint(snapId, { radius: e.detail.value ?? undefined })}
+						/>
+						<Wheel
+							label="rotation"
+							value={point?.rotation ?? 0}
+							format={(v) => (v === 0 ? 'none' : `${(((v % 360) + 360) % 360).toFixed(0)}°`)}
+							on:change={(e) =>
+								gameActions.updateSnapPoint(snapId, {
+									// 0 means "no authored yaw": a snap point that turns a card to
+									// 0° and one that leaves it alone are different things, and
+									// the wheel has no third state to say so
+									rotation: e.detail.value ? e.detail.value : undefined
+								})}
+						/>
+						<Button
+							title="Delete this point"
+							on:click={() => gameActions.removeSnapPoint(snapId)}
+						/>
+					</TabPage>
+				{/each}
+			</TabGroup>
+		{/if}
+	</Folder>
 	<Folder title="Overlay (map)" expanded={false}>
 		<Text label="Image URL" bind:value={imageUrl}></Text>
 		<Point bind:value={point3d} label="Position" />
@@ -335,6 +420,6 @@
 	<Textarea
 		disabled
 		rows={4}
-		value={`Everything here is local — no lobby is touched. Spawn or import a deck per seat (a TTS save, or a pack authored in /create), place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
+		value={`Everything here is local — no lobby is touched. Spawn or import a deck per seat (a TTS save, or a pack authored in /create), place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Snap points: arm "place on click" and click the felt, drag a ring to move it, right-click it to delete. They ride along in the scenario and pull dropped cards/tokens onto themselves in /play (hold Alt on release to ignore them); the rings only show here. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
 	/>
 </Pane>

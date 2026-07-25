@@ -191,6 +191,6 @@
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"x-tableplace-spec-version": "1.0.0",
-	"x-generated-at": "2026-07-25T13:32:45.257Z",
-	"x-tableplace-source-sha": "6ccfc198d3635c87b35a3752e3ac880f9087a12a-dirty"
+	"x-generated-at": "2026-07-25T13:38:51.890Z",
+	"x-tableplace-source-sha": "c1967e35f3217eb0cca78f79142f0730009865fc-dirty"
 }
