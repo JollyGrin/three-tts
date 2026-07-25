@@ -70,6 +70,7 @@
 		type EditorPack
 	} from './normalize';
 	import FaceRef from './FaceRef.svelte';
+	import RefThumb from './RefThumb.svelte';
 	import BulkSheet from './BulkSheet.svelte';
 	import { allocateCode } from './bulk-sheet';
 	import type { PackCardDef } from '$lib/packs/types';
@@ -899,6 +900,7 @@
 						<Color label="Color" bind:value={piece.color} />
 						{#if piece.kind === 'token' || piece.kind === 'bag'}
 							<Text label="Image URL" bind:value={piece.imageUrl} />
+							<RefThumb value={piece.imageUrl} label="piece image" aspect="square" />
 						{/if}
 						<!--
 							States: the TTS `States` analog — one piece, several faces, cycled in
@@ -999,6 +1001,7 @@
 						<Separator />
 						<List label="Overlay" bind:value={overlayCursor} options={overlayOptions} />
 						<Text label="Image URL" bind:value={overlay.imageUrl} />
+						<RefThumb value={overlay.imageUrl} label="overlay image" aspect="wide" />
 						<AutoValue label="Ratio (w/h)" bind:value={overlay.ratio} />
 						<AutoValue label="Scale" bind:value={overlay.scale} />
 						<Button title="Remove overlay" on:click={removeOverlay} />
