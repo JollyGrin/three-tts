@@ -7,12 +7,15 @@
 
 import type {
 	GamePackDef,
+	PackBagDrawMode,
+	PackBagItemDef,
 	PackCardDef,
 	PackDeckDef,
 	PackOverlayDef,
 	PackPieceDef
 } from '$lib/packs/types';
 import { PIECE_RADIUS, COUNTER_MAX_DEFAULT, DIE_SIDES_DEFAULT } from '$lib/utils/constants-pieces';
+import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 
 export const PIECE_COLOR_DEFAULT = '#c8c4b8';
 
@@ -23,19 +26,73 @@ export type EditorDeck = Omit<PackDeckDef, 'cards' | 'isFaceUp'> & {
 	cards: EditorCard[];
 };
 export type EditorPieceState = { face: string; name: string };
-export type EditorPiece = Omit<PackPieceDef, 'states'> & {
+
+/**
+ * A bag item flattened for the pane: every field of both item shapes, always
+ * present, with `kind` deciding which ones matter. `PackBagItemDef` is a union,
+ * and tweakpane binds to a fixed set of properties — a union would mean
+ * rebuilding the blades (and losing whatever was typed) on every kind switch.
+ * `cleanForExport` narrows it back to the union.
+ */
+export type EditorBagItem = {
+	kind: PackBagItemDef['kind'];
+	name: string;
+	color: string;
+	imageUrl: string;
+	radius: number;
+	maxValue: number;
+	/** card items only */
+	code: string;
+	face: string;
+	back: string;
+};
+
+export type EditorPiece = Omit<PackPieceDef, 'states' | 'contents' | 'drawMode' | 'infinite'> & {
 	color: string;
 	imageUrl: string;
 	radius: number;
 	maxValue: number;
 	states: EditorPieceState[];
 	state: number;
+	contents: EditorBagItem[];
+	drawMode: PackBagDrawMode;
+	infinite: boolean;
 };
 export type EditorPack = Omit<GamePackDef, 'decks' | 'pieces' | 'overlays'> & {
 	decks: EditorDeck[];
 	pieces: EditorPiece[];
 	overlays: PackOverlayDef[];
 };
+
+/** The editor shape of one bag item, whichever half of the union it came from. */
+export function withBagItemDefaults(item: PackBagItemDef): EditorBagItem {
+	const shared = {
+		kind: item.kind,
+		name: item.name ?? '',
+		code: '',
+		face: CARD_BACK_DEFAULT,
+		back: ''
+	};
+	if (item.kind === 'card') {
+		return {
+			...shared,
+			color: PIECE_COLOR_DEFAULT,
+			imageUrl: '',
+			radius: PIECE_RADIUS.token,
+			maxValue: COUNTER_MAX_DEFAULT,
+			code: item.code,
+			face: item.face,
+			back: item.back ?? ''
+		};
+	}
+	return {
+		...shared,
+		color: item.color ?? PIECE_COLOR_DEFAULT,
+		imageUrl: item.imageUrl ?? '',
+		radius: item.radius ?? PIECE_RADIUS[item.kind],
+		maxValue: item.maxValue ?? COUNTER_MAX_DEFAULT
+	};
+}
 
 /** Deep-clone a pack and fill every optional field the editor binds to. */
 export function withEditorDefaults(pack: GamePackDef): EditorPack {
@@ -55,9 +112,40 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 			states: (piece.states ?? []).map((state) => ({ face: state.face, name: state.name ?? '' })),
 			state: piece.state ?? 0,
 			sides: piece.sides ?? DIE_SIDES_DEFAULT,
+			contents: (piece.contents ?? []).map(withBagItemDefaults),
+			drawMode: piece.drawMode ?? 'random',
+			infinite: piece.infinite ?? false,
 			position: [...piece.position] as [number, number]
 		})),
 		overlays: (pack.overlays ?? []).map((overlay) => ({ ...overlay }))
+	};
+}
+
+/**
+ * Narrow one flat editor bag item back to the exported union: a card keeps the
+ * face-ref fields, anything else keeps the piece fields, and neither ships the
+ * other's leftovers.
+ */
+function cleanBagItem(item: PackBagItemDef | EditorBagItem): PackBagItemDef {
+	const editor = item as EditorBagItem;
+	if (item.kind === 'card') {
+		return {
+			kind: 'card',
+			code: editor.code,
+			...(editor.name ? { name: editor.name } : {}),
+			face: editor.face,
+			...(editor.back ? { back: editor.back } : {})
+		};
+	}
+	return {
+		kind: item.kind,
+		name: editor.name,
+		...(editor.color ? { color: editor.color } : {}),
+		...(editor.imageUrl ? { imageUrl: editor.imageUrl } : {}),
+		...(editor.radius !== undefined ? { radius: editor.radius } : {}),
+		...(item.kind === 'counter' && editor.maxValue !== undefined
+			? { maxValue: editor.maxValue }
+			: {})
 	};
 }
 
@@ -70,10 +158,12 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 export function cleanForExport(draft: GamePackDef): GamePackDef {
 	const pieces = (draft.pieces ?? []).map((piece) => {
 		// a state with no face is an empty editor row, not authoring intent.
-		// Never on a die: its faces are procedural, so `states` on one is a
-		// category error and must not reach the file (see PackPieceDef.states).
+		// Never on a die or a bag: a die's faces are procedural and a bag's is a
+		// pouch, so `states` on either is a category error and must not reach the
+		// file (see PackPieceDef.states, and `buildPiece`, which drops them at
+		// spawn for the same reason).
 		const states =
-			piece.kind === 'die'
+			piece.kind === 'die' || piece.kind === 'bag'
 				? []
 				: (piece.states ?? [])
 						.filter((state) => state.face)
@@ -94,6 +184,15 @@ export function cleanForExport(draft: GamePackDef): GamePackDef {
 				? { maxValue: piece.maxValue }
 				: {}),
 			...(piece.kind === 'die' && piece.sides !== undefined ? { sides: piece.sides } : {}),
+			// bag fields ship on bags only — a token that was switched to a bag and
+			// back must not export the contents it briefly had
+			...(piece.kind === 'bag'
+				? {
+						contents: (piece.contents ?? []).map(cleanBagItem),
+						drawMode: piece.drawMode ?? 'random',
+						...(piece.infinite ? { infinite: true } : {})
+					}
+				: {}),
 			position: [...piece.position] as [number, number]
 		};
 	});

@@ -19,6 +19,7 @@ export function commitActiveDrag() {
 		isDragging: id,
 		intersectionPoint,
 		isDeckHovered,
+		isBagHovered,
 		isTrayHovered,
 		noSnap
 	} = get(dragStore);
@@ -33,7 +34,7 @@ export function commitActiveDrag() {
 		get(gameStore),
 		id,
 		intersectionPoint,
-		{ deckId: isDeckHovered, tray: isTrayHovered },
+		{ deckId: isDeckHovered, bagId: isBagHovered, tray: isTrayHovered },
 		{ noSnap, hand: get(tableFeatures).hand }
 	);
 
@@ -41,6 +42,11 @@ export function commitActiveDrag() {
 		gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
 	} else if (drop?.kind === 'deck' && drop.targetId) {
 		gameActions.placeOnTopOfDeck(drop.targetId, id);
+	} else if (drop?.kind === 'bag' && drop.targetId) {
+		// the bag can refuse (it was emptied of its target, or removed, by another
+		// client between the preview and this release) — then the entity has to
+		// land somewhere rather than stay floating at drag height
+		if (!gameActions.returnToBag(drop.targetId, id)) commitActiveDragAtRest(id);
 	} else if (drop && id.startsWith('piece:')) {
 		gameStore.updateState({ pieces: { [id]: dropPatch(drop) } });
 	} else if (drop && id.startsWith('deck:')) {

@@ -152,6 +152,43 @@ describe('HUDPieces', () => {
 		});
 	});
 
+	it('spawns an empty bag with its draw order, and draws from it', async () => {
+		const container = await mount('seat0');
+
+		selectKind(container, 4); // Token, Pawn, Counter, Dice, Bag
+		await settle();
+
+		expect(labels(container)).toContain('Draw order'); // bag-only
+		expect(labels(container)).toContain('Infinite');
+		expect(button(container, 'Spawn bag')).toBeTruthy();
+
+		button(container, 'Spawn')!.click();
+		await settle();
+
+		// hand-spawned bags start empty — you fill them by dropping things in
+		const id = 'piece:seat0:bag-0';
+		expect(get(gameStore).pieces?.[id]).toMatchObject({
+			kind: 'bag',
+			drawMode: 'random',
+			contents: []
+		});
+
+		// the pane draws too, so a bag is usable without knowing to click the pouch
+		gameStore.updateState({
+			pieces: { [id]: { contents: [{ kind: 'token', name: 'Ember' }] } }
+		});
+		await settle();
+		expect(button(container, 'Draw one')).toBeTruthy();
+		button(container, 'Draw one')!.click();
+		await settle();
+
+		expect(get(gameStore).pieces?.[id]?.contents).toEqual([]);
+		expect(get(gameStore).pieces?.['piece:seat0:ember-0']).toMatchObject({
+			kind: 'token',
+			name: 'Ember'
+		});
+	});
+
 	it('lists and removes every piece on the table, whoever owns it', async () => {
 		gameStore.set({
 			players: {},

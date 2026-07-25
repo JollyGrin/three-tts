@@ -8,9 +8,17 @@ import {
 	PIECE_RADIUS,
 	PIECE_REST_Y
 } from '$lib/utils/constants-pieces';
-import type { DieSides, GameDTO, PackOrigin, PieceKind, PieceStateDTO } from '../types';
+import type {
+	BagDrawMode,
+	BagItem,
+	DieSides,
+	GameDTO,
+	PackOrigin,
+	PieceKind,
+	PieceStateDTO
+} from '../types';
 
-type PieceState = NonNullable<NonNullable<GameDTO['pieces']>[string]>;
+export type PieceState = NonNullable<NonNullable<GameDTO['pieces']>[string]>;
 
 function getPieceState(pieceId: string) {
 	return get(gameStore)?.pieces?.[pieceId];
@@ -53,12 +61,14 @@ function currentPieceState(
  *
  * Refuses a die outright, the mirror of `rollDie` refusing everything else: a
  * die shows a face because of how it is lying, so an index would be a second,
- * disagreeing answer to the same question. `addPiece` already keeps `states`
- * off a die, but state can also arrive over the wire from another client.
+ * disagreeing answer to the same question. A bag is refused for the same
+ * reason — its face is a pouch, and what it shows is a count, not an index.
+ * `addPiece` already keeps `states` off both, but state can also arrive over
+ * the wire from another client.
  */
 function setPieceState(pieceId: string, index: number) {
 	const piece = getPieceState(pieceId);
-	if (piece?.kind === 'die') return;
+	if (piece?.kind === 'die' || piece?.kind === 'bag') return;
 	const count = piece?.states?.length ?? 0;
 	if (count < 2) return;
 	const wrapped = ((Math.trunc(index) % count) + count) % count;
@@ -66,10 +76,10 @@ function setPieceState(pieceId: string, index: number) {
 	return gameStore.updateState({ pieces: { [pieceId]: { state: wrapped } } });
 }
 
-/** Step a multi-state piece to its next (or previous) face. Never a die. */
+/** Step a multi-state piece to its next (or previous) face. Never a die or bag. */
 function cyclePieceState(pieceId: string, delta = 1) {
 	const piece = getPieceState(pieceId);
-	if (piece?.kind === 'die') return;
+	if (piece?.kind === 'die' || piece?.kind === 'bag') return;
 	if ((piece?.states?.length ?? 0) < 2) return;
 	return setPieceState(pieceId, currentPieceState(piece) + delta);
 }
@@ -109,10 +119,11 @@ const KIND_LABEL: Record<PieceKind, string> = {
 	token: 'Token',
 	pawn: 'Pawn',
 	counter: 'Counter',
-	die: 'Die'
+	die: 'Die',
+	bag: 'Bag'
 };
 
-function slugify(name: string, fallback: string): string {
+export function slugify(name: string, fallback: string): string {
 	const slug = name
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
@@ -150,7 +161,7 @@ function spawnPosition(seat: number, index: number): [number, number, number] {
 }
 
 /** ids are `kind:owner:slug` (claimSeat renames the owner segment) — `-n` disambiguates repeats */
-function nextPieceId(ownerId: string, slug: string): string {
+export function nextPieceId(ownerId: string, slug: string): string {
 	const pieces = get(gameStore)?.pieces ?? {};
 	let n = 0;
 	while (pieces[`piece:${ownerId}:${slug}-${n}`]) n++;
@@ -177,20 +188,30 @@ export type AddPieceOptions = {
 	ownerId?: string;
 	position?: [number, number, number];
 	rotation?: [number, number, number];
+	/** bags only; the hidden pool a draw pulls from */
+	contents?: BagItem[];
+	/** bags only; defaults to 'random' */
+	drawMode?: BagDrawMode;
+	/** bags only; a draw clones instead of removing */
+	infinite?: boolean;
 	/** set when the piece comes from a pack, so a v2 scenario can reference it */
 	packOrigin?: PackOrigin;
 };
 
 /**
- * Spawn a token / pawn / counter in front of the acting seat.
- * Goes through updateState, so /play broadcasts to the lobby and /setup
- * stays local. Returns the new piece id ('' if there's no owner to spawn for).
+ * Shape a piece and its id without committing them, so a caller that needs the
+ * piece and something else in ONE state patch (a bag draw writes the drawn
+ * item and the bag's shrunken contents together) doesn't have to broadcast two.
+ * Returns null when there is no owner to spawn for.
  */
-function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
+export function buildPiece(
+	kind: PieceKind,
+	opts: AddPieceOptions = {}
+): { id: string; piece: Partial<PieceState> } | null {
 	const ownerId = opts.ownerId || gameActions.getMyId();
 	if (!ownerId) {
 		console.error('Cannot add a piece without an owner id');
-		return '';
+		return null;
 	}
 
 	const sides = opts.sides ?? DIE_SIDES_DEFAULT;
@@ -211,11 +232,11 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 	};
 	if (opts.color) piece.color = opts.color;
 	if (opts.imageUrl) piece.imageUrl = opts.imageUrl;
-	// not on a die: its faces are geometry, not images, so states would be dead
-	// weight on the wire and would hand it a state menu it has no use for.
-	// Dropped here rather than rejected at parse time so a pack that carries
-	// them anyway still imports — it just spawns a plain die.
-	if (kind !== 'die' && opts.states?.length) {
+	// Not on a die or a bag: a die's faces are geometry and a bag's is a pouch,
+	// so states would be dead weight on the wire and would hand either a state
+	// menu it has no use for. Dropped here rather than rejected at parse time so
+	// a pack that carries them anyway still imports — it just spawns plain.
+	if (kind !== 'die' && kind !== 'bag' && opts.states?.length) {
 		piece.states = opts.states.map((s) => ({ face: s.face, ...(s.name ? { name: s.name } : {}) }));
 		piece.state = currentPieceState({ states: opts.states, state: opts.state });
 	}
@@ -231,9 +252,26 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 		// a fresh die has never been rolled, so nothing animates on spawn
 		piece.rollSeq = 0;
 	}
+	if (kind === 'bag') {
+		// always written, even empty: a bag with no `contents` key would leave
+		// nothing for a return-to-bag patch to merge into
+		piece.contents = opts.contents ?? [];
+		piece.drawMode = opts.drawMode ?? 'random';
+		if (opts.infinite) piece.infinite = true;
+	}
+	return { id, piece };
+}
 
-	gameStore.updateState({ pieces: { [id]: piece } });
-	return id;
+/**
+ * Spawn a token / pawn / counter / bag in front of the acting seat.
+ * Goes through updateState, so /play broadcasts to the lobby and /setup
+ * stays local. Returns the new piece id ('' if there's no owner to spawn for).
+ */
+function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
+	const built = buildPiece(kind, opts);
+	if (!built) return '';
+	gameStore.updateState({ pieces: { [built.id]: built.piece } });
+	return built.id;
 }
 
 export const pieceActions = {

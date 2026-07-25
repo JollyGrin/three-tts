@@ -9,6 +9,10 @@
 
 import type {
 	GamePackDef,
+	PackBagCardItem,
+	PackBagDrawMode,
+	PackBagItemDef,
+	PackBagPieceItem,
 	PackDeckDef,
 	PackCardDef,
 	PackPieceDef,
@@ -96,8 +100,44 @@ function parseDeck(v: unknown, path: string): PackDeckDef {
 	return deck;
 }
 
-const PIECE_KINDS = ['token', 'pawn', 'counter', 'die'] as const;
+const PIECE_KINDS = ['token', 'pawn', 'counter', 'die', 'bag'] as const;
 const DIE_SIDES = [4, 6, 8, 10, 12, 20] as const;
+/**
+ * What a bag may contain: the piece kinds that are just an image and a name,
+ * plus cards. No `bag` (containers don't nest) and no `die` — a die's shape and
+ * roll state have nowhere to live in an item, so a bag is not where one goes.
+ */
+const BAG_ITEM_KINDS = ['token', 'pawn', 'counter', 'card'] as const;
+const BAG_DRAW_MODES = ['random', 'lifo', 'fifo'] as const;
+
+/**
+ * One entry of a bag's `contents`. A `card` item carries the face-ref grammar;
+ * anything else is a piece minus its table position. `bag` is rejected here on
+ * purpose — nested containers are a separate piece of work (see docs/packs.md).
+ */
+function parseBagItem(v: unknown, path: string): PackBagItemDef {
+	if (!isRecord(v)) fail(path, 'must be an object');
+	const kind = v.kind as PackBagItemDef['kind'];
+	if (!BAG_ITEM_KINDS.includes(kind)) {
+		fail(`${path}.kind`, `must be one of ${BAG_ITEM_KINDS.join(', ')}`);
+	}
+	if (kind === 'card') {
+		const card: PackBagCardItem = {
+			kind,
+			code: str(v.code, `${path}.code`),
+			face: str(v.face, `${path}.face`)
+		};
+		if (v.name !== undefined) card.name = str(v.name, `${path}.name`);
+		if (v.back !== undefined) card.back = str(v.back, `${path}.back`);
+		return card;
+	}
+	const item: PackBagPieceItem = { kind, name: str(v.name, `${path}.name`) };
+	if (v.color !== undefined) item.color = str(v.color, `${path}.color`);
+	if (v.imageUrl !== undefined) item.imageUrl = str(v.imageUrl, `${path}.imageUrl`);
+	if (v.radius !== undefined) item.radius = num(v.radius, `${path}.radius`);
+	if (v.maxValue !== undefined) item.maxValue = num(v.maxValue, `${path}.maxValue`);
+	return item;
+}
 
 function parsePieceState(v: unknown, path: string): PackPieceStateDef {
 	if (!isRecord(v)) fail(path, 'must be an object');
@@ -140,6 +180,22 @@ function parsePiece(v: unknown, path: string): PackPieceDef {
 		}
 		piece.sides = sides;
 	}
+	// bag fields are validated wherever they appear rather than only on bags: a
+	// stray `contents` on a token is an authoring mistake worth naming, and
+	// silently dropping it would hide it
+	if (v.contents !== undefined) {
+		piece.contents = arr(v.contents, `${path}.contents`).map((item, i) =>
+			parseBagItem(item, `${path}.contents[${i}]`)
+		);
+	}
+	if (v.drawMode !== undefined) {
+		const mode = v.drawMode as PackBagDrawMode;
+		if (!BAG_DRAW_MODES.includes(mode)) {
+			fail(`${path}.drawMode`, `must be one of ${BAG_DRAW_MODES.join(', ')}`);
+		}
+		piece.drawMode = mode;
+	}
+	if (v.infinite !== undefined) piece.infinite = Boolean(v.infinite);
 	return piece;
 }
 

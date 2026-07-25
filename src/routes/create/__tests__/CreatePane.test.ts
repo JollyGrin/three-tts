@@ -172,6 +172,42 @@ describe('CreatePane', () => {
 		expect(Object.values(get(gameStore).pieces ?? {})[0]?.state).toBe(0);
 	});
 
+	it('authors a bag with contents, and previews it as a loaded bag', async () => {
+		const container = await mount();
+
+		// Pieces folder → kind list → Bag (Token, Pawn, Counter, Bag)
+		choose(listWith(container, 'Counter'), 'Bag');
+		await settle();
+		button(container, 'Add bag')!.click();
+		await settle();
+
+		// bag-only controls appear, and the pane is still standing (a blade swap
+		// in a tweakpane Pane silently destroys the whole thing — see
+		// tweakpane landmines in BulkSheet.svelte)
+		expect(labels(container)).toContain('Draw order');
+		expect(labels(container)).toContain('Infinite');
+		expect(button(container, 'Add token to bag')).toBeTruthy();
+
+		// fill it: a token, then a card, then switch the draw order
+		button(container, 'Add token to bag')!.click();
+		await settle();
+		choose(listWith(container, 'Card'), 'Card');
+		await settle();
+		button(container, 'Add card to bag')!.click();
+		await settle();
+
+		// the card item swaps in its own fields, and the pane survives that too
+		expect(labels(container)).toContain('Code');
+		expect(button(container, 'Remove item')).toBeTruthy();
+
+		choose(listWith(container, 'LIFO'), 'LIFO');
+		await settlePreview();
+
+		const bag = Object.values(get(gameStore).pieces ?? {}).find((p) => p?.kind === 'bag');
+		expect(bag).toMatchObject({ kind: 'bag', drawMode: 'lifo' });
+		expect(bag?.contents?.map((item) => item.kind)).toEqual(['token', 'card']);
+	});
+
 	it('saves the pack to the library (packs:v1) and re-opens it for editing', async () => {
 		const container = await mount();
 		button(container, 'Save to library')!.click();

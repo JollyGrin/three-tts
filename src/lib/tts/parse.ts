@@ -30,6 +30,8 @@ type TtsObject = {
 	ColorDiffuse?: { r?: number; g?: number; b?: number };
 	CustomImage?: { ImageURL?: string };
 	LuaScript?: string;
+	/** container settings; `Order` is the LIFO/FIFO/Random draw order */
+	Bag?: { Order?: number };
 };
 
 export type SheetCell = { url: string; cols: number; rows: number; index: number };
@@ -50,8 +52,26 @@ export type ParsedPieceState = {
 	face: SheetCell;
 };
 
+export type BagDrawMode = 'random' | 'lifo' | 'fifo';
+
+/**
+ * One thing inside a parsed bag. Cards keep their sheet cells, like
+ * `ParsedCard` does — turning a cell into a `sheet:`/URL ref is `to-pack`'s
+ * job, not the parser's.
+ */
+export type ParsedBagItem =
+	| {
+			kind: 'token' | 'pawn' | 'counter';
+			name: string;
+			color?: string;
+			imageUrl?: string;
+			radius?: number;
+			maxValue?: number;
+	  }
+	| { kind: 'card'; name: string; face: SheetCell; back: SheetCell };
+
 export type ParsedPiece = {
-	kind: 'token' | 'pawn' | 'counter';
+	kind: 'token' | 'pawn' | 'counter' | 'bag';
 	name: string;
 	color?: string;
 	imageUrl?: string;
@@ -62,6 +82,10 @@ export type ParsedPiece = {
 	/** index into `states` the object was saved showing */
 	state?: number;
 	position: [number, number];
+	/** bags only */
+	contents?: ParsedBagItem[];
+	drawMode?: BagDrawMode;
+	infinite?: boolean;
 };
 
 export type ParsedSavedObject = {
@@ -75,7 +99,10 @@ export type ParsedSavedObject = {
 /** Rewrite dead Steam host + force https (see MULTIPLAYER research: old host is gone) */
 export function normalizeAssetUrl(url: string): string {
 	return url
-		.replace(/^https?:\/\/cloud-3\.steamusercontent\.com\//, 'https://steamusercontent-a.akamaihd.net/')
+		.replace(
+			/^https?:\/\/cloud-3\.steamusercontent\.com\//,
+			'https://steamusercontent-a.akamaihd.net/'
+		)
 		.replace(/^http:\/\//, 'https://');
 }
 
@@ -244,6 +271,94 @@ function pieceFrom(obj: TtsObject, skipped: string[]): ParsedPiece | null {
 	return null;
 }
 
+/** TTS container types: a plain bag, and one whose draws never run it down. */
+const BAG_TYPES = new Set(['Bag', 'Infinite_Bag']);
+
+/**
+ * TTS stores a container's draw order as `Bag.Order`. The observed encoding is
+ * 0 = Random, 1 = LIFO, 2 = FIFO; anything else (a version that adds a mode, a
+ * hand-written save) falls back to random, which is both the TTS default and
+ * the tbpp one. Never fatal — a wrong guess here costs a draw order, not an
+ * import.
+ */
+export function bagDrawMode(order?: number): BagDrawMode {
+	if (order === 1) return 'lifo';
+	if (order === 2) return 'fifo';
+	return 'random';
+}
+
+/**
+ * One level of a bag's `ContainedObjects`. Cards and decks flatten into card
+ * items (a deck in a bag is just more cards to draw); tiles, pawns and health
+ * dials reuse the same mapping loose objects get. Anything else — including a
+ * nested container — is left for `skipped`: deep recursion belongs to the
+ * importer-envelope work, and dropping it silently would hide content loss.
+ */
+function bagItemsFrom(bag: TtsObject, skipped: string[]): ParsedBagItem[] {
+	const items: ParsedBagItem[] = [];
+	for (const child of bag.ContainedObjects ?? []) {
+		const type = child.Name ?? 'Unknown';
+		const name = child.Nickname || type;
+
+		if ((type === 'Card' || type === 'CardCustom') && child.CardID !== undefined) {
+			const card = cardFromId(child.CardID, child.CustomDeck, child.Nickname ?? '');
+			if (card) items.push({ kind: 'card', name: card.name, face: card.face, back: card.back });
+			else skipped.push(`${name} (${type} in bag, unknown sheet)`);
+			continue;
+		}
+		if (type === 'Deck' || type === 'DeckCustom') {
+			const contained = child.ContainedObjects ?? [];
+			const cards = (child.DeckIDs ?? [])
+				.map((cardId, i) => cardFromId(cardId, child.CustomDeck, contained[i]?.Nickname ?? ''))
+				.filter((card): card is ParsedCard => card !== null);
+			for (const card of cards) {
+				items.push({ kind: 'card', name: card.name, face: card.face, back: card.back });
+			}
+			if (cards.length === 0) skipped.push(`${name} (${type} in bag, no readable cards)`);
+			continue;
+		}
+
+		const piece = pieceFrom(child, skipped);
+		if (piece && piece.kind !== 'bag') {
+			// A bag item has no `states`: the format keeps a bag's contents one
+			// level deep, and multi-state faces would be a second dimension of it.
+			// The item still imports on its base face — but say so, rather than
+			// letting the other faces disappear quietly.
+			if (piece.states?.length) {
+				skipped.push(`${piece.name} (${piece.states.length} states, in bag — base face kept)`);
+			}
+			// no position: it is meaningless inside a bag — the draw picks the spot
+			items.push({
+				kind: piece.kind,
+				name: piece.name,
+				...(piece.color !== undefined ? { color: piece.color } : {}),
+				...(piece.imageUrl !== undefined ? { imageUrl: piece.imageUrl } : {}),
+				...(piece.radius !== undefined ? { radius: piece.radius } : {}),
+				...(piece.maxValue !== undefined ? { maxValue: piece.maxValue } : {})
+			});
+			continue;
+		}
+		skipped.push(`${name} (${type} in bag)`);
+	}
+	return items;
+}
+
+/** A TTS container → a bag piece, with its one level of contents. */
+export function bagFrom(obj: TtsObject, skipped: string[]): ParsedPiece {
+	const type = obj.Name ?? 'Bag';
+	const color = colorToHex(obj.ColorDiffuse);
+	return {
+		kind: 'bag',
+		name: obj.Nickname || type,
+		...(color !== undefined ? { color } : {}),
+		radius: Math.max(0.5, obj.Transform?.scaleX ?? 1),
+		position: [obj.Transform?.posX ?? 0, -(obj.Transform?.posZ ?? 0)],
+		contents: bagItemsFrom(obj, skipped),
+		drawMode: bagDrawMode(obj.Bag?.Order),
+		...(type === 'Infinite_Bag' ? { infinite: true } : {})
+	};
+}
+
 export function parseSavedObject(json: unknown): ParsedSavedObject {
 	const root = json as { ObjectStates?: TtsObject[] };
 	const objects = Array.isArray(root?.ObjectStates) ? root.ObjectStates : [];
@@ -264,6 +379,11 @@ export function parseSavedObject(json: unknown): ParsedSavedObject {
 		} else if ((type === 'Card' || type === 'CardCustom') && obj.CardID !== undefined) {
 			const card = cardFromId(obj.CardID, obj.CustomDeck, obj.Nickname ?? '');
 			if (card) looseCards.push(card);
+		} else if (BAG_TYPES.has(type)) {
+			// a bag always imports, even if every child is unsupported: the empty
+			// bag is still the object the author placed, and its children are named
+			// in `skipped` rather than lost quietly
+			pieces.push(bagFrom(obj, skipped));
 		} else {
 			const piece = pieceFrom(obj, skipped);
 			if (piece) pieces.push(piece);

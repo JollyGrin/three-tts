@@ -5,10 +5,10 @@
  * appear in the tbpp format itself. See docs/packs.md.
  */
 
-import type { GamePackDef, PackDeckDef, PackPieceDef } from '$lib/packs/types';
+import type { GamePackDef, PackBagItemDef, PackDeckDef, PackPieceDef } from '$lib/packs/types';
 import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 import { makeSheetRef } from '$lib/packs/resolve.svelte';
-import type { ParsedSavedObject, ParsedCard, SheetCell } from './parse';
+import type { ParsedBagItem, ParsedSavedObject, ParsedCard, SheetCell } from './parse';
 
 export type TtsToPackOptions = {
 	id?: string;
@@ -57,6 +57,40 @@ function toDeck(
 }
 
 /**
+ * A parsed bag's contents → pack bag items. Card items are where the sheet
+ * cells become refs; `code` is minted from the name the same way a deck's card
+ * codes are, and deduped for the same reason (a drawn card's entity id is built
+ * from it).
+ */
+function toBagContents(items: ParsedBagItem[]): PackBagItemDef[] {
+	const seen = new Set<string>();
+	return items.map((item, i) => {
+		// spelled out rather than spread, matching the pieces mapping below: an
+		// `undefined` color would survive a spread and ship as a key
+		if (item.kind !== 'card') {
+			return {
+				kind: item.kind,
+				name: item.name,
+				...(item.color !== undefined ? { color: item.color } : {}),
+				...(item.imageUrl !== undefined ? { imageUrl: item.imageUrl } : {}),
+				...(item.radius !== undefined ? { radius: item.radius } : {}),
+				...(item.maxValue !== undefined ? { maxValue: item.maxValue } : {})
+			};
+		}
+		let code = slugify(item.name, `item-${i}`);
+		if (seen.has(code)) code = `${code}-${i}`;
+		seen.add(code);
+		return {
+			kind: 'card',
+			code,
+			...(item.name ? { name: item.name } : {}),
+			face: cellToRef(item.face, { name: item.name }),
+			back: cellToRef(item.back, { back: true })
+		};
+	});
+}
+
+/**
  * Convert a parsed TTS Saved Object into a native pack. Loose cards group
  * into a face-up 'loose' deck (a pile is the closest pack primitive);
  * unsupported objects stay behind in `parsed.skipped` — conversion never
@@ -88,6 +122,13 @@ export function ttsToPack(parsed: ParsedSavedObject, opts: TtsToPackOptions = {}
 			...(states?.length && p.state ? { state: p.state } : {}),
 			...(p.radius !== undefined ? { radius: p.radius } : {}),
 			...(p.maxValue !== undefined ? { maxValue: p.maxValue } : {}),
+			...(p.kind === 'bag'
+				? {
+						contents: toBagContents(p.contents ?? []),
+						drawMode: p.drawMode ?? 'random',
+						...(p.infinite ? { infinite: true } : {})
+					}
+				: {}),
 			position: p.position
 		};
 	});

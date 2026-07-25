@@ -59,3 +59,86 @@ describe('ttsToPack on a real unmatched.club export', () => {
 		expect(roundTripped).toEqual(pack);
 	});
 });
+
+describe('ttsToPack on a save containing containers', () => {
+	const sheet = {
+		FaceURL: 'https://example.com/sheet.png',
+		BackURL: 'https://example.com/back.png',
+		NumWidth: 2,
+		NumHeight: 1
+	};
+	const save = {
+		ObjectStates: [
+			{
+				Name: 'Infinite_Bag',
+				Nickname: 'Ember Supply',
+				Transform: { posX: -4, posZ: 6 },
+				Bag: { Order: 1 },
+				ContainedObjects: [
+					{ Name: 'Card', Nickname: 'Omen', CardID: 100, CustomDeck: { '1': sheet } },
+					{ Name: 'Card', Nickname: 'Omen', CardID: 101, CustomDeck: { '1': sheet } },
+					{
+						Name: 'Custom_Tile',
+						Nickname: 'Ember',
+						CustomImage: { ImageURL: 'https://example.com/ember.png' }
+					}
+				]
+			}
+		]
+	};
+	const pack = ttsToPack(parseSavedObject(save));
+	const bag = pack.pieces?.[0];
+
+	it('converts the container into a bag piece with its draw mode', () => {
+		expect(bag).toMatchObject({
+			kind: 'bag',
+			name: 'Ember Supply',
+			drawMode: 'lifo',
+			infinite: true,
+			position: [-4, -6]
+		});
+	});
+
+	it('turns bag card cells into face refs and keeps the piece item as-is', () => {
+		expect(bag?.contents?.map((item) => item.kind)).toEqual(['card', 'card', 'token']);
+		const [card] = bag?.contents ?? [];
+		if (card.kind !== 'card') throw new Error('expected a card item');
+		expect(card.face).toMatch(/^sheet:\{/);
+		// the whole-image back degrades to a plain URL, like a deck's back does
+		expect(card.back).toBe('https://example.com/back.png');
+		// no stray `color: undefined` from the parser's optional fields
+		expect(bag?.contents?.[2]).toEqual({
+			kind: 'token',
+			name: 'Ember',
+			imageUrl: 'https://example.com/ember.png',
+			radius: 1
+		});
+	});
+
+	it('gives every bag card a unique code, like a deck does', () => {
+		const codes = (bag?.contents ?? [])
+			.filter((item) => item.kind === 'card')
+			.map((item) => (item.kind === 'card' ? item.code : ''));
+		expect(codes).toEqual(['omen', 'omen-1']);
+		expect(new Set(codes).size).toBe(codes.length);
+	});
+
+	it('round-trips the bag through the tbpp validator', () => {
+		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
+	});
+
+	it('a bag full of unsupported children still imports, with the children skipped', () => {
+		const parsed = parseSavedObject({
+			ObjectStates: [
+				{
+					Name: 'Bag',
+					Nickname: 'Odds and Ends',
+					ContainedObjects: [{ Name: 'Custom_Assetbundle', Nickname: 'Fancy' }]
+				}
+			]
+		});
+		const converted = ttsToPack(parsed);
+		expect(converted.pieces?.[0]).toMatchObject({ kind: 'bag', contents: [] });
+		expect(parsed.skipped).toEqual(['Fancy (Custom_Assetbundle in bag)']);
+	});
+});

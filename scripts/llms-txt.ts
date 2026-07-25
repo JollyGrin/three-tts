@@ -35,7 +35,8 @@ import {
 	PIECE_RADIUS,
 	COUNTER_MAX_DEFAULT,
 	DIE_SIDES,
-	DIE_SIDES_DEFAULT
+	DIE_SIDES_DEFAULT,
+	BAG_HEIGHT
 } from '../src/lib/utils/constants-pieces';
 import { SNAP_RADIUS_DEFAULT } from '../src/lib/utils/constants-snap';
 import { TBPP_VERSION, PACK_SCHEMA_URL } from '../src/lib/packs/file';
@@ -70,9 +71,11 @@ const CONSTANTS: [name: string, value: number | string, note: string][] = [
 	['PIECE_RADIUS.pawn', PIECE_RADIUS.pawn, 'default radius per kind — pawn'],
 	['PIECE_RADIUS.counter', PIECE_RADIUS.counter, 'default radius per kind — counter'],
 	['PIECE_RADIUS.die', PIECE_RADIUS.die, 'default radius per kind — die (its circumradius)'],
+	['PIECE_RADIUS.bag', PIECE_RADIUS.bag, 'default radius per kind — bag'],
 	['COUNTER_MAX_DEFAULT', COUNTER_MAX_DEFAULT, 'starting max for a counter with no `maxValue`'],
 	['DIE_SIDES', DIE_SIDES.join(', '), 'die shapes that exist; any other `sides` is rejected'],
 	['DIE_SIDES_DEFAULT', DIE_SIDES_DEFAULT, 'faces a die gets when it omits `sides`'],
+	['BAG_HEIGHT', BAG_HEIGHT, 'height of the bag pouch, drawn up from the felt'],
 	['SNAP_RADIUS_DEFAULT', SNAP_RADIUS_DEFAULT, 'catch radius of a snap point that omits `radius`']
 ];
 

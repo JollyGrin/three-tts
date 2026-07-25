@@ -72,7 +72,7 @@ On a version bump the schema is tagged `spec/pack/vX.Y.Z` / `spec/scenario/vX.Y.
 3. Include `specVersion` (§2.1) and the `$schema` line. The `$schema` line costs nothing and gives editors inline validation.
 4. **Never inline image data.** Faces are short ref strings (§5); base64 or data-URLs in a file will be carried into synced multiplayer state and break it.
 5. table.place hosts **no assets**. Every `https://` ref points at hosting you control, and must be CORS-readable and hotlinkable.
-6. `code` (within a deck) and `slot` (within a pack) are stable ids. Keep them stable across re-exports — scenarios reference cards by them.
+6. `code` (within a deck, or within a bag's `contents`) and `slot` (within a pack) are stable ids. Keep them stable across re-exports — scenarios reference cards by them.
 7. Coordinates are **world units**, not pixels or grid cells (§4).
 
 ## 4. The coordinate system
@@ -148,7 +148,7 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
   - **`cards[]`** — `code` (stable id within the deck), optional `name`, and `face` (a face ref).
-- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"` or `"counter"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`.
+- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
 
@@ -180,11 +180,41 @@ A piece may also carry **`state`**: the index it _spawns_ showing, for when that
 
 Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its right-click menu; the current index is synced game state, so it survives a scenario save/load.
 
-### 6.3 JSON Schema
+### 6.3 Bags — a hidden blind-draw pool
+
+A piece of `kind: "bag"` is a container: a pouch holding a pool nobody can look into. Clicking it draws **one** item out beside it; dragging a card or piece onto it puts that object in. It is the analog of Tabletop Simulator's `Bag` / `Infinite_Bag`.
+
+```json
+{
+	"kind": "bag",
+	"name": "Tile Bag",
+	"color": "#7c2d12",
+	"drawMode": "random",
+	"infinite": false,
+	"position": [-9, 4],
+	"contents": [
+		{ "kind": "token", "name": "Ember", "color": "#f97316" },
+		{ "kind": "counter", "name": "Wound Dial", "maxValue": 5 },
+		{ "kind": "card", "code": "omen", "name": "Omen", "face": "https://example.com/omen.png" }
+	]
+}
+```
+
+- **`contents`** — what the bag holds, in insertion order. Each entry is either a **piece item** — `kind` `"token"`, `"pawn"` or `"counter"`, plus `name` and the optional `color` / `imageUrl` / `radius` / `maxValue`; there is no `position`, because the draw decides where it lands — or a **card item**: `kind: "card"` plus `code`, optional `name`, `face` (a face ref, §5) and optional `back`.
+- **`drawMode`** — `"random"` (the default: a blind draw), `"lifo"` (last in, first out — a stack) or `"fifo"` (a queue).
+- **`infinite`** — `true` makes each draw **clone** the item rather than remove it, so the bag never empties. Its badge reads `∞`.
+- `code` must be **unique within the bag**, like a deck's card codes: the drawn card's table id is built from it.
+- **Bags cannot contain bags.** Containers do not nest in this format; do not emit a `"bag"` item inside `contents`, it will be rejected.
+
+Only the remaining count is ever shown on the table — never the contents. The contents do travel in shared game state so that one client's draw resolves for everyone, so treat "hidden" as a property of the interface, not as a secrecy guarantee: it hides a bag the way a face-down deck hides its cards, not the way encryption hides them.
+
+A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of its kind. In a scenario a bag is an ordinary `piece` placement — its contents come from the pack, and there is no field for the remaining contents of a partly-drawn bag.
+
+### 6.4 JSON Schema
 
 {{PACK_SCHEMA}}
 
-### 6.4 Worked example
+### 6.5 Worked example
 
 A complete, valid pack. Save as `ember-duel.tbpp.json` and import it from the table.place setup screen.
 
@@ -241,7 +271,7 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 
 ### 7.4 Worked example
 
-Two packs — one builtin, one fetched from `{{EXAMPLE_PACK_URL}}` (the pack in §6.4) — with a stacked deck for seat 0, a shuffled deck for seat 1, a counter, a board overlay, three snap points, and one hand-placed token in `state`.
+Two packs — one builtin, one fetched from `{{EXAMPLE_PACK_URL}}` (the pack in §6.5) — with a stacked deck for seat 0, a shuffled deck for seat 1, a counter, a board overlay, three snap points, and one hand-placed token in `state`.
 
 {{SCENARIO_EXAMPLE}}
 
@@ -254,6 +284,7 @@ Deliberately unresolved. Do not invent syntax for these — a file using it will
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing or registry. Two authors can both publish `ember-duel`, and a scenario referencing `ember-duel` by a URL that later serves different content will silently resolve differently. Until this is decided, prefer a distinctive `id` and always pin `source` to a URL you control.
 - **Pieces and overlays in scenarios beyond the fields above** — piece rotation, stacking and zones are not expressible.
 - **Snapping beyond single points.** `snapPoints` is a list of discrete spots. Grids (square/hex), per-object opt-outs, and hidden/layout/randomize zones have no syntax; a snap point cannot restrict _what_ may land on it either.
+- **Nested containers.** A bag's `contents` is one level deep: a bag inside a bag has no representation, and the TTS importer skips one rather than flattening it. There is also no way to express the remaining contents of a partly-drawn bag in a scenario.
 
 ## 9. Before you emit a file
 

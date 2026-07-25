@@ -39,6 +39,7 @@ beforeEach(() => {
 		isDragging: null,
 		isHovered: null,
 		isDeckHovered: null,
+		isBagHovered: null,
 		isTrayHovered: false
 	});
 	seed();

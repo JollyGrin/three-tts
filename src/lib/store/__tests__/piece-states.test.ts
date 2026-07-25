@@ -281,6 +281,7 @@ describe('dropping a multi-state piece near a snap point', () => {
 			isDragging: null,
 			isHovered: null,
 			isDeckHovered: null,
+			isBagHovered: null,
 			isTrayHovered: false
 		});
 	});

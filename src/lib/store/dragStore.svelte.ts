@@ -7,6 +7,8 @@ interface DragState {
 	isDragging: string | null;
 	isHovered: string | null;
 	isDeckHovered: string | null;
+	/** id of the bag piece under the pointer — a drop there goes into the bag */
+	isBagHovered: string | null;
 	isTrayHovered: boolean;
 	isPreview?: boolean;
 	dragHeight?: number;
@@ -37,6 +39,7 @@ const initialState: DragState = {
 	isDragging: null,
 	isHovered: null,
 	isDeckHovered: null,
+	isBagHovered: null,
 	isTrayHovered: false,
 	isPreview: false,
 	dragHeight: undefined,
@@ -127,6 +130,21 @@ function setDeckHover(deckId: string | null) {
 	}));
 }
 
+/**
+ * Pointer over a bag. Guarded on the id when clearing, like `clearHover`: two
+ * bags side by side deliver the second enter before the first leave, and an
+ * unguarded clear would drop the fresh target.
+ */
+function setBagHover(bagId: string | null) {
+	dragStore.update((state) => ({ ...state, isBagHovered: bagId }));
+}
+
+function clearBagHover(bagId: string) {
+	dragStore.update((state) =>
+		state.isBagHovered === bagId ? { ...state, isBagHovered: null } : state
+	);
+}
+
 // Create store actions object
 const dragActions = {
 	subscribe: dragStore.subscribe,
@@ -148,6 +166,8 @@ export {
 	clearHover,
 	setNoSnap,
 	setDeckHover,
+	setBagHover,
+	clearBagHover,
 	setTrayHover,
 	updateIntersection,
 	dragActions,

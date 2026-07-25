@@ -71,7 +71,7 @@ Field notes:
 - **`id`** — stable identity for the pack (`standard-52`, `imported:<slug>`…).
 - **`scope`** — `'table'` (the shared game: board, communal decks; loaded once per lobby by the host) or `'player'` (what one player brings, spawned per seat — a deck-builder export is a player pack). See SPEC.md §4d.
 - **`decks[].slot`** — stable id within the pack; **`cards[].code`** — stable id within the deck, and **unique within it**: spawning builds table entity ids as `card:<owner>:<slot>-<code>`, so two cards sharing a code collapse into one entity. /create allocates every code through `allocateCode` (`src/routes/create/bulk-sheet.ts`) — a taken `AS` becomes `AS-2`, then `AS-3`. Both survive re-exports, so external tools can reference cards as `<pack>/<slot>/<code>`.
-- **`pieces`** (optional) — tokens, pawns, counters, and dice: `{ kind: 'token'|'pawn'|'counter'|'die', name, color?, imageUrl?, states?, state?, radius?, maxValue?, sides?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states`. `sides` is dice-only and must be one of 4, 6, 8, 10, 12, 20 — the shapes the primitive library builds; a die's `radius` is its circumradius, and its numbers are drawn procedurally, so a die references no image and is never a multi-state piece.
+- **`pieces`** (optional) — tokens, pawns, counters, dice, and bags: `{ kind: 'token'|'pawn'|'counter'|'die'|'bag', name, color?, imageUrl?, states?, state?, radius?, maxValue?, sides?, contents?, drawMode?, infinite?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states` and [Bags](#bags--a-hidden-blind-draw-pool) for a container's fields. `sides` is dice-only and must be one of 4, 6, 8, 10, 12, 20 — the shapes the primitive library builds; a die's `radius` is its circumradius, and its numbers are drawn procedurally, so a die references no image and is never a multi-state piece.
 - **`overlays`** (optional) — board/map images: `{ imageUrl, ratio, scale }` (`ratio` = width/height).
 - **`source`** (optional) — provenance stamp written by converters (currently only `"tts"`). Native packs omit it.
 
@@ -101,6 +101,37 @@ A piece may also carry **`state`** — the index it _spawns_ showing, when that 
 
 In play, `X` over a hovered piece shows the next state (`Shift+X` the previous), and right-clicking it opens a menu to pick one directly — cycling is enough for two faces, not for five. The current index lives on the piece in game state (`PieceDTO.state`), so it syncs to every client like any other mutation and survives a scenario save/load. On a _counter_ that also has states, the state menu takes over right-click, so healing it is left to `Shift`+click and the wheel.
 
+### Bags — a hidden, blind-draw pool
+
+A piece of `kind: 'bag'` is a container: a pouch on the table holding a pool nobody can look into. Clicking it (or right-clicking, or "Draw one" in the Pieces pane) pulls **one** item out and drops it beside the bag; dragging a card or a piece onto the bag puts it back. It is the tbpp analog of TTS's `Bag` / `Infinite_Bag`.
+
+```json
+{
+	"kind": "bag",
+	"name": "Tile Bag",
+	"color": "#7c2d12",
+	"drawMode": "random",
+	"infinite": false,
+	"position": [-9, 4],
+	"contents": [
+		{ "kind": "token", "name": "Ember", "color": "#f97316" },
+		{ "kind": "counter", "name": "Wound Dial", "maxValue": 5 },
+		{ "kind": "card", "code": "omen", "name": "Omen", "face": "https://example.com/omen.png" }
+	]
+}
+```
+
+- **`contents`** — what the bag holds, in insertion order. Each entry is either a **piece item** (`kind` `'token' | 'pawn' | 'counter'` plus `name`, `color?`, `imageUrl?`, `radius?`, `maxValue?` — a piece def with no `position`, because the draw decides where it lands) or a **card item** (`kind: 'card'` plus `code`, `name?`, `face`, `back?`, using the face-ref grammar below). `code` is the per-bag stable id, and must be **unique within the bag** for the same reason a deck's card codes must be: the drawn card's entity id is `card:<owner>:<bag>-<code>`.
+- **`drawMode`** — `'random'` (default; a blind draw), `'lifo'` (the last item in comes out first — a stack), or `'fifo'` (a queue). Matches TTS's container Order.
+- **`infinite`** — `true` makes a draw **clone** the item instead of removing it, so the bag never empties (TTS `Infinite_Bag`). Its badge shows `∞` instead of a count.
+- Bags cannot contain bags. Containers do not nest in tbpp, and the TTS importer leaves a nested container in `skipped[]` rather than flattening it — deep `ContainedObjects` recursion belongs with the importer envelope work, not here.
+
+What "hidden" means precisely: **no UI renders a bag's contents** — the only thing on screen is the remaining count (or `∞`). The contents do live in shared game state, because a draw has to resolve once and be agreed on by every client: the drawing client picks the item, then broadcasts the _result_ (the spawned entity plus the bag's new contents) as a single patch, exactly the way a deck shuffle broadcasts its result rather than a seed. So a determined player with devtools can read a bag the same way they could read a TTS save file; hiding is a property of the interface, not a secrecy guarantee.
+
+A drawn **card** arrives facedown — the contents were hidden, so the draw doesn't reveal them; `F` turns it over. A drawn **piece** arrives as an ordinary piece of its kind (a counter arrives full).
+
+In a scenario, a bag is an ordinary `piece` placement: position and rotation round-trip, and the contents come back from the pack. There is no `order`-style field for a bag's remaining contents — a bag is a shuffled hidden pool by definition, and inlining its contents into a scenario would both restate the pack and publish what the format calls hidden. Draw during play, not while authoring a scenario.
+
 ### Face refs
 
 Card `face`/`back` (and piece/overlay `imageUrl`) are **refs** — tiny strings resolved to textures only at render time, so files and synced game state never carry image data. The schema can only type them as `string`, so this is the normative grammar. It is implemented by `resolveCardImage` in `src/lib/packs/resolve.svelte.ts`; exactly three schemes exist, dispatched on prefix.
@@ -128,7 +159,9 @@ The built-in `STANDARD_52` pack (`src/lib/packs/standard52.ts`) is the canonical
 
 ### TTS is an import boundary, not part of the spec
 
-`ttsToPack` (`src/lib/tts/to-pack.ts`) converts a parsed Tabletop Simulator Saved Object into a `GamePackDef`: TTS decks become pack decks, sprite-sheet cells become `sheet:` refs (whole images become plain URLs), loose cards group into a face-up `Loose Cards` pile, tiles/pawns/health-dials become pieces, and the result is stamped `source: "tts"`. "Backwards compatible with TTS" means the importer accepts TTS JSON and every TTS concept maps into pack primitives — TTS mechanics (CardID math, `CustomDeck` sheets, Lua scripts) never appear in tbpp itself.
+`ttsToPack` (`src/lib/tts/to-pack.ts`) converts a parsed Tabletop Simulator Saved Object into a `GamePackDef`: TTS decks become pack decks, sprite-sheet cells become `sheet:` refs (whole images become plain URLs), loose cards group into a face-up `Loose Cards` pile, tiles/pawns/health-dials become pieces, `Bag`/`Infinite_Bag` become bags, and the result is stamped `source: "tts"`.
+
+A container's children are mapped **one level deep**: cards become card items, a deck inside the bag flattens into its cards, and tiles/pawns/dials become piece items. Anything else — a nested container above all — is named in `skipped[]`; the bag itself still imports, because an empty bag is still the object the author placed. Draw order comes from TTS's `Bag.Order` (observed encoding: 0 random, 1 LIFO, 2 FIFO), and an unrecognised value falls back to `'random'` rather than failing the import. "Backwards compatible with TTS" means the importer accepts TTS JSON and every TTS concept maps into pack primitives — TTS mechanics (CardID math, `CustomDeck` sheets, Lua scripts) never appear in tbpp itself.
 
 **`States`** map onto the `states` above. A TTS save keeps the _active_ state as the object itself and stores only the others in the `States` dict, keyed by 1-based state number — so the current state is **the number missing from the `1..N` sequence** (there is no `CurrentState` field to read). `statesOrder` in `src/lib/tts/parse.ts` implements exactly that, and the recovered index becomes the piece's starting state. Only image-bearing states (`Custom_Tile`, `Card`/`CardCustom`, anything with a `CustomImage`) become faces; a state of another object class has no image to show, so it degrades to a `skipped[]` note and is left out — never fatal. States nested inside states, and `ContainedObjects` within a state, are not followed.
 
@@ -263,6 +296,8 @@ On a version bump the schema is tagged **`spec/pack/vX.Y.Z`** / **`spec/scenario
 - **Major** — a breaking change: a field removed, renamed, or made required (a required-tightening rejects documents that were previously valid).
 - **Minor** — an additive change: a new optional field.
 
+Under `0.x` the components shift down with the breaking one: the scenario spec bumps its **minor** for a breaking change and its **patch** for an additive one.
+
 CI enforces the bump: `bun run schemas:check --base <ref>` fails if a schema's content changed against the base branch without `x-tableplace-spec-version` changing.
 
 ## Known gaps
@@ -271,6 +306,7 @@ Open questions the format deliberately does **not** answer yet. They are listed 
 
 - **Card multiplicity.** `PackCardDef` has no `count`. Three copies of a card means three entries with distinct `code`s (`strike-1`, `strike-2`, …), because `code` is the per-deck identity that scenario `order` arrays reference. Whether multiplicity becomes a first-class field — and what it would do to `order` — is undecided.
 - **Pack content versioning.** `tbpp` versions the _format_, not the pack. A pack cannot declare "Ember Duel v1.2", and there is no upgrade story for a pack whose cards changed underneath a scenario that references it by URL.
+- **Nested containers.** A bag's `contents` is one level deep — no bag inside a bag, and no way to say what is left in a partly-drawn bag when a scenario saves it. Deep `ContainedObjects` recursion on import is tracked with the importer envelope work, not here.
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing, registry, or ownership check. Two authors can both ship `ember-duel`, and `resolve-packs.ts` only warns when a fetched pack's `id` disagrees with the ref. Until this is decided, the practical advice is a distinctive `id` plus a `source` URL you control.
 
 - **Snapping beyond discrete points.** `snapPoints` is a list of spots. Grids (square/hex), per-object snap opt-outs, and hidden/layout/randomize zones have no syntax, and a snap point cannot restrict what is allowed to land on it. Pack-level snap sets (a snap layout that travels with an overlay, rather than with the scenario) are also unresolved — that would pull the pack schema and /create in under the parity rule, so it is deliberately left to a follow-up.
