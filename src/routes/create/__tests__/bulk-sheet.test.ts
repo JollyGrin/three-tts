@@ -13,7 +13,7 @@ import {
 	slugifyCode,
 	type BulkCell
 } from '../bulk-sheet';
-import { parseFaceRef } from '../face-ref';
+import { buildFaceRef, parseFaceRef } from '../face-ref';
 import { parsePackFile, serializePackFile } from '$lib/packs/file';
 import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 
@@ -192,6 +192,32 @@ describe('buildBulkCards', () => {
 		const [card] = buildBulkCards({ url: SHEET, cols: 1, rows: 2, cells: cellsWith(1, 2) });
 		expect(card.name).toBeUndefined();
 		expect(card.code).toBe('card-1');
+		// nor an empty one inside the payload — `"name":""` would draw a blank
+		// placeholder just as surely as no name, at the cost of noise in the file
+		expect(card.face).not.toContain('name');
+	});
+
+	it("carries a named cell's name into the payload, for the dead-sheet placeholder", () => {
+		const cells = cellsWith(2, 1, [{ name: 'Strike' }]);
+		const [named, unnamed] = buildBulkCards({ url: SHEET, cols: 2, rows: 1, cells });
+
+		// field order matches the published sample in docs/packs.md §Face refs
+		expect(named.face).toBe(`sheet:{"url":"${SHEET}","cols":2,"rows":1,"index":0,"name":"Strike"}`);
+		expect(unnamed.face).toBe(`sheet:{"url":"${SHEET}","cols":2,"rows":1,"index":1}`);
+		// `resolveCardImage` reads this when the sheet can't be fetched
+		expect(JSON.parse(named.face.slice('sheet:'.length)).name).toBe('Strike');
+	});
+
+	it('keeps the payload name through an edit in the single-cell face editor', () => {
+		const cells = cellsWith(2, 1, [{ name: 'Strike' }]);
+		const [card] = buildBulkCards({ url: SHEET, cols: 2, rows: 1, cells });
+
+		// re-pointing the ref at another cell must not drop the fallback name
+		const draft = parseFaceRef(card.face);
+		expect(draft.sheetExtra).toEqual({ name: 'Strike' });
+		expect(buildFaceRef({ ...draft, sheetIndex: 1 })).toBe(
+			`sheet:{"url":"${SHEET}","cols":2,"rows":1,"index":1,"name":"Strike"}`
+		);
 	});
 });
 
