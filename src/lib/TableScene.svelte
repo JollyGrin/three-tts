@@ -50,7 +50,7 @@
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
-	const { camera } = useThrelte();
+	const { camera, canvas } = useThrelte();
 
 	let intersectionPoint: THREE.Vector3 | null = $state(null);
 
@@ -94,9 +94,16 @@
 				}
 			}
 
+			// normalized against the CANVAS, not the viewport: /create insets the
+			// canvas behind a fixed editor column, and window coordinates would put
+			// the ray a third of a screen off — nothing on the table would be
+			// clickable where it is drawn. Identical arithmetic when the canvas
+			// fills the window, which is what /play and /setup do.
 			state.pointer.update((p) => {
-				p.x = (event.clientX / window.innerWidth) * 2 - 1;
-				p.y = -(event.clientY / window.innerHeight) * 2 + 1;
+				const rect = canvas.getBoundingClientRect();
+				if (!rect.width || !rect.height) return p;
+				p.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+				p.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 				return p;
 			});
 

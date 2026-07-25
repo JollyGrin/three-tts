@@ -8,6 +8,7 @@
 	import { disconnect } from '$lib/websocket/connection';
 	import CreatePane from './CreatePane.svelte';
 	import { togglePreviewLayout } from './preview-layout';
+	import { EDITOR_GUTTER, editorPaneWidth } from './column';
 	import { isTyping } from '$lib/hotkeys/is-typing';
 	import toast from 'svelte-french-toast';
 
@@ -50,14 +51,34 @@
 
 <svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
-<CreatePane />
-
-<div class="h-screen w-screen overflow-clip bg-gray-700">
-	<Canvas toneMapping={ACESFilmicToneMapping}>
-		{#if isReady}
-			<!-- no hand in the pack editor: a card dropped into the tray lands in
-			     state no pack can represent, and survives every preview respawn -->
-			<TableScene hand={false} />
-		{/if}
-	</Canvas>
+<!--
+	Two columns, not a table with windows floating over it: the editor's pane is
+	laid out `inline` inside a fixed-width scrolling column, so it can neither
+	overlap itself nor cover the felt the preview draws on (#108). Everything
+	right of the column belongs to the table, which is what makes the spread
+	fully visible and clickable.
+-->
+<div class="flex h-screen w-screen overflow-clip bg-gray-700">
+	<!--
+		The pane's width plus a stable scrollbar gutter, so the pane's right edge
+		is never under the scrollbar and never shifts when a folder opens. A flex
+		COLUMN, because what is under the pane matters: the tabs are short (File
+		is four rows) and the viewport is not, so CreatePane's footer takes the
+		remainder with `mt-auto` rather than leaving a dark slab.
+	-->
+	<div
+		class="flex shrink-0 flex-col overflow-y-auto border-r border-black/50 bg-neutral-900 [scrollbar-gutter:stable]"
+		style="width: {$editorPaneWidth + EDITOR_GUTTER}px"
+	>
+		<CreatePane />
+	</div>
+	<div class="min-w-0 flex-1">
+		<Canvas toneMapping={ACESFilmicToneMapping}>
+			{#if isReady}
+				<!-- no hand in the pack editor: a card dropped into the tray lands in
+				     state no pack can represent, and survives every preview respawn -->
+				<TableScene hand={false} />
+			{/if}
+		</Canvas>
+	</div>
 </div>
