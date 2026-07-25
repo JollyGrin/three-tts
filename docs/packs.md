@@ -256,6 +256,24 @@ All three load. `parseScenarioFile` accepts v0 (`name` + `state` is enough) and 
 
 Sizing analysis for public/remote scenario seeding lives in issue #39: pack refs are what make a fetchable scenario small enough to be practical.
 
+### Composing a table without a browser
+
+`composeScenario(scenario, packs)` (`src/lib/compose/scenario.ts`) turns a scenario plus its already-resolved packs into the `GameDTO` fragment — decks, cards, pieces, overlays, seat placeholders, snap points — that a client would have produced. It imports no Svelte, no store and nothing from the DOM, so it runs anywhere JavaScript does.
+
+That matters because it is the **only** implementation of the layout rules. Entity ids (`kind:owner:slug`), the `seat0`…`seat3` placeholder owners, `packOrigin` stamps, mirrored positions for the far seat, and the "authored order unless `shuffleOnLoad`" convention are decided once, here. `applyScenario` is a thin wrapper over it: resolve packs → compose → push to the store, still one message per deck so a full card list stays under the server's 1 MB websocket read limit. Anything outside the browser calls the same function rather than reimplementing the grammar and drifting from it.
+
+Pack **resolution** stays outside on purpose — fetching a `.tbpp.json` is I/O, and keeping it out is what makes the composer testable and portable. The browser resolves with `scenario/resolve-packs.ts`; a script resolves off disk.
+
+`bun run seed-lobby` (`scripts/seed-lobby.ts`) is that path, end to end, from a terminal:
+
+```
+bun run seed-lobby --lobby brave-otter --server localhost:8080 --scenario duel.tbps.json
+```
+
+It resolves packs (builtin registry, URL fetch, a path relative to the scenario, or `--pack file.tbpp.json` standing in for the browser's local library), composes, opens a websocket as a throwaway player, sends the same patches — clear first, then one per deck, paced under the server's 7 msg/s limit — and disconnects. Players then only claim a seat: `/play?lobby=brave-otter&seat=0`.
+
+The seeder is an ordinary client, so its disconnect is a normal empty transition and the lobby's 15-minute idle TTL applies as usual; a seeded lobby nobody opens is collected, and a server restart drops it (in-memory state). Both are issue #39's to answer, not the seeder's.
+
 ## Versioning
 
 The discriminator value is the format version. Breaking changes bump it (`"tbpp": 2`); parsers reject versions they don't know rather than misread them. This matches the `{tableplace: 1}` pattern from the raw-link-loading research.

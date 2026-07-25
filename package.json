@@ -13,6 +13,7 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
+		"seed-lobby": "bun scripts/seed-lobby.ts",
 		"schemas": "bun scripts/build-schemas.ts",
 		"schemas:check": "bun scripts/check-schemas.ts",
 		"lint": "prettier --check . && eslint .",
