@@ -12,6 +12,7 @@
 		Text,
 		Textarea
 	} from 'svelte-tweakpane-ui';
+	import { tick } from 'svelte';
 	import { get } from 'svelte/store';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
@@ -100,6 +101,7 @@
 	let deckCursor = $state(0);
 	let cardCursor = $state(0);
 	let pieceCursor = $state(0);
+	let stateCursor = $state(0);
 	let overlayCursor = $state(0);
 
 	const deckIndex = $derived(Math.min(deckCursor, Math.max(0, pack.decks.length - 1)));
@@ -108,6 +110,8 @@
 	const card = $derived(deck?.cards[cardIndex]);
 	const pieceIndex = $derived(Math.min(pieceCursor, Math.max(0, pack.pieces.length - 1)));
 	const piece = $derived(pack.pieces[pieceIndex]);
+	const stateIndex = $derived(Math.min(stateCursor, Math.max(0, (piece?.states.length ?? 0) - 1)));
+	const pieceState = $derived(piece?.states[stateIndex]);
 	const overlayIndex = $derived(Math.min(overlayCursor, Math.max(0, pack.overlays.length - 1)));
 	const overlay = $derived(pack.overlays[overlayIndex]);
 
@@ -130,6 +134,11 @@
 		pack.overlays.length
 			? Object.fromEntries(pack.overlays.map((_, i) => [`overlay ${i}`, i]))
 			: { '(no overlays)': 0 }
+	);
+	const stateOptions = $derived(
+		piece?.states.length
+			? Object.fromEntries(piece.states.map((s, i) => [`${i}: ${s.name || `State ${i + 1}`}`, i]))
+			: { '(no states)': 0 }
 	);
 
 	// ——— structure edits ———
@@ -209,6 +218,8 @@
 			imageUrl: '',
 			radius: PIECE_RADIUS[newPieceKind],
 			maxValue: COUNTER_MAX_DEFAULT,
+			states: [],
+			state: 0,
 			position: [0, 0]
 		});
 		pieceCursor = pack.pieces.length - 1;
@@ -218,6 +229,32 @@
 		if (!piece) return;
 		pack.pieces.splice(pieceIndex, 1);
 		pieceCursor = Math.max(0, pieceIndex - 1);
+	}
+
+	/**
+	 * Add a face to the selected piece. The first one is seeded from the piece's
+	 * own image, because `states[0]` IS the base face (see PackPieceDef.states) —
+	 * declaring states must never silently blank the piece.
+	 */
+	async function addPieceState() {
+		if (!piece) return toast.error('Add a piece first');
+		const previous = piece.states[piece.states.length - 1]?.face ?? piece.imageUrl;
+		piece.states.push({ face: previous ?? '', name: `State ${piece.states.length + 1}` });
+		const added = piece.states.length - 1;
+		stateCursor = added;
+		// the list rebuilds its options as the state lands, and tweakpane clamps
+		// the bound index against the OLD option set while it does — without this
+		// re-assert the cursor silently snaps back to state 1, and the face you
+		// then type in overwrites the wrong state
+		await tick();
+		stateCursor = added;
+	}
+
+	function removePieceState() {
+		if (!piece || !pieceState) return;
+		piece.states.splice(stateIndex, 1);
+		stateCursor = Math.max(0, stateIndex - 1);
+		piece.state = Math.min(piece.state, Math.max(0, piece.states.length - 1));
 	}
 
 	function addOverlay() {
@@ -280,7 +317,12 @@
 	 */
 	let spreadCursors: Record<string, { deck: number; card: number }> = {};
 
-	function respawnPreview(mode: PreviewLayout) {
+	/**
+	 * `selected` is the piece cursor and the state cursor: the selected piece
+	 * previews on the state you are editing, so "preview each state" is just
+	 * picking it in the list. Every other piece shows its base face.
+	 */
+	function respawnPreview(mode: PreviewLayout, selected: { piece: number; state: number }) {
 		clearPreview();
 		spreadCursors = {};
 		const preview = exportable;
@@ -323,7 +365,10 @@
 		}
 
 		preview.pieces?.forEach((_, index) =>
-			spawnPackPiece(preview, index, { ownerId: PREVIEW_OWNER })
+			spawnPackPiece(preview, index, {
+				ownerId: PREVIEW_OWNER,
+				state: index === selected.piece ? selected.state : 0
+			})
 		);
 		preview.overlays?.forEach((_, index) => {
 			spawnPackOverlay(preview, index, { ownerId: PREVIEW_OWNER });
@@ -335,7 +380,10 @@
 	$effect(() => {
 		JSON.stringify(pack); // subscribe to every field of the draft
 		const mode = $previewLayout;
-		const timer = setTimeout(() => respawnPreview(mode), 300);
+		// read the cursors here too: selecting a piece's state must re-lay the
+		// preview, which is how the table shows the state being edited
+		const selected = { piece: pieceIndex, state: stateIndex };
+		const timer = setTimeout(() => respawnPreview(mode, selected), 300);
 		return () => clearTimeout(timer);
 	});
 
@@ -607,6 +655,35 @@
 			{#if piece.kind === 'token'}
 				<Text label="Image URL" bind:value={piece.imageUrl} />
 			{/if}
+			<!--
+				States: the TTS `States` analog — one piece, several faces, cycled in
+				play with X or picked from its right-click menu. State 1 is the BASE
+				face (it replaces "Image URL" on export), so adding the first one
+				copies the image rather than blanking the piece.
+			-->
+			<Folder title="States ({piece.states.length})" expanded={false}>
+				<Button title="Add state" on:click={addPieceState} />
+				{#if piece.states.length > 0}
+					<List label="State" bind:value={stateCursor} options={stateOptions} />
+				{/if}
+				{#if pieceState}
+					<Text label="State name" bind:value={pieceState.name} />
+					<Checkbox
+						label="Spawns on this state"
+						value={piece.state === stateIndex}
+						on:change={(e) => (piece.state = e.detail.value ? stateIndex : 0)}
+					/>
+					<Button title="Remove state" on:click={removePieceState} />
+					<!-- keyed on the cursors: a fresh editor for whichever state is selected -->
+					{#key `${pieceIndex}:${stateIndex}`}
+						<FaceRef
+							title="State face"
+							value={pieceState.face}
+							onchange={(ref) => (pieceState.face = ref)}
+						/>
+					{/key}
+				{/if}
+			</Folder>
 			<AutoValue label="Radius" bind:value={piece.radius} />
 			{#if piece.kind === 'counter'}
 				<AutoValue label="Max value" bind:value={piece.maxValue} />

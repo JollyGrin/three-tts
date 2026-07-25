@@ -175,6 +175,8 @@ export type SpawnPieceOptions = SpawnPackOptions & {
 	position?: Vec3;
 	rotation?: Vec3;
 	value?: number;
+	/** multi-state pieces: which authored state to start on (default 0) */
+	state?: number;
 };
 
 /** Spawn one of a pack's pieces (by index into `pack.pieces`). */
@@ -190,7 +192,12 @@ export function spawnPackPiece(pack: GamePackDef, index: number, opts: SpawnPiec
 		ownerId,
 		name: def.name,
 		color: def.color,
-		imageUrl: def.imageUrl,
+		// states[0] IS the base face (see PackPieceDef.states), so a piece that
+		// declares states never falls back to imageUrl
+		imageUrl: def.states?.length ? def.states[0].face : def.imageUrl,
+		states: def.states,
+		// the placement's choice wins over the pack's own default
+		state: opts.state ?? def.state,
 		radius: def.radius,
 		maxValue: def.maxValue,
 		value: opts.value,

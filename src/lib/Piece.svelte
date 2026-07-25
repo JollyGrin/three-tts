@@ -9,6 +9,7 @@
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	import { createCounterInput, DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
+	import { setPieceHover, clearPieceHover, openPieceMenu } from '$lib/store/pieceUi';
 	import {
 		PIECE_DEFAULT_RADIUS,
 		PIECE_DRAG_Y,
@@ -22,7 +23,14 @@
 	const kind = $derived(piece?.kind ?? 'token');
 	const radius = $derived(piece?.radius ?? PIECE_DEFAULT_RADIUS);
 	const color = $derived(piece?.color ?? '#c8c4b8');
-	const imageUrl = $derived(resolveCardImage(piece?.imageUrl, $sheetRefCache));
+
+	// multi-state piece: the face is whichever state it is showing. `states[0]`
+	// is the base face (see PackPieceDef.states), so `imageUrl` only applies to
+	// a piece with no states at all.
+	const states = $derived(piece?.states ?? []);
+	const stateIndex = $derived(gameActions.currentPieceState(piece));
+	const faceRef = $derived(states.length ? states[stateIndex]?.face : piece?.imageUrl);
+	const imageUrl = $derived(resolveCardImage(faceRef, $sheetRefCache));
 	const isDragging = $derived($dragStore.isDragging === id);
 	let isHovered = $state(false);
 
@@ -93,6 +101,9 @@
 		// claims the pointerdown for the topmost piece in a pile — see
 		// claimPointerDown — so the rest of the stack never sees this event
 		if (!claimPointerDown(e)) return;
+		// left button only: right-click is the state menu (and a counter's heal),
+		// and picking the piece up under the menu would drag it as you choose
+		if (e.nativeEvent.button !== 0) return;
 		if (kind !== 'counter') {
 			liftIntoDrag();
 			return;
@@ -114,8 +125,40 @@
 		increment: gameActions.incrementCounter
 	});
 
+	/**
+	 * Right-click on a multi-state piece opens the state picker instead of the
+	 * counter's heal — with more than two faces, cycling is not a control. The
+	 * menu itself is DOM (see PieceStateMenu.svelte), so all that happens here
+	 * is handing it the pointer position.
+	 */
+	function handleContextMenu(e: IntersectionEvent<MouseEvent>) {
+		if (states.length < 2) return counterInput.oncontextmenu(e);
+		e.nativeEvent.preventDefault();
+		e.stopPropagation();
+		if (e.delta > DRAG_THRESHOLD_PX) return; // was a drag, not a click
+		openPieceMenu(id, e.nativeEvent.clientX, e.nativeEvent.clientY);
+	}
+
+	function handlePointerEnter() {
+		isHovered = true;
+		setPieceHover(id); // what the X hotkey acts on
+	}
+
+	function handlePointerLeave() {
+		isHovered = false;
+		clearPieceHover(id);
+	}
+
+	$effect(() => () => clearPieceHover(id));
+
 	const label = $derived.by(() => {
-		if (kind !== 'counter') return piece?.name ?? '';
+		// name the face, not just the piece: with several states that is the only
+		// on-table clue which one is showing
+		if (kind !== 'counter') {
+			const stateName = states.length > 1 ? states[stateIndex]?.name : undefined;
+			const name = piece?.name ?? '';
+			return stateName ? (name ? `${name} — ${stateName}` : stateName) : name;
+		}
 		const value = piece?.value ?? piece?.maxValue ?? 0;
 		return piece?.maxValue != null ? `${value}/${piece.maxValue}` : `${value}`;
 	});
@@ -138,10 +181,10 @@
 		{position}
 		onpointerdown={handlePointerDown}
 		onclick={counterInput.onclick}
-		oncontextmenu={counterInput.oncontextmenu}
+		oncontextmenu={handleContextMenu}
 		onwheel={counterInput.onwheel}
-		onpointerenter={() => (isHovered = true)}
-		onpointerleave={() => (isHovered = false)}
+		onpointerenter={handlePointerEnter}
+		onpointerleave={handlePointerLeave}
 	>
 		{#if kind === 'pawn'}
 			<!-- procedural pawn: base disc + stem + head -->

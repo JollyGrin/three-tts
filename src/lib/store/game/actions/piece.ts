@@ -3,7 +3,7 @@ import { gameActions } from '.';
 import { gameStore } from '../gameStore.svelte';
 import { degrees } from '$lib/utils/constants-rotation';
 import { COUNTER_MAX_DEFAULT, PIECE_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
-import type { GameDTO, PackOrigin, PieceKind } from '../types';
+import type { GameDTO, PackOrigin, PieceKind, PieceStateDTO } from '../types';
 
 type PieceState = NonNullable<NonNullable<GameDTO['pieces']>[string]>;
 
@@ -26,6 +26,40 @@ function incrementCounter(pieceId: string, delta: number) {
 	const max = piece.maxValue ?? 99;
 	const value = Math.min(max, Math.max(0, (piece.value ?? max) + delta));
 	return gameStore.updateState({ pieces: { [pieceId]: { value } } });
+}
+
+/**
+ * The state index a piece is actually showing: clamped into its `states`
+ * array, and 0 for a piece that has none. Shared by the renderer and the
+ * cycle/select verbs so they can never disagree about what is on the table.
+ */
+function currentPieceState(
+	piece: { states?: PieceStateDTO[]; state?: number } | null | undefined
+): number {
+	const count = piece?.states?.length ?? 0;
+	if (count === 0) return 0;
+	return Math.min(Math.max(Math.trunc(piece?.state ?? 0), 0), count - 1);
+}
+
+/**
+ * Show one of a multi-state piece's faces. Out-of-range indexes wrap, so
+ * `setPieceState(id, current + 1)` is the cycle verb and a menu can pass an
+ * absolute index. No-op on a piece with fewer than two states.
+ */
+function setPieceState(pieceId: string, index: number) {
+	const piece = getPieceState(pieceId);
+	const count = piece?.states?.length ?? 0;
+	if (count < 2) return;
+	const wrapped = ((Math.trunc(index) % count) + count) % count;
+	if (wrapped === currentPieceState(piece)) return;
+	return gameStore.updateState({ pieces: { [pieceId]: { state: wrapped } } });
+}
+
+/** Step a multi-state piece to its next (or previous) face. */
+function cyclePieceState(pieceId: string, delta = 1) {
+	const piece = getPieceState(pieceId);
+	if ((piece?.states?.length ?? 0) < 2) return;
+	return setPieceState(pieceId, currentPieceState(piece) + delta);
 }
 
 /** Spawns fan sideways in front of the acting seat, wrapping to further rows. */
@@ -89,6 +123,10 @@ export type AddPieceOptions = {
 	color?: string;
 	/** resolved like card faces — a plain https:// url works */
 	imageUrl?: string;
+	/** multi-state pieces: every face, `states[0]` being the base one */
+	states?: PieceStateDTO[];
+	/** which of `states` to spawn showing (default 0) */
+	state?: number;
 	radius?: number;
 	/** counters only; the piece spawns full (`value = maxValue`) unless `value` says otherwise */
 	maxValue?: number;
@@ -129,6 +167,10 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 	};
 	if (opts.color) piece.color = opts.color;
 	if (opts.imageUrl) piece.imageUrl = opts.imageUrl;
+	if (opts.states?.length) {
+		piece.states = opts.states.map((s) => ({ face: s.face, ...(s.name ? { name: s.name } : {}) }));
+		piece.state = currentPieceState({ states: opts.states, state: opts.state });
+	}
 	if (opts.packOrigin) piece.packOrigin = opts.packOrigin;
 	if (kind === 'counter') {
 		const maxValue = opts.maxValue ?? COUNTER_MAX_DEFAULT;
@@ -145,5 +187,8 @@ export const pieceActions = {
 	addPiece,
 	removePiece,
 	movePiece,
-	incrementCounter
+	incrementCounter,
+	currentPieceState,
+	setPieceState,
+	cyclePieceState
 };

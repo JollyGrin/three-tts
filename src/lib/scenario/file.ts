@@ -64,6 +64,12 @@ export type PackPlacement = {
 	shuffleOnLoad?: boolean;
 	/** counter pieces only */
 	value?: number;
+	/**
+	 * piece placements only — which of the pack piece's `states` it starts on
+	 * (index into `PackPieceDef.states`, default 0). Distinct from the
+	 * scenario's top-level `state` snapshot: this is one piece's face.
+	 */
+	state?: number;
 	/** overlays only */
 	scale?: number;
 };
@@ -210,6 +216,12 @@ function parsePlacement(v: unknown, path: string): PackPlacement {
 	if (v.value !== undefined) {
 		if (typeof v.value !== 'number') fail(`${path}.value must be a number`);
 		placement.value = v.value;
+	}
+	if (v.state !== undefined) {
+		if (typeof v.state !== 'number' || !Number.isInteger(v.state) || v.state < 0) {
+			fail(`${path}.state must be a state index (a non-negative integer)`);
+		}
+		placement.state = v.state;
 	}
 	if (v.scale !== undefined) {
 		if (typeof v.scale !== 'number') fail(`${path}.scale must be a number`);

@@ -7,7 +7,14 @@
  * survive renaming and piping.
  */
 
-import type { GamePackDef, PackDeckDef, PackCardDef, PackPieceDef, PackOverlayDef } from './types';
+import type {
+	GamePackDef,
+	PackDeckDef,
+	PackCardDef,
+	PackPieceDef,
+	PackPieceStateDef,
+	PackOverlayDef
+} from './types';
 import { assertReadableSpecVersion, PACK_SPEC_VERSION } from '../formats/spec-version';
 
 export const TBPP_VERSION = 1;
@@ -91,6 +98,13 @@ function parseDeck(v: unknown, path: string): PackDeckDef {
 
 const PIECE_KINDS = ['token', 'pawn', 'counter'] as const;
 
+function parsePieceState(v: unknown, path: string): PackPieceStateDef {
+	if (!isRecord(v)) fail(path, 'must be an object');
+	const state: PackPieceStateDef = { face: str(v.face, `${path}.face`) };
+	if (v.name !== undefined) state.name = str(v.name, `${path}.name`);
+	return state;
+}
+
 function parsePiece(v: unknown, path: string): PackPieceDef {
 	if (!isRecord(v)) fail(path, 'must be an object');
 	const kind = v.kind as PackPieceDef['kind'];
@@ -104,6 +118,18 @@ function parsePiece(v: unknown, path: string): PackPieceDef {
 	};
 	if (v.color !== undefined) piece.color = str(v.color, `${path}.color`);
 	if (v.imageUrl !== undefined) piece.imageUrl = str(v.imageUrl, `${path}.imageUrl`);
+	if (v.states !== undefined) {
+		piece.states = arr(v.states, `${path}.states`).map((s, i) =>
+			parsePieceState(s, `${path}.states[${i}]`)
+		);
+	}
+	if (v.state !== undefined) {
+		const state = num(v.state, `${path}.state`);
+		if (!Number.isInteger(state) || state < 0) {
+			fail(`${path}.state`, 'must be a state index (a non-negative integer)');
+		}
+		piece.state = state;
+	}
 	if (v.radius !== undefined) piece.radius = num(v.radius, `${path}.radius`);
 	if (v.maxValue !== undefined) piece.maxValue = num(v.maxValue, `${path}.maxValue`);
 	return piece;

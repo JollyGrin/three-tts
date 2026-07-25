@@ -22,11 +22,14 @@ export type EditorDeck = Omit<PackDeckDef, 'cards' | 'isFaceUp'> & {
 	isFaceUp: boolean;
 	cards: EditorCard[];
 };
-export type EditorPiece = PackPieceDef & {
+export type EditorPieceState = { face: string; name: string };
+export type EditorPiece = Omit<PackPieceDef, 'states'> & {
 	color: string;
 	imageUrl: string;
 	radius: number;
 	maxValue: number;
+	states: EditorPieceState[];
+	state: number;
 };
 export type EditorPack = Omit<GamePackDef, 'decks' | 'pieces' | 'overlays'> & {
 	decks: EditorDeck[];
@@ -49,6 +52,8 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 			imageUrl: piece.imageUrl ?? '',
 			radius: piece.radius ?? PIECE_RADIUS[piece.kind],
 			maxValue: piece.maxValue ?? COUNTER_MAX_DEFAULT,
+			states: (piece.states ?? []).map((state) => ({ face: state.face, name: state.name ?? '' })),
+			state: piece.state ?? 0,
 			position: [...piece.position] as [number, number]
 		})),
 		overlays: (pack.overlays ?? []).map((overlay) => ({ ...overlay }))
@@ -62,17 +67,29 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
  * purpose — real validation is parsePackFile's job.
  */
 export function cleanForExport(draft: GamePackDef): GamePackDef {
-	const pieces = (draft.pieces ?? []).map((piece) => ({
-		kind: piece.kind,
-		name: piece.name,
-		...(piece.color ? { color: piece.color } : {}),
-		...(piece.imageUrl ? { imageUrl: piece.imageUrl } : {}),
-		...(piece.radius !== undefined ? { radius: piece.radius } : {}),
-		...(piece.kind === 'counter' && piece.maxValue !== undefined
-			? { maxValue: piece.maxValue }
-			: {}),
-		position: [...piece.position] as [number, number]
-	}));
+	const pieces = (draft.pieces ?? []).map((piece) => {
+		// a state with no face is an empty editor row, not authoring intent
+		const states = (piece.states ?? [])
+			.filter((state) => state.face)
+			.map((state) => ({ face: state.face, ...(state.name ? { name: state.name } : {}) }));
+		// states[0] IS the base face (see PackPieceDef.states), so imageUrl mirrors
+		// it — a consumer that ignores states still shows the right image
+		const imageUrl = states[0]?.face ?? piece.imageUrl;
+		return {
+			kind: piece.kind,
+			name: piece.name,
+			...(piece.color ? { color: piece.color } : {}),
+			...(imageUrl ? { imageUrl } : {}),
+			...(states.length ? { states } : {}),
+			// 0 is the default, so it stays out of the file
+			...(states.length && piece.state ? { state: piece.state } : {}),
+			...(piece.radius !== undefined ? { radius: piece.radius } : {}),
+			...(piece.kind === 'counter' && piece.maxValue !== undefined
+				? { maxValue: piece.maxValue }
+				: {}),
+			position: [...piece.position] as [number, number]
+		};
+	});
 	const overlays = (draft.overlays ?? []).map((overlay) => ({ ...overlay }));
 
 	return {

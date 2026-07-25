@@ -21,6 +21,8 @@ function collectRefs(state: Partial<GameDTO> | undefined): string[] {
 	}
 	for (const piece of Object.values(state.pieces ?? {})) {
 		push(piece?.imageUrl);
+		// every state, not just the current one: cycling must not wait on a fetch
+		for (const pieceState of piece?.states ?? []) push(pieceState?.face);
 	}
 	for (const player of Object.values(state.players ?? {})) {
 		for (const card of Object.values(player?.tray ?? {})) {

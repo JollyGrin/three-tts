@@ -10,6 +10,7 @@ import { makeSheetRef, prewarmSheetRef } from '$lib/packs/resolve.svelte';
 import { CARD_REST_Y } from '$lib/utils/constants-cards';
 import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { parseSavedObject, type ParsedCard } from './parse';
+import { cellToRef } from './to-pack';
 import { sliceCell } from './slice';
 
 export type ImportReport = {
@@ -138,13 +139,20 @@ export async function importTtsFile(
 	parsed.pieces.forEach((piece, i) => {
 		report.pieces += 1;
 		const offsetX = piece.kind === 'counter' ? 1.5 : 0;
+		// a TTS States object keeps every face; states[0] is the base one, and the
+		// state it was saved showing rides along as `state`
+		const states = piece.states?.map((s) => ({
+			face: cellToRef(s.face, { name: s.name }),
+			...(s.name ? { name: s.name } : {})
+		}));
 		gameStore.updateState({
 			pieces: {
 				[`piece:${playerId}:${slugify(piece.name, 'piece')}-${i}`]: {
 					kind: piece.kind,
 					name: piece.name,
 					color: piece.color,
-					imageUrl: piece.imageUrl,
+					imageUrl: states?.length ? states[0].face : piece.imageUrl,
+					...(states?.length ? { states, state: piece.state ?? 0 } : {}),
 					radius: piece.radius,
 					maxValue: piece.maxValue,
 					value: piece.maxValue,

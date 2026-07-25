@@ -23,6 +23,17 @@ export type PackDeckDef = {
 
 export type PackPieceKind = 'token' | 'pawn' | 'counter';
 
+/**
+ * One alternate face of a multi-state piece (the TTS `States` analog: a
+ * double-sided tile, an upgrade token, a transformed piece).
+ */
+export type PackPieceStateDef = {
+	/** Face ref: https url, `sheet:` descriptor, or `gen:` scheme */
+	face: string;
+	/** shown on hover and in the state menu, e.g. 'Damaged' */
+	name?: string;
+};
+
 export type PackPieceDef = {
 	kind: PackPieceKind;
 	name: string;
@@ -30,6 +41,22 @@ export type PackPieceDef = {
 	color?: string;
 	/** token top-face image ref (resolved like card faces) */
 	imageUrl?: string;
+	/**
+	 * Alternate faces the piece can be cycled through in play.
+	 *
+	 * **`states[0]` is the base face** — the list is the piece's COMPLETE set of
+	 * faces, not extra ones added to `imageUrl`. A piece with `states` renders
+	 * `states[n].face` and starts at n = 0 (a scenario placement can start it
+	 * elsewhere); `imageUrl` is then only a fallback for consumers that ignore
+	 * states, and exporters write it equal to `states[0].face`.
+	 */
+	states?: PackPieceStateDef[];
+	/**
+	 * Index into `states` the piece spawns showing (default 0). This is the
+	 * pack's own default — a TTS import puts the state the mod was saved in
+	 * here; a scenario placement's `state` overrides it.
+	 */
+	state?: number;
 	/** world radius of the piece footprint */
 	radius?: number;
 	/** counters start at this value */

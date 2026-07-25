@@ -70,6 +70,47 @@ describe('HUDPieces', () => {
 		});
 	});
 
+	it('picks a multi-state piece’s initial state, which is what /setup saves', async () => {
+		gameStore.set({
+			players: {},
+			pieces: {
+				'piece:seat0:brazier-0': {
+					kind: 'token',
+					name: 'Brazier',
+					states: [
+						{ face: 'https://x/lit.png', name: 'Lit' },
+						{ face: 'https://x/embers.png', name: 'Embers' },
+						{ face: 'https://x/out.png', name: 'Out' }
+					],
+					state: 0
+				}
+			}
+		});
+		const container = await mount('seat0');
+
+		const picker = [...container.querySelectorAll('select')].find((s) =>
+			[...s.options].some((o) => o.textContent?.includes('Embers'))
+		)!;
+		expect(picker).toBeTruthy();
+		picker.selectedIndex = 2; // 'Out'
+		picker.dispatchEvent(new Event('change', { bubbles: true }));
+		await settle();
+
+		expect(get(gameStore).pieces?.['piece:seat0:brazier-0']?.state).toBe(2);
+		// the pane is intact: a blade swap would have replaced the whole thing
+		expect(button(container, 'Remove')).toBeTruthy();
+		expect(button(container, 'Spawn token')).toBeTruthy();
+	});
+
+	it('offers no state picker for a single-face piece', async () => {
+		gameStore.set({
+			players: {},
+			pieces: { 'piece:seat0:token-0': { kind: 'token', name: 'Plain' } }
+		});
+		const container = await mount('seat0');
+		expect(labels(container)).not.toContain('state');
+	});
+
 	it('lists and removes every piece on the table, whoever owns it', async () => {
 		gameStore.set({
 			players: {},

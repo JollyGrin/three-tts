@@ -54,6 +54,20 @@ export const EXAMPLE_PACK: PackFile = {
 			maxValue: 25,
 			// [x, z] on the table plane, authored for seat 0 and mirrored for seat 1
 			position: [-6, 4]
+		},
+		{
+			kind: 'token',
+			name: 'Brazier',
+			// states[0] is the base face, so imageUrl repeats it for consumers
+			// that ignore states
+			imageUrl: 'https://example.com/img/brazier-lit.png',
+			states: [
+				{ face: 'https://example.com/img/brazier-lit.png', name: 'Lit' },
+				{ face: 'https://example.com/img/brazier-embers.png', name: 'Embers' },
+				{ face: 'https://example.com/img/brazier-out.png', name: 'Out' }
+			],
+			radius: 0.8,
+			position: [0, 0]
 		}
 	],
 	overlays: [
@@ -106,6 +120,8 @@ export const EXAMPLE_SCENARIO: ScenarioFile = {
 			shuffleOnLoad: true
 		},
 		{ kind: 'piece', pack: 'ember-duel', content: '0', seat: 0, value: 25 },
+		// the brazier starts burnt out: `state` indexes the pack piece's states
+		{ kind: 'piece', pack: 'ember-duel', content: '1', seat: 0, state: 2 },
 		{ kind: 'overlay', pack: 'ember-duel', content: '0', scale: 14 }
 	],
 	// placement guides: a card or token released within `radius` of one of these

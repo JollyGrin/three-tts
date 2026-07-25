@@ -69,15 +69,28 @@ export function ttsToPack(parsed: ParsedSavedObject, opts: TtsToPackOptions = {}
 		decks.push(toDeck('Loose Cards', parsed.looseCards, 'loose', true));
 	}
 
-	const pieces: PackPieceDef[] = parsed.pieces.map((p) => ({
-		kind: p.kind,
-		name: p.name,
-		...(p.color !== undefined ? { color: p.color } : {}),
-		...(p.imageUrl !== undefined ? { imageUrl: p.imageUrl } : {}),
-		...(p.radius !== undefined ? { radius: p.radius } : {}),
-		...(p.maxValue !== undefined ? { maxValue: p.maxValue } : {}),
-		position: p.position
-	}));
+	const pieces: PackPieceDef[] = parsed.pieces.map((p) => {
+		// TTS States → pack states. `states[0]` is the base face, so a multi-state
+		// piece's imageUrl is state 0's image, not whichever state it was saved
+		// showing — the placement's `state` index carries that instead.
+		const states = p.states?.map((s) => ({
+			face: cellToRef(s.face, { name: s.name }),
+			...(s.name ? { name: s.name } : {})
+		}));
+		const imageUrl = states?.length ? states[0].face : p.imageUrl;
+		return {
+			kind: p.kind,
+			name: p.name,
+			...(p.color !== undefined ? { color: p.color } : {}),
+			...(imageUrl !== undefined ? { imageUrl } : {}),
+			...(states?.length ? { states } : {}),
+			// the state the mod was saved in — recovered from the missing 1..N key
+			...(states?.length && p.state ? { state: p.state } : {}),
+			...(p.radius !== undefined ? { radius: p.radius } : {}),
+			...(p.maxValue !== undefined ? { maxValue: p.maxValue } : {}),
+			position: p.position
+		};
+	});
 
 	return {
 		id: opts.id ?? `imported:${slugify(name, 'tts')}`,

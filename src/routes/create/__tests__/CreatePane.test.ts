@@ -133,6 +133,45 @@ describe('CreatePane', () => {
 		expect(pieces[0]).toMatchObject({ kind: 'counter', value: 20, maxValue: 20 });
 	});
 
+	it('authors a multi-state token and previews the selected state', async () => {
+		const container = await mount();
+		button(container, 'Add token')!.click(); // the kind list defaults to Token
+		await settle();
+
+		// three faces, each typed into the state's own face editor — the LAST
+		// "Image URL" row on screen; the first is the piece's own image
+		for (const face of ['https://x/lit.png', 'https://x/embers.png', 'https://x/out.png']) {
+			button(container, 'Add state')!.click();
+			await settle();
+			const rows = inputs(container, 'Image URL');
+			type(rows[rows.length - 1]!, face);
+			await settle();
+		}
+		await settlePreview();
+
+		// the pane survived: replacing a tweakpane blade tears the whole Pane
+		// down, so the controls being gone is the failure this asserts against
+		expect(button(container, 'Add state')).toBeTruthy();
+		expect(labels(container)).toContain('State name');
+
+		const piece = Object.values(get(gameStore).pieces ?? {})[0];
+		expect(piece?.states?.map((s) => s.face)).toEqual([
+			'https://x/lit.png',
+			'https://x/embers.png',
+			'https://x/out.png'
+		]);
+		// the state cursor is on the last one added, so that is what the table shows
+		expect(piece?.state).toBe(2);
+
+		// pick an earlier state and the preview follows
+		const statePicker = [...container.querySelectorAll('select')].find((s) =>
+			[...s.options].some((o) => o.textContent?.includes('State 1'))
+		)!;
+		choose(statePicker, 'State 1');
+		await settlePreview();
+		expect(Object.values(get(gameStore).pieces ?? {})[0]?.state).toBe(0);
+	});
+
 	it('saves the pack to the library (packs:v1) and re-opens it for editing', async () => {
 		const container = await mount();
 		button(container, 'Save to library')!.click();

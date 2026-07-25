@@ -21,6 +21,11 @@ type TtsObject = {
 	DeckIDs?: number[];
 	CustomDeck?: Record<string, TtsSheet>;
 	ContainedObjects?: TtsObject[];
+	/**
+	 * Alternate states, keyed by 1-based state number — the object itself
+	 * occupies the number missing from the sequence. See `statesOrder`.
+	 */
+	States?: Record<string, TtsObject>;
 	Transform?: { posX?: number; posY?: number; posZ?: number; scaleX?: number };
 	ColorDiffuse?: { r?: number; g?: number; b?: number };
 	CustomImage?: { ImageURL?: string };
@@ -38,6 +43,13 @@ export type ParsedCard = {
 
 export type ParsedDeck = { name: string; cards: ParsedCard[] };
 
+/** One face of a multi-state piece, before face refs exist (see to-pack.ts). */
+export type ParsedPieceState = {
+	name: string;
+	/** whole image (cols/rows = 1) or a sheet cell, exactly like a card face */
+	face: SheetCell;
+};
+
 export type ParsedPiece = {
 	kind: 'token' | 'pawn' | 'counter';
 	name: string;
@@ -45,6 +57,10 @@ export type ParsedPiece = {
 	imageUrl?: string;
 	radius?: number;
 	maxValue?: number;
+	/** every face of a TTS `States` object, in state order; absent when single-state */
+	states?: ParsedPieceState[];
+	/** index into `states` the object was saved showing */
+	state?: number;
 	position: [number, number];
 };
 
@@ -103,7 +119,84 @@ export function extractCounterMax(luaScript?: string): number | null {
 	return match ? parseInt(match[1], 10) : null;
 }
 
-function pieceFrom(obj: TtsObject): ParsedPiece | null {
+/**
+ * Put a `States` dict in state order, with `null` marking the object's own
+ * slot.
+ *
+ * TTS keeps the ACTIVE state as the object itself and stores only the others
+ * in `States`, keyed by 1-based state number — so the current state is the one
+ * number missing from the `1..N` sequence, where N is `keys.length + 1`. That
+ * rule (not a `CurrentState` field, which does not exist in saves) is the whole
+ * trick to reading states, so it is exported and tested directly.
+ *
+ * Sparse or out-of-range keys degrade rather than throw: the smallest missing
+ * number wins the object's slot, and the remaining keys fill the rest in
+ * ascending order.
+ */
+export function statesOrder(keys: string[]): { order: (string | null)[]; current: number } {
+	const sorted = [...keys].sort((a, b) => Number(a) - Number(b));
+	const total = sorted.length + 1;
+	const present = new Set(sorted);
+	let current = total;
+	for (let i = 1; i <= total; i++) {
+		if (!present.has(String(i))) {
+			current = i;
+			break;
+		}
+	}
+	const order: (string | null)[] = [];
+	let next = 0;
+	for (let i = 1; i <= total; i++) order.push(i === current ? null : sorted[next++]);
+	return { order, current: current - 1 };
+}
+
+/** The image a state shows, if its object class carries one at all. */
+function stateFace(obj: TtsObject): SheetCell | null {
+	const url = obj.CustomImage?.ImageURL;
+	if (url) return { url: normalizeAssetUrl(url), cols: 1, rows: 1, index: 0 };
+	// Card / CardCustom: the face is a cell of the deck's sprite sheet
+	if (obj.CardID !== undefined) {
+		return cardFromId(obj.CardID, obj.CustomDeck, obj.Nickname ?? '')?.face ?? null;
+	}
+	return null;
+}
+
+/**
+ * Faces of a multi-state object, one level deep (states-of-states and
+ * `ContainedObjects` inside a state are out of scope).
+ *
+ * Only image-bearing states become faces; a state of another object class
+ * (a model, a script-only object) has nothing to render, so it degrades to a
+ * `skipped` note and is left out — never fatal, and the current-state index is
+ * computed against what survives. Fewer than two surviving faces means the
+ * object is not really multi-state, and no states are emitted.
+ */
+function pieceStates(
+	obj: TtsObject,
+	skipped: string[]
+): { states?: ParsedPieceState[]; state?: number } {
+	const keys = Object.keys(obj.States ?? {});
+	if (keys.length === 0) return {};
+
+	const { order, current } = statesOrder(keys);
+	const states: ParsedPieceState[] = [];
+	let state = 0;
+	order.forEach((key, i) => {
+		const source = key === null ? obj : (obj.States?.[key] ?? {});
+		const name = source.Nickname || source.Name || `State ${i + 1}`;
+		const face = stateFace(source);
+		if (!face) {
+			skipped.push(`${name} (state ${i + 1} of ${obj.Nickname || 'unnamed'})`);
+			return;
+		}
+		if (i === current) state = states.length;
+		states.push({ name, face });
+	});
+
+	return states.length > 1 ? { states, state } : {};
+}
+
+function pieceFrom(obj: TtsObject, skipped: string[]): ParsedPiece | null {
 	const type = obj.Name ?? '';
 	const name = obj.Nickname || type;
 	const position: [number, number] = [obj.Transform?.posX ?? 0, -(obj.Transform?.posZ ?? 0)];
@@ -114,15 +207,38 @@ function pieceFrom(obj: TtsObject): ParsedPiece | null {
 		const imageUrl = obj.CustomImage?.ImageURL
 			? normalizeAssetUrl(obj.CustomImage.ImageURL)
 			: undefined;
-		return { kind: 'token', name, color, imageUrl, radius: Math.max(0.4, scale), position };
+		return {
+			kind: 'token',
+			name,
+			color,
+			imageUrl,
+			radius: Math.max(0.4, scale),
+			...pieceStates(obj, skipped),
+			position
+		};
 	}
 	if (type === 'PlayerPawn') {
-		return { kind: 'pawn', name, color, radius: Math.max(0.3, scale * 0.3), position };
+		return {
+			kind: 'pawn',
+			name,
+			color,
+			radius: Math.max(0.3, scale * 0.3),
+			...pieceStates(obj, skipped),
+			position
+		};
 	}
 	if (type === 'Custom_Model') {
 		const maxValue = extractCounterMax(obj.LuaScript);
 		if (maxValue !== null) {
-			return { kind: 'counter', name, color, radius: 0.6, maxValue, position };
+			return {
+				kind: 'counter',
+				name,
+				color,
+				radius: 0.6,
+				maxValue,
+				...pieceStates(obj, skipped),
+				position
+			};
 		}
 	}
 	return null;
@@ -149,7 +265,7 @@ export function parseSavedObject(json: unknown): ParsedSavedObject {
 			const card = cardFromId(obj.CardID, obj.CustomDeck, obj.Nickname ?? '');
 			if (card) looseCards.push(card);
 		} else {
-			const piece = pieceFrom(obj);
+			const piece = pieceFrom(obj, skipped);
 			if (piece) pieces.push(piece);
 			else skipped.push(`${obj.Nickname || 'unnamed'} (${type})`);
 		}

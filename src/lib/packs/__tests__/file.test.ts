@@ -31,6 +31,30 @@ describe('tbpp round-trip', () => {
 		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
 	});
 
+	it('round-trips a multi-state piece, mixed face-ref schemes and all', () => {
+		const pack: GamePackDef = {
+			id: 'test',
+			name: 'Test',
+			scope: 'table',
+			decks: [],
+			pieces: [
+				{
+					kind: 'token',
+					name: 'Brazier',
+					imageUrl: 'https://x/lit.png',
+					states: [
+						{ face: 'https://x/lit.png', name: 'Lit' },
+						{ face: 'gen:std52/AS' },
+						{ face: 'sheet:{"url":"https://x/s.png","cols":2,"rows":1,"index":1}', name: 'Out' }
+					],
+					state: 2,
+					position: [0, 0]
+				}
+			]
+		};
+		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
+	});
+
 	it('names files <name>.tbpp.json', () => {
 		expect(packFileName(STANDARD_52)).toBe('Standard Playing Cards.tbpp.json');
 	});
@@ -68,5 +92,26 @@ describe('parsePackFile errors', () => {
 	it('rejects malformed pieces', () => {
 		const file = { ...valid(), pieces: [{ kind: 'die', name: 'x', position: [0, 0] }] };
 		expect(() => parsePackFile(JSON.stringify(file))).toThrow('pieces[0].kind');
+	});
+
+	const withStates = (states: unknown, extra: Record<string, unknown> = {}) => ({
+		...valid(),
+		pieces: [{ kind: 'token', name: 'x', position: [0, 0], states, ...extra }]
+	});
+
+	it('points at the offending state face', () => {
+		const file = withStates([{ face: 'https://x/a.png' }, { name: 'no face' }]);
+		expect(() => parsePackFile(JSON.stringify(file))).toThrow('pieces[0].states[1].face');
+	});
+
+	it('rejects a states list that is not an array', () => {
+		expect(() => parsePackFile(JSON.stringify(withStates({ '0': {} })))).toThrow(
+			'pieces[0].states'
+		);
+	});
+
+	it('rejects a spawn state that is not a state index', () => {
+		const file = withStates([{ face: 'https://x/a.png' }], { state: -1 });
+		expect(() => parsePackFile(JSON.stringify(file))).toThrow('pieces[0].state');
 	});
 });
