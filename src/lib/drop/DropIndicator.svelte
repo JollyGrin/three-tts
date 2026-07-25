@@ -4,6 +4,7 @@
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { tableFeatures } from '$lib/store/tableFeatures';
 	import { resolveDrop } from '$lib/utils/transforms/drop';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import DropFootprint from './DropFootprint.svelte';
@@ -30,8 +31,9 @@
 			dragId,
 			$dragStore.intersectionPoint,
 			{ deckId: $dragStore.isDeckHovered, tray: $dragStore.isTrayHovered },
-			// live: pressing or releasing Alt mid-drag redraws the preview
-			{ noSnap: $dragStore.noSnap }
+			// live: pressing or releasing Alt mid-drag redraws the preview. Same
+			// options the commit resolves with, so the preview stays honest.
+			{ noSnap: $dragStore.noSnap, hand: $tableFeatures.hand }
 		)
 	);
 

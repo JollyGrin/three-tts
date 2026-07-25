@@ -14,7 +14,7 @@
 	} from 'svelte-tweakpane-ui';
 	import { get } from 'svelte/store';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
-	import { makeSheetRef } from '$lib/packs/resolve.svelte';
+	import { gameActions } from '$lib/store/game/actions';
 	import { prewarmGameState } from '$lib/packs/prewarm-state';
 	import { spawnPackDeck, spawnPackPiece, spawnPackOverlay } from '$lib/packs/spawn';
 	import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
@@ -30,6 +30,7 @@
 		PIECE_COLOR_DEFAULT,
 		type EditorPack
 	} from './normalize';
+	import FaceRef from './FaceRef.svelte';
 	import toast from 'svelte-french-toast';
 
 	/** Everything the /create preview spawns is owned by this placeholder id */
@@ -40,6 +41,14 @@
 		'Everything here is local — no lobby is touched, and drafts stay in this browser. ' +
 		'The table previews the pack live as you edit. Export validates against the tbpp ' +
 		'format (docs/packs.md), then /setup spawns the file onto a seat.';
+
+	const TABLE_HELP_TEXT =
+		'Preview table: drag a card off a pile to look at it. It arrives showing the ' +
+		'side the deck starts on, so use "Flip cards on table" (or hover a card and ' +
+		'press F) to turn it over. T / R tap, ↑ / ↓ lift, C recentres the camera, hold ' +
+		'Space for a close-up. Moving cards here is inspection only — nothing on the ' +
+		'table is written back into the pack. The durable start face is the deck’s ' +
+		'"Face up" box.';
 
 	function emptyPack(): EditorPack {
 		return withEditorDefaults({
@@ -117,7 +126,14 @@
 
 	function addCard() {
 		if (!deck) return toast.error('Add a deck first');
-		deck.cards.push({ code: `card-${deck.cards.length}`, name: '', face: '' });
+		// the deck's back, not an empty ref: an empty face resolves to '' and
+		// renders nothing, so a brand new card would be invisible on the table
+		// until someone found the face controls
+		deck.cards.push({
+			code: `card-${deck.cards.length}`,
+			name: '',
+			face: deck.back || CARD_BACK_DEFAULT
+		});
 		cardCursor = deck.cards.length - 1;
 	}
 
@@ -170,43 +186,18 @@
 		overlayCursor = Math.max(0, overlayIndex - 1);
 	}
 
-	// ——— face-ref builder: raw url / gen:std52 / sheet:{…} ———
-	type FaceScheme = 'url' | 'gen' | 'sheet';
-	const schemeOptions: Record<string, FaceScheme> = {
-		'Image URL (https:)': 'url',
-		'Generated (gen:std52)': 'gen',
-		'Sprite sheet (sheet:)': 'sheet'
-	};
-	let faceScheme: FaceScheme = $state('url');
-	let faceUrl = $state('');
-	let genCode = $state('AS');
-	let sheetUrl = $state('');
-	let sheetCols = $state(10);
-	let sheetRows = $state(7);
-	let sheetIndex = $state(0);
-
-	const builtFaceRef = $derived.by(() => {
-		if (faceScheme === 'url') return faceUrl.trim();
-		if (faceScheme === 'gen') return `gen:std52/${genCode.trim()}`;
-		if (!sheetUrl.trim()) return '';
-		return makeSheetRef({
-			url: sheetUrl.trim(),
-			cols: Math.max(1, Math.round(sheetCols)),
-			rows: Math.max(1, Math.round(sheetRows)),
-			index: Math.max(0, Math.round(sheetIndex))
-		});
-	});
-
-	function applyFaceToCard() {
-		if (!card) return toast.error('Select a card first');
-		if (!builtFaceRef) return toast.error('Face ref is empty');
-		card.face = builtFaceRef;
-	}
-
-	function applyFaceToBack() {
-		if (!deck) return toast.error('Select a deck first');
-		if (!builtFaceRef) return toast.error('Face ref is empty');
-		deck.back = builtFaceRef;
+	/**
+	 * Flip whatever the preview spawned onto the table, so the flip gesture is
+	 * reachable without hovering a card and knowing about `F`. Every card the
+	 * editor puts on the table belongs to the preview owner, and the flip is
+	 * inspection only — the next edit respawns the pack and it's gone.
+	 */
+	function flipTableCards() {
+		const ids = Object.keys(get(gameStore)?.cards ?? {}).filter((id) =>
+			id.includes(`:${PREVIEW_OWNER}:`)
+		);
+		if (!ids.length) return toast('Drag a card off a pile first');
+		for (const id of ids) gameActions.flipCard(id);
 	}
 
 	// ——— live preview: respawn the pack under the preview owner on every edit ———
@@ -354,65 +345,83 @@
 	}
 </script>
 
+<!--
+	Four panes, not one: each carries a single concern and remembers its own
+	position and collapse state (`localStoreId`). Authoring a card — the thing
+	this editor is for — is one pane deep, and Save / Export never hides under
+	another section.
+-->
+
 <Pane
 	position="draggable"
-	title="Pack Editor (local)"
+	title="Pack (local)"
 	expanded={true}
-	y={0}
-	x={0}
-	width={340}
-	localStoreId="create-pane"
+	y={8}
+	x={8}
+	width={320}
+	localStoreId="create-pane-pack"
 >
-	<Folder title="Pack" expanded={true}>
-		<Text label="Id" bind:value={pack.id} />
-		<Text label="Name" bind:value={pack.name} />
-		<List
-			label="Scope"
-			bind:value={pack.scope}
-			options={{ 'player (one seat brings it)': 'player', 'table (the shared game)': 'table' }}
-		/>
-	</Folder>
+	<Text label="Id" bind:value={pack.id} />
+	<Text label="Name" bind:value={pack.name} />
+	<List
+		label="Scope"
+		bind:value={pack.scope}
+		options={{ 'player (one seat brings it)': 'player', 'table (the shared game)': 'table' }}
+	/>
+	<Textarea disabled rows={5} value={HELP_TEXT} />
+</Pane>
 
-	<Folder title="Decks ({pack.decks.length})" expanded={true}>
-		<List label="Deck" bind:value={deckCursor} options={deckOptions} />
-		<Button title="Add deck" on:click={addDeck} />
-		{#if deck}
+<Pane
+	position="draggable"
+	title="Decks & Cards"
+	expanded={true}
+	y={190}
+	x={8}
+	width={320}
+	localStoreId="create-pane-decks"
+>
+	<List label="Deck" bind:value={deckCursor} options={deckOptions} />
+	<Button title="Add deck" on:click={addDeck} />
+	{#if deck}
+		<Folder title="Deck ({deck.slot})" expanded={true}>
 			<Text label="Slot" bind:value={deck.slot} />
 			<Text label="Name" bind:value={deck.name} />
-			<Text label="Back ref" bind:value={deck.back} />
 			<Checkbox label="Face up" bind:value={deck.isFaceUp} />
 			<Button title="Remove deck" on:click={removeDeck} />
-			<Folder title="Cards ({deck.cards.length})" expanded={true}>
-				<List label="Card" bind:value={cardCursor} options={cardOptions} />
-				<Button title="Add card" on:click={addCard} />
-				{#if card}
-					<Text label="Code" bind:value={card.code} />
-					<Text label="Name" bind:value={card.name} />
-					<Text label="Face ref" bind:value={card.face} />
-					<Button title="Duplicate card" on:click={duplicateCard} />
-					<Button title="Remove card" on:click={removeCard} />
-				{/if}
-			</Folder>
-		{/if}
-	</Folder>
+			<!-- keyed on the cursor: a fresh editor for whichever deck is selected -->
+			{#key deckIndex}
+				<FaceRef title="Deck back" value={deck.back} onchange={(ref) => (deck.back = ref)} />
+			{/key}
+		</Folder>
 
-	<Folder title="Face ref builder" expanded={false}>
-		<List label="Scheme" bind:value={faceScheme} options={schemeOptions} />
-		{#if faceScheme === 'url'}
-			<Text label="Image URL" bind:value={faceUrl} />
-		{:else if faceScheme === 'gen'}
-			<Text label="Code (AS…KC, back)" bind:value={genCode} />
-		{:else}
-			<Text label="Sheet URL" bind:value={sheetUrl} />
-			<AutoValue label="Columns" bind:value={sheetCols} />
-			<AutoValue label="Rows" bind:value={sheetRows} />
-			<AutoValue label="Cell index" bind:value={sheetIndex} />
-		{/if}
-		<Text label="Result" value={builtFaceRef} disabled />
-		<Button title="Set as card face" on:click={applyFaceToCard} />
-		<Button title="Set as deck back" on:click={applyFaceToBack} />
-	</Folder>
+		<Folder title="Cards ({deck.cards.length})" expanded={true}>
+			<List label="Card" bind:value={cardCursor} options={cardOptions} />
+			<Button title="Add card" on:click={addCard} />
+			{#if card}
+				<Text label="Code" bind:value={card.code} />
+				<Text label="Name" bind:value={card.name} />
+				<Button title="Duplicate card" on:click={duplicateCard} />
+				<Button title="Remove card" on:click={removeCard} />
+				{#key `${deckIndex}:${cardIndex}`}
+					<FaceRef title="Card face" value={card.face} onchange={(ref) => (card.face = ref)} />
+				{/key}
+			{/if}
+		</Folder>
+	{/if}
 
+	<Button title="Flip cards on table (F)" on:click={flipTableCards} />
+	<Textarea disabled rows={6} value={TABLE_HELP_TEXT} />
+</Pane>
+
+<Pane
+	position="draggable"
+	title="Board"
+	expanded={true}
+	y={8}
+	x={344}
+	width={320}
+	localStoreId="create-pane-board"
+>
 	<Folder title="Pieces ({pack.pieces.length})" expanded={false}>
 		<List label="New kind" bind:value={newPieceKind} options={kindOptions} />
 		<Button title="Add {newPieceKind}" on:click={addPiece} />
@@ -452,7 +461,22 @@
 			<Button title="Remove overlay" on:click={removeOverlay} />
 		{/if}
 	</Folder>
+</Pane>
 
+<Pane
+	position="draggable"
+	title="Drafts / File"
+	expanded={true}
+	y={190}
+	x={344}
+	width={320}
+	localStoreId="create-pane-file"
+>
+	<Button title="Save draft" on:click={handleSaveDraft} />
+	<List label="Saved" bind:value={selectedDraft} options={draftOptions} />
+	<Button title="Load selected" on:click={handleLoadDraft} />
+	<Button title="Delete selected" on:click={handleDeleteDraft} />
+	<Button title="Export pack (.tbpp.json)" on:click={handleExport} />
 	<Folder title="Start from an existing file" expanded={false}>
 		<Button title="Import TTS json → pack" on:click={() => ttsFileInput?.click()} />
 		<Button title="Open a pack (.tbpp.json)" on:click={() => packFileInput?.click()} />
@@ -473,14 +497,4 @@
 			/>
 		</Element>
 	</Folder>
-
-	<Folder title="Drafts / Export" expanded={true}>
-		<Button title="Save draft" on:click={handleSaveDraft} />
-		<List label="Saved" bind:value={selectedDraft} options={draftOptions} />
-		<Button title="Load selected" on:click={handleLoadDraft} />
-		<Button title="Delete selected" on:click={handleDeleteDraft} />
-		<Button title="Export pack (.tbpp.json)" on:click={handleExport} />
-	</Folder>
-
-	<Textarea disabled rows={5} value={HELP_TEXT} />
 </Pane>

@@ -8,6 +8,7 @@ import { render } from '@testing-library/svelte';
 import { get } from 'svelte/store';
 import CreatePane from '../CreatePane.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
+import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 
 // the draggable Pane observes its own size; jsdom has no ResizeObserver
 globalThis.ResizeObserver ??= class {
@@ -25,6 +26,28 @@ const button = (container: HTMLElement, label: string) =>
 
 const labels = (container: HTMLElement) =>
 	[...container.querySelectorAll('.tp-lblv_l')].map((el) => el.textContent);
+
+/** the text input of the (single) row carrying this label */
+const input = (container: HTMLElement, label: string) =>
+	[...container.querySelectorAll('.tp-lblv_l')]
+		.find((el) => el.textContent === label)
+		?.parentElement?.querySelector('input');
+
+/** every face-scheme picker on screen, in DOM order (deck back, then card face) */
+const schemePickers = (container: HTMLElement) =>
+	[...container.querySelectorAll('select')].filter((s) =>
+		[...s.options].some((o) => o.textContent?.includes('Sprite sheet'))
+	);
+
+function choose(select: HTMLSelectElement, text: string) {
+	select.selectedIndex = [...select.options].findIndex((o) => o.textContent?.includes(text));
+	select.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function type(element: HTMLInputElement, value: string) {
+	element.value = value;
+	element.dispatchEvent(new Event('change', { bubbles: true }));
+}
 
 async function mount() {
 	const { container } = render(CreatePane);
@@ -105,6 +128,63 @@ describe('CreatePane', () => {
 
 		// an empty deck has no cards[0] for Deck.svelte to render
 		expect(Object.keys(get(gameStore).decks ?? {})).toEqual(['deck:preview:main']);
+	});
+
+	it('gives a new card the deck back as its face, so it renders immediately', async () => {
+		const container = await mount();
+		button(container, 'Add card')!.click();
+		await settlePreview();
+
+		const cards = get(gameStore).decks?.['deck:preview:main'].cards ?? [];
+		expect(cards).toHaveLength(2);
+		// starter deck's back — a blank face resolves to '' and shows nothing
+		expect(cards[1].faceImageUrl).toBe(CARD_BACK_DEFAULT);
+	});
+
+	it('sets the selected card face inline, without a separate builder', async () => {
+		const container = await mount();
+		// one face editor for the deck back, one for the selected card
+		const pickers = schemePickers(container);
+		expect(pickers).toHaveLength(2);
+
+		choose(pickers[1], 'Image URL');
+		await settle();
+		type(input(container, 'Image URL')!, 'https://example.test/ace.png');
+		await settlePreview();
+
+		const cards = get(gameStore).decks?.['deck:preview:main'].cards ?? [];
+		expect(cards[0].faceImageUrl).toBe('https://example.test/ace.png');
+	});
+
+	it('sets the deck back inline from the deck section', async () => {
+		const container = await mount();
+		choose(schemePickers(container)[0], 'Image URL');
+		await settle();
+		type(input(container, 'Image URL')!, 'https://example.test/back.png');
+		await settlePreview();
+
+		expect(get(gameStore).decks?.['deck:preview:main'].deckBackImageUrl).toBe(
+			'https://example.test/back.png'
+		);
+	});
+
+	it('flips the cards on the preview table from the pane, no keyboard needed', async () => {
+		const container = await mount();
+		await settlePreview();
+
+		gameStore.updateState({
+			cards: {
+				'card:preview:main-AS': {
+					position: [0, 0.3, 0],
+					rotation: [180, 0, 0], // as it arrives off a facedown pile
+					faceImageUrl: 'gen:std52/AS'
+				}
+			}
+		});
+		button(container, 'Flip cards on table')!.click();
+		await settle();
+
+		expect(get(gameStore).cards?.['card:preview:main-AS'].rotation).toEqual([0, 0, 0]);
 	});
 
 	it('previews only under the preview owner, leaving other entities alone', async () => {

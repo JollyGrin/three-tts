@@ -12,7 +12,8 @@
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import RemoteCameraAvatar from './RemoteCameraAvatar.svelte';
-	import { dragStore, setNoSnap } from '$lib/store/dragStore.svelte';
+	import { dragStore, setNoSnap, setTrayHover } from '$lib/store/dragStore.svelte';
+	import { setTableFeatures, TABLE_FEATURES_DEFAULT } from '$lib/store/tableFeatures';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { remoteCameraActions, remoteCameraStore } from './store/remoteCameraStore.svelte';
@@ -26,6 +27,20 @@
 	import { TABLE_TOP_Y } from '$lib/utils/constants-table';
 	import type { GameDTO } from './store/game/types';
 	type CardDTO = GameDTO['cards'][string];
+
+	/**
+	 * `hand={false}` leaves the local hand tray off the table (the pack editor:
+	 * a pack has no way to represent a hand). It also has to reach the drop
+	 * resolver — the tray hover flag is module-global and can arrive stale from
+	 * a previous /play visit, so an unmounted tray must not win a drop.
+	 */
+	let { hand = true }: { hand?: boolean } = $props();
+
+	$effect(() => {
+		setTableFeatures({ hand });
+		if (!hand) setTrayHover(false);
+		return () => setTableFeatures(TABLE_FEATURES_DEFAULT);
+	});
 
 	const isDragging = $derived($dragStore.isDragging !== null);
 	let mesh: THREE.Mesh | undefined = $state();
@@ -141,9 +156,11 @@
 <!-- soft fill so vertical faces (card edges, deck sides) aren't pitch black -->
 <T.AmbientLight intensity={0.5} />
 
-<HUD>
-	<HudTrayScene />
-</HUD>
+{#if hand}
+	<HUD>
+		<HudTrayScene />
+	</HUD>
+{/if}
 
 <HUD>
 	<HudPreviewScene />

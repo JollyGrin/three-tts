@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { dragEnd, dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
+import { tableFeatures } from '$lib/store/tableFeatures';
 import { resolveDrop } from '$lib/utils/transforms/drop';
 
 /**
@@ -26,13 +27,14 @@ export function commitActiveDrag() {
 	// resolved by the same pure function the DropIndicator previews with, so
 	// what the player saw while dragging is what gets committed — including
 	// whether Alt was down (noSnap), which the release writes into the store
-	// from the pointer event before calling in
+	// from the pointer event before calling in, and whether this route has a
+	// hand at all. The options must match the indicator's exactly.
 	const drop = resolveDrop(
 		get(gameStore),
 		id,
 		intersectionPoint,
 		{ deckId: isDeckHovered, tray: isTrayHovered },
-		{ noSnap }
+		{ noSnap, hand: get(tableFeatures).hand }
 	);
 
 	if (drop?.kind === 'tray') {
