@@ -4,7 +4,7 @@
  * The relay is not optional — `/play` renders `<TableScene>` only once the
  * socket is open, so a harness without one tests an empty canvas. It is also
  * why the harness must never be pointed at the default server: `connection.ts`
- * falls back to `api.table.place` when nothing overrides it, and a test that
+ * falls back to `lobby.table.place` when nothing overrides it, and a test that
  * spawns dice into the public relay is a test that spawns dice into strangers'
  * tables. Both the `?server=` query param and `localStorage.serverurl` are set
  * to localhost, belt and braces.
