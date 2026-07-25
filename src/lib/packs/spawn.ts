@@ -200,6 +200,7 @@ export function spawnPackPiece(pack: GamePackDef, index: number, opts: SpawnPiec
 		state: opts.state ?? def.state,
 		radius: def.radius,
 		maxValue: def.maxValue,
+		sides: def.sides,
 		value: opts.value,
 		position: opts.position ?? [def.position[0] * m, PIECE_REST_Y, def.position[1] * m],
 		rotation: opts.rotation,

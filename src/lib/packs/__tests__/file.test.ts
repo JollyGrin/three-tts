@@ -90,7 +90,7 @@ describe('parsePackFile errors', () => {
 	});
 
 	it('rejects malformed pieces', () => {
-		const file = { ...valid(), pieces: [{ kind: 'die', name: 'x', position: [0, 0] }] };
+		const file = { ...valid(), pieces: [{ kind: 'meeple', name: 'x', position: [0, 0] }] };
 		expect(() => parsePackFile(JSON.stringify(file))).toThrow('pieces[0].kind');
 	});
 
@@ -113,5 +113,21 @@ describe('parsePackFile errors', () => {
 	it('rejects a spawn state that is not a state index', () => {
 		const file = withStates([{ face: 'https://x/a.png' }], { state: -1 });
 		expect(() => parsePackFile(JSON.stringify(file))).toThrow('pieces[0].state');
+	});
+
+	it('rejects a die with a shape we have no geometry for', () => {
+		const file = { ...valid(), pieces: [{ kind: 'die', name: 'd7', sides: 7, position: [0, 0] }] };
+		expect(() => parsePackFile(JSON.stringify(file))).toThrow('pieces[0].sides');
+	});
+
+	it('round-trips a die piece', () => {
+		const file = {
+			...valid(),
+			pieces: [{ kind: 'die', name: 'd20', sides: 20, position: [1, 2] }]
+		};
+		expect(parsePackFile(JSON.stringify(file)).pieces?.[0]).toMatchObject({
+			kind: 'die',
+			sides: 20
+		});
 	});
 });

@@ -3,6 +3,11 @@
  * decoupled from live game state. Packs are templates; the gameStore
  * holds the instance. See SPEC.md §4d.
  */
+
+// relative, not `$lib`: these types are a schema-generation root
+// (scripts/build-schemas.ts), and that program is compiled without the
+// SvelteKit path aliases
+import type { DieSides } from '../store/game/types';
 export type PackCardDef = {
 	/** Stable code within the pack, e.g. 'AS' (ace of spades) */
 	code: string;
@@ -21,7 +26,7 @@ export type PackDeckDef = {
 	cards: PackCardDef[];
 };
 
-export type PackPieceKind = 'token' | 'pawn' | 'counter';
+export type PackPieceKind = 'token' | 'pawn' | 'counter' | 'die';
 
 /**
  * One alternate face of a multi-state piece (the TTS `States` analog: a
@@ -37,7 +42,7 @@ export type PackPieceStateDef = {
 export type PackPieceDef = {
 	kind: PackPieceKind;
 	name: string;
-	/** hex tint; pawns/counters without images render in this color */
+	/** hex tint; pawns/counters/dice without images render in this color */
 	color?: string;
 	/** token top-face image ref (resolved like card faces) */
 	imageUrl?: string;
@@ -49,6 +54,9 @@ export type PackPieceDef = {
 	 * `states[n].face` and starts at n = 0 (a scenario placement can start it
 	 * elsewhere); `imageUrl` is then only a fallback for consumers that ignore
 	 * states, and exporters write it equal to `states[0].face`.
+	 *
+	 * Orthogonal to `kind: 'die'`: a die's faces are procedural geometry, not
+	 * images, so it is never a stateful piece and carries no `states`.
 	 */
 	states?: PackPieceStateDef[];
 	/**
@@ -57,10 +65,12 @@ export type PackPieceDef = {
 	 * here; a scenario placement's `state` overrides it.
 	 */
 	state?: number;
-	/** world radius of the piece footprint */
+	/** world radius of the piece footprint (a die's circumradius) */
 	radius?: number;
 	/** counters start at this value */
 	maxValue?: number;
+	/** dice only: how many faces the die has (defaults to 6) */
+	sides?: DieSides;
 	/** table-plane position [x, z] in world units */
 	position: [number, number];
 };
@@ -82,7 +92,7 @@ export type GamePackDef = {
 	 */
 	scope: 'table' | 'player';
 	decks: PackDeckDef[];
-	/** tokens/pawns/counters that spawn with the pack */
+	/** tokens/pawns/counters/dice that spawn with the pack */
 	pieces?: PackPieceDef[];
 	/** board/map images laid on the table */
 	overlays?: PackOverlayDef[];

@@ -1,8 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import { gameStore } from '../game/gameStore.svelte';
 import { gameActions } from '../game/actions';
-import { COUNTER_MAX_DEFAULT, PIECE_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
+import {
+	COUNTER_MAX_DEFAULT,
+	DIE_SIDES,
+	PIECE_RADIUS,
+	PIECE_REST_Y
+} from '$lib/utils/constants-pieces';
 
 const OWNER = 'seat0';
 
@@ -152,5 +157,76 @@ describe('incrementCounter', () => {
 		expect(get(gameStore).pieces?.[id]?.value).toBe(0);
 		gameActions.incrementCounter(id, 2);
 		expect(get(gameStore).pieces?.[id]?.value).toBe(2);
+	});
+});
+
+describe('dice', () => {
+	beforeEach(() => {
+		gameStore.set({ players: {}, cards: {}, decks: {}, pieces: {} });
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const roll = (id: string, random: number) => {
+		vi.spyOn(Math, 'random').mockReturnValue(random);
+		gameActions.rollDie(id);
+		vi.restoreAllMocks();
+		return get(gameStore).pieces?.[id];
+	};
+
+	it('spawns unrolled, on a face, named after its shape', () => {
+		const id = gameActions.addPiece('die', { ownerId: OWNER, sides: 20 });
+		expect(id).toBe('piece:seat0:d20-0');
+		expect(get(gameStore).pieces?.[id]).toMatchObject({
+			kind: 'die',
+			sides: 20,
+			value: 1,
+			// nothing to replay yet, so a joining client animates nothing
+			rollSeq: 0,
+			radius: PIECE_RADIUS.die
+		});
+	});
+
+	it('defaults to a d6', () => {
+		const id = gameActions.addPiece('die', { ownerId: OWNER });
+		expect(get(gameStore).pieces?.[id]).toMatchObject({ sides: 6, value: 1 });
+	});
+
+	it('leaves die state off other kinds', () => {
+		const id = gameActions.addPiece('token', { ownerId: OWNER, sides: 20 });
+		const piece = (get(gameStore).pieces ?? {})[id];
+		expect(piece?.sides).toBeUndefined();
+		expect(piece?.rollSeq).toBeUndefined();
+	});
+
+	it('rolls a face in 1…sides and bumps rollSeq, in one patch', () => {
+		for (const sides of DIE_SIDES) {
+			const id = gameActions.addPiece('die', { ownerId: OWNER, sides, name: `x${sides}` });
+			// the extremes of Math.random are what an off-by-one shows up at
+			expect(roll(id, 0)).toMatchObject({ value: 1, rollSeq: 1 });
+			expect(roll(id, 0.999999)).toMatchObject({ value: sides, rollSeq: 2 });
+			expect(roll(id, 0.5)).toMatchObject({ value: Math.floor(sides / 2) + 1, rollSeq: 3 });
+		}
+	});
+
+	it('bumps rollSeq even when the result repeats — it is the animation trigger', () => {
+		const id = gameActions.addPiece('die', { ownerId: OWNER, sides: 6 });
+		expect(roll(id, 0.5)).toMatchObject({ value: 4, rollSeq: 1 });
+		expect(roll(id, 0.5)).toMatchObject({ value: 4, rollSeq: 2 });
+	});
+
+	it('picks up mid-game from whatever rollSeq the lobby is already on', () => {
+		gameStore.set({ pieces: { 'piece:a:d6-0': { kind: 'die', sides: 6, value: 3, rollSeq: 41 } } });
+		expect(roll('piece:a:d6-0', 0)).toMatchObject({ rollSeq: 42 });
+	});
+
+	it('refuses to roll anything that is not a die', () => {
+		const counter = gameActions.addPiece('counter', { ownerId: OWNER, maxValue: 10 });
+		gameActions.rollDie(counter);
+		gameActions.rollDie('piece:seat0:nonexistent-0');
+		expect(get(gameStore).pieces?.[counter]).toMatchObject({ value: 10 });
+		expect(get(gameStore).pieces?.[counter]?.rollSeq).toBeUndefined();
 	});
 });

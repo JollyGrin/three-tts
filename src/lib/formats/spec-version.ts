@@ -17,7 +17,7 @@
  */
 
 /** Bump on any change to the pack schema. See docs/packs.md § Spec versioning. */
-export const PACK_SPEC_VERSION = '1.1.0';
+export const PACK_SPEC_VERSION = '1.2.0';
 
 /**
  * The scenario spec is deliberately 0.x: it is unstable and carries no
@@ -31,7 +31,7 @@ export const PACK_SPEC_VERSION = '1.1.0';
  * "additive → minor" convention in docs/packs.md § Release convention is the
  * 1.x rule; it inverts under 0.x.)
  */
-export const SCENARIO_SPEC_VERSION = '0.1.4';
+export const SCENARIO_SPEC_VERSION = '0.1.5';
 
 export type Semver = { major: number; minor: number; patch: number };
 

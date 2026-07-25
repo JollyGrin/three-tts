@@ -12,7 +12,7 @@ import type {
 	PackOverlayDef,
 	PackPieceDef
 } from '$lib/packs/types';
-import { PIECE_RADIUS, COUNTER_MAX_DEFAULT } from '$lib/utils/constants-pieces';
+import { PIECE_RADIUS, COUNTER_MAX_DEFAULT, DIE_SIDES_DEFAULT } from '$lib/utils/constants-pieces';
 
 export const PIECE_COLOR_DEFAULT = '#c8c4b8';
 
@@ -54,6 +54,7 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 			maxValue: piece.maxValue ?? COUNTER_MAX_DEFAULT,
 			states: (piece.states ?? []).map((state) => ({ face: state.face, name: state.name ?? '' })),
 			state: piece.state ?? 0,
+			sides: piece.sides ?? DIE_SIDES_DEFAULT,
 			position: [...piece.position] as [number, number]
 		})),
 		overlays: (pack.overlays ?? []).map((overlay) => ({ ...overlay }))
@@ -68,10 +69,15 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
  */
 export function cleanForExport(draft: GamePackDef): GamePackDef {
 	const pieces = (draft.pieces ?? []).map((piece) => {
-		// a state with no face is an empty editor row, not authoring intent
-		const states = (piece.states ?? [])
-			.filter((state) => state.face)
-			.map((state) => ({ face: state.face, ...(state.name ? { name: state.name } : {}) }));
+		// a state with no face is an empty editor row, not authoring intent.
+		// Never on a die: its faces are procedural, so `states` on one is a
+		// category error and must not reach the file (see PackPieceDef.states).
+		const states =
+			piece.kind === 'die'
+				? []
+				: (piece.states ?? [])
+						.filter((state) => state.face)
+						.map((state) => ({ face: state.face, ...(state.name ? { name: state.name } : {}) }));
 		// states[0] IS the base face (see PackPieceDef.states), so imageUrl mirrors
 		// it — a consumer that ignores states still shows the right image
 		const imageUrl = states[0]?.face ?? piece.imageUrl;
@@ -87,6 +93,7 @@ export function cleanForExport(draft: GamePackDef): GamePackDef {
 			...(piece.kind === 'counter' && piece.maxValue !== undefined
 				? { maxValue: piece.maxValue }
 				: {}),
+			...(piece.kind === 'die' && piece.sides !== undefined ? { sides: piece.sides } : {}),
 			position: [...piece.position] as [number, number]
 		};
 	});

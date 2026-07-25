@@ -96,7 +96,8 @@ function parseDeck(v: unknown, path: string): PackDeckDef {
 	return deck;
 }
 
-const PIECE_KINDS = ['token', 'pawn', 'counter'] as const;
+const PIECE_KINDS = ['token', 'pawn', 'counter', 'die'] as const;
+const DIE_SIDES = [4, 6, 8, 10, 12, 20] as const;
 
 function parsePieceState(v: unknown, path: string): PackPieceStateDef {
 	if (!isRecord(v)) fail(path, 'must be an object');
@@ -132,6 +133,13 @@ function parsePiece(v: unknown, path: string): PackPieceDef {
 	}
 	if (v.radius !== undefined) piece.radius = num(v.radius, `${path}.radius`);
 	if (v.maxValue !== undefined) piece.maxValue = num(v.maxValue, `${path}.maxValue`);
+	if (v.sides !== undefined) {
+		const sides = num(v.sides, `${path}.sides`) as PackPieceDef['sides'];
+		if (!DIE_SIDES.includes(sides as (typeof DIE_SIDES)[number])) {
+			fail(`${path}.sides`, `must be one of ${DIE_SIDES.join(', ')}`);
+		}
+		piece.sides = sides;
+	}
 	return piece;
 }
 

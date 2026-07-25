@@ -33,7 +33,7 @@ Every file carries an in-band discriminator at the top level: `"tbpp": 1` or `"t
 
 ### 2.1 Spec versions
 
-Current: **pack `1.1.0`**, **scenario `0.1.4`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
+Current: **pack `1.2.0`**, **scenario `0.1.5`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
 
 Two version fields exist and they answer different questions:
 
@@ -101,7 +101,10 @@ Seats sit around the short ends. Seats **0 and 2** are on the `+z` side facing `
 | `PIECE_RADIUS.token` | 0.75 | default radius per kind — token |
 | `PIECE_RADIUS.pawn` | 0.3 | default radius per kind — pawn |
 | `PIECE_RADIUS.counter` | 0.6 | default radius per kind — counter |
+| `PIECE_RADIUS.die` | 0.55 | default radius per kind — die (its circumradius) |
 | `COUNTER_MAX_DEFAULT` | 20 | starting max for a counter with no `maxValue` |
+| `DIE_SIDES` | 4, 6, 8, 10, 12, 20 | die shapes that exist; any other `sides` is rejected |
+| `DIE_SIDES_DEFAULT` | 6 | faces a die gets when it omits `sides` |
 | `SNAP_RADIUS_DEFAULT` | 0.9 | catch radius of a snap point that omits `radius` |
 
 Practical defaults, matching what the app itself spawns:
@@ -163,7 +166,7 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 
 ### 6.1 Fields
 
-- **`specVersion`** — the pack spec you generated against (§2.1). Currently `1.1.0`.
+- **`specVersion`** — the pack spec you generated against (§2.1). Currently `1.2.0`.
 - **`id`** — stable identity for the pack, e.g. `ember-duel`. See §8 on collisions.
 - **`name`** — human-readable title.
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
@@ -250,7 +253,6 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 							"cards": {
 								"type": "array",
 								"items": {
-									"description": "A pack is a named, serializable definition of a game's contents —\ndecoupled from live game state. Packs are templates; the gameStore\nholds the instance. See SPEC.md §4d.",
 									"type": "object",
 									"properties": {
 										"code": {
@@ -278,7 +280,7 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 					"title": "decks"
 				},
 				"pieces": {
-					"description": "tokens/pawns/counters that spawn with the pack",
+					"description": "tokens/pawns/counters/dice that spawn with the pack",
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -292,7 +294,7 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 								"title": "name"
 							},
 							"color": {
-								"description": "hex tint; pawns/counters without images render in this color",
+								"description": "hex tint; pawns/counters/dice without images render in this color",
 								"type": "string",
 								"title": "color"
 							},
@@ -302,7 +304,7 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 								"title": "imageUrl"
 							},
 							"states": {
-								"description": "Alternate faces the piece can be cycled through in play.\n\n**`states[0]` is the base face** — the list is the piece's COMPLETE set of\nfaces, not extra ones added to `imageUrl`. A piece with `states` renders\n`states[n].face` and starts at n = 0 (a scenario placement can start it\nelsewhere); `imageUrl` is then only a fallback for consumers that ignore\nstates, and exporters write it equal to `states[0].face`.",
+								"description": "Alternate faces the piece can be cycled through in play.\n\n**`states[0]` is the base face** — the list is the piece's COMPLETE set of\nfaces, not extra ones added to `imageUrl`. A piece with `states` renders\n`states[n].face` and starts at n = 0 (a scenario placement can start it\nelsewhere); `imageUrl` is then only a fallback for consumers that ignore\nstates, and exporters write it equal to `states[0].face`.\n\nOrthogonal to `kind: 'die'`: a die's faces are procedural geometry, not\nimages, so it is never a stateful piece and carries no `states`.",
 								"type": "array",
 								"items": {
 									"description": "One alternate face of a multi-state piece (the TTS `States` analog: a\ndouble-sided tile, an upgrade token, a transformed piece).",
@@ -329,7 +331,7 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 								"title": "state"
 							},
 							"radius": {
-								"description": "world radius of the piece footprint",
+								"description": "world radius of the piece footprint (a die's circumradius)",
 								"type": "number",
 								"title": "radius"
 							},
@@ -337,6 +339,12 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 								"description": "counters start at this value",
 								"type": "number",
 								"title": "maxValue"
+							},
+							"sides": {
+								"description": "dice only: how many faces the die has (defaults to 6)",
+								"enum": [10, 12, 20, 4, 6, 8],
+								"type": "number",
+								"title": "sides"
 							},
 							"position": {
 								"description": "table-plane position [x, z] in world units",
@@ -418,14 +426,14 @@ Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its ri
 	"definitions": {
 		"PackPieceKind": {
 			"title": "PackPieceKind",
-			"enum": ["counter", "pawn", "token"],
+			"enum": ["counter", "die", "pawn", "token"],
 			"type": "string"
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.1.0",
-	"x-generated-at": "2026-07-25T13:54:06.590Z",
-	"x-tableplace-source-sha": "0164a0067fbb0babaee10ab533d02bbe0a10690a-dirty"
+	"x-tableplace-spec-version": "1.2.0",
+	"x-generated-at": "2026-07-25T14:07:19.077Z",
+	"x-tableplace-source-sha": "69a1ed0849764471adbec1bd94e4597744178ffd-dirty"
 }
 ```
 
@@ -437,7 +445,7 @@ A complete, valid pack. Save as `ember-duel.tbpp.json` and import it from the ta
 {
 	"$schema": "https://table.place/pack.schema.json",
 	"tbpp": 1,
-	"specVersion": "1.1.0",
+	"specVersion": "1.2.0",
 	"id": "ember-duel",
 	"name": "Ember Duel",
 	"scope": "player",
@@ -533,7 +541,7 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
 
 ### 7.1 Fields
 
-- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `0.1.4`.
+- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `0.1.5`.
 - **`name`**, **`createdAt`** — title and a Unix epoch timestamp in milliseconds.
 - **`packs[]`** — `{ id, source? }` for every pack the scenario draws from. `source` is `"builtin"` for packs shipped with the app (currently only `standard-52`), `"local"` for a pack held in the reader's own browser-local pack library, or an `https://` URL a `.tbpp.json` can be fetched from. A remote pack goes through the same validation as a local import. A scenario meant to travel to other people must use `"builtin"` or a URL: `"local"` resolves only on the machine that has the pack, and fails loudly (naming the pack id) anywhere else.
 - **`placements[]`** — one entry per spawned thing:
@@ -1180,8 +1188,8 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 					"title": "rotation"
 				},
 				"kind": {
-					"description": "Non-card table objects (tokens, pawns, counters). One generic shape\nwith a kind discriminator — see SPEC.md §4a.",
-					"enum": ["counter", "pawn", "token"],
+					"description": "Non-card table objects (tokens, pawns, counters, dice). One generic shape\nwith a kind discriminator — see SPEC.md §4a.",
+					"enum": ["counter", "die", "pawn", "token"],
 					"type": "string",
 					"title": "kind"
 				},
@@ -1231,13 +1239,24 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 					"title": "radius"
 				},
 				"value": {
-					"description": "counter state",
+					"description": "counter state — also the up-face of a die (1…sides)",
 					"type": "number",
 					"title": "value"
 				},
 				"maxValue": {
 					"type": "number",
 					"title": "maxValue"
+				},
+				"sides": {
+					"description": "dice only: how many faces the die has",
+					"enum": [10, 12, 20, 4, 6, 8],
+					"type": "number",
+					"title": "sides"
+				},
+				"rollSeq": {
+					"description": "dice only: bumped once per roll. The roll itself is sent as\n`{value, rollSeq}` in one patch — never a stream of frames — and every\nclient plays the tumble locally when this number changes, settling on\n`value`. It is therefore both the animation trigger and the dedupe\nnonce: a client that has never seen this die seeds its last-seen seq on\nfirst sync, so joining after a roll shows the settled face with no replay.",
+					"type": "number",
+					"title": "rollSeq"
 				},
 				"packOrigin": {
 					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
@@ -1301,9 +1320,9 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.4",
-	"x-generated-at": "2026-07-25T13:54:06.590Z",
-	"x-tableplace-source-sha": "0164a0067fbb0babaee10ab533d02bbe0a10690a-dirty"
+	"x-tableplace-spec-version": "0.1.5",
+	"x-generated-at": "2026-07-25T14:07:19.077Z",
+	"x-tableplace-source-sha": "69a1ed0849764471adbec1bd94e4597744178ffd-dirty"
 }
 ```
 
@@ -1315,7 +1334,7 @@ Two packs — one builtin, one fetched from `https://example.com/packs/ember-due
 {
 	"$schema": "https://table.place/scenario.schema.json",
 	"tbps": 2,
-	"specVersion": "0.1.4",
+	"specVersion": "0.1.5",
 	"name": "ember-duel-opening",
 	"createdAt": 1700000000000,
 	"packs": [

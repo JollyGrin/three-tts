@@ -71,7 +71,7 @@ Field notes:
 - **`id`** — stable identity for the pack (`standard-52`, `imported:<slug>`…).
 - **`scope`** — `'table'` (the shared game: board, communal decks; loaded once per lobby by the host) or `'player'` (what one player brings, spawned per seat — a deck-builder export is a player pack). See SPEC.md §4d.
 - **`decks[].slot`** — stable id within the pack; **`cards[].code`** — stable id within the deck, and **unique within it**: spawning builds table entity ids as `card:<owner>:<slot>-<code>`, so two cards sharing a code collapse into one entity. /create allocates every code through `allocateCode` (`src/routes/create/bulk-sheet.ts`) — a taken `AS` becomes `AS-2`, then `AS-3`. Both survive re-exports, so external tools can reference cards as `<pack>/<slot>/<code>`.
-- **`pieces`** (optional) — tokens, pawns, and counters: `{ kind: 'token'|'pawn'|'counter', name, color?, imageUrl?, states?, state?, radius?, maxValue?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states`.
+- **`pieces`** (optional) — tokens, pawns, counters, and dice: `{ kind: 'token'|'pawn'|'counter'|'die', name, color?, imageUrl?, states?, state?, radius?, maxValue?, sides?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states`. `sides` is dice-only and must be one of 4, 6, 8, 10, 12, 20 — the shapes the primitive library builds; a die's `radius` is its circumradius, and its numbers are drawn procedurally, so a die references no image and is never a multi-state piece.
 - **`overlays`** (optional) — board/map images: `{ imageUrl, ratio, scale }` (`ratio` = width/height).
 - **`source`** (optional) — provenance stamp written by converters (currently only `"tts"`). Native packs omit it.
 

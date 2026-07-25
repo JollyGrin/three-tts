@@ -44,7 +44,6 @@
 							"cards": {
 								"type": "array",
 								"items": {
-									"description": "A pack is a named, serializable definition of a game's contents —\ndecoupled from live game state. Packs are templates; the gameStore\nholds the instance. See SPEC.md §4d.",
 									"type": "object",
 									"properties": {
 										"code": {
@@ -72,7 +71,7 @@
 					"title": "decks"
 				},
 				"pieces": {
-					"description": "tokens/pawns/counters that spawn with the pack",
+					"description": "tokens/pawns/counters/dice that spawn with the pack",
 					"type": "array",
 					"items": {
 						"type": "object",
@@ -86,7 +85,7 @@
 								"title": "name"
 							},
 							"color": {
-								"description": "hex tint; pawns/counters without images render in this color",
+								"description": "hex tint; pawns/counters/dice without images render in this color",
 								"type": "string",
 								"title": "color"
 							},
@@ -96,7 +95,7 @@
 								"title": "imageUrl"
 							},
 							"states": {
-								"description": "Alternate faces the piece can be cycled through in play.\n\n**`states[0]` is the base face** — the list is the piece's COMPLETE set of\nfaces, not extra ones added to `imageUrl`. A piece with `states` renders\n`states[n].face` and starts at n = 0 (a scenario placement can start it\nelsewhere); `imageUrl` is then only a fallback for consumers that ignore\nstates, and exporters write it equal to `states[0].face`.",
+								"description": "Alternate faces the piece can be cycled through in play.\n\n**`states[0]` is the base face** — the list is the piece's COMPLETE set of\nfaces, not extra ones added to `imageUrl`. A piece with `states` renders\n`states[n].face` and starts at n = 0 (a scenario placement can start it\nelsewhere); `imageUrl` is then only a fallback for consumers that ignore\nstates, and exporters write it equal to `states[0].face`.\n\nOrthogonal to `kind: 'die'`: a die's faces are procedural geometry, not\nimages, so it is never a stateful piece and carries no `states`.",
 								"type": "array",
 								"items": {
 									"description": "One alternate face of a multi-state piece (the TTS `States` analog: a\ndouble-sided tile, an upgrade token, a transformed piece).",
@@ -123,7 +122,7 @@
 								"title": "state"
 							},
 							"radius": {
-								"description": "world radius of the piece footprint",
+								"description": "world radius of the piece footprint (a die's circumradius)",
 								"type": "number",
 								"title": "radius"
 							},
@@ -131,6 +130,12 @@
 								"description": "counters start at this value",
 								"type": "number",
 								"title": "maxValue"
+							},
+							"sides": {
+								"description": "dice only: how many faces the die has (defaults to 6)",
+								"enum": [10, 12, 20, 4, 6, 8],
+								"type": "number",
+								"title": "sides"
 							},
 							"position": {
 								"description": "table-plane position [x, z] in world units",
@@ -212,12 +217,12 @@
 	"definitions": {
 		"PackPieceKind": {
 			"title": "PackPieceKind",
-			"enum": ["counter", "pawn", "token"],
+			"enum": ["counter", "die", "pawn", "token"],
 			"type": "string"
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.1.0",
-	"x-generated-at": "2026-07-25T13:54:06.590Z",
-	"x-tableplace-source-sha": "0164a0067fbb0babaee10ab533d02bbe0a10690a-dirty"
+	"x-tableplace-spec-version": "1.2.0",
+	"x-generated-at": "2026-07-25T14:07:19.077Z",
+	"x-tableplace-source-sha": "69a1ed0849764471adbec1bd94e4597744178ffd-dirty"
 }
