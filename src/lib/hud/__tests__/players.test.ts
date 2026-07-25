@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { derivePlayerRows, summarize, SEAT_ROTATION_DEG } from '../players';
+import {
+	derivePlayerRows,
+	summarize,
+	SEAT_ROTATION_DEG,
+	SEAT_COLOR,
+	playerColor
+} from '../players';
 import type { GameDTO } from '$lib/store/game/types';
 
 const card = {
@@ -176,5 +182,24 @@ describe('summarize', () => {
 			players: { solo: { id: 'solo', seat: 0, joinTimestamp: 1, tray: {}, metadata: {} } }
 		});
 		expect(summarize(rows)).toBe('1 player');
+	});
+});
+
+describe('playerColor', () => {
+	it('gives each seat its own colour', () => {
+		const colors = [0, 1, 2, 3].map((seat) => playerColor('anyone', seat));
+		expect(new Set(colors).size).toBe(4);
+		expect(colors[0]).toBe(SEAT_COLOR[0]);
+	});
+
+	it('falls back to a deterministic hash for a seatless peer', () => {
+		expect(playerColor('peer-a')).toBe(playerColor('peer-a'));
+		expect(playerColor('peer-a', null)).toBe(playerColor('peer-a'));
+		expect(Object.values(SEAT_COLOR)).toContain(playerColor('peer-a'));
+	});
+
+	it('never reuses the scene highlight colours', () => {
+		const reserved = ['#5ee7ff', '#ffc94a'];
+		for (const color of Object.values(SEAT_COLOR)) expect(reserved).not.toContain(color);
 	});
 });

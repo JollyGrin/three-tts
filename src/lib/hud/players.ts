@@ -22,6 +22,33 @@ export const SEAT_ROTATION_DEG: Record<number, number> = {
 	3: 270
 };
 
+/**
+ * Per-seat tint, currently used only by the remote camera avatars.
+ * Chosen clear of the scene's existing signal colours — the cyan drop
+ * highlight (#5ee7ff) and the amber stack highlight (#ffc94a) — so a hovering
+ * avatar can never be mistaken for a drop cue.
+ */
+export const SEAT_COLOR: Record<number, string> = {
+	0: '#ff6b8a', // rose
+	1: '#6ee7a0', // green
+	2: '#b98cff', // violet
+	3: '#ff8a3d' // orange
+};
+
+const SEAT_PALETTE = Object.values(SEAT_COLOR);
+
+/**
+ * Colour for a player. Seated players get their seat's colour; a peer we have
+ * no seat for (present on the wire but not yet in `players`) falls back to a
+ * deterministic hash of the id, so both ends agree without extra messages.
+ */
+export function playerColor(playerId: string, seat?: number | null): string {
+	if (seat != null && SEAT_COLOR[seat]) return SEAT_COLOR[seat];
+	let hash = 0;
+	for (let i = 0; i < playerId.length; i++) hash = (hash * 31 + playerId.charCodeAt(i)) | 0;
+	return SEAT_PALETTE[Math.abs(hash) % SEAT_PALETTE.length];
+}
+
 export type DeckCount = {
 	/** the `<slot>` part of `deck:<playerId>:<slot>` */
 	slot: string;
