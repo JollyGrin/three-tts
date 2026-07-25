@@ -23,11 +23,14 @@ function normalizeServerHost(url: string): string {
 		.replace(/^(https?|wss?):\/\//, '')
 		.replace(/\/+$/, '');
 }
-// Default to the public server so a first-time visitor gets real multiplayer;
-// a non-empty localStorage.serverurl (set in Settings) always wins. `||` (not ??)
-// because connectionStore writes '' to localStorage before a server is ever set.
+// Default to the public lobby server so a first-time visitor gets real
+// multiplayer; a non-empty localStorage.serverurl (set in Settings) always wins.
+// `||` (not ??) because connectionStore writes '' to localStorage before a
+// server is ever set. The host is `lobby.` and not `api.`: `api.table.place` is
+// being repurposed as the HTTP lobby-provisioning API, so the websocket relay
+// answers at its own name.
 const CACHE_SERVER_URL =
-	normalizeServerHost(localStorage.getItem('serverurl') ?? '') || 'api.table.place';
+	normalizeServerHost(localStorage.getItem('serverurl') ?? '') || 'lobby.table.place';
 const SECURITY = CACHE_SERVER_URL.includes('localhost') ? 'ws' : 'wss';
 const WS_SERVER_URL = `${SECURITY}://${CACHE_SERVER_URL}/ws`;
 
