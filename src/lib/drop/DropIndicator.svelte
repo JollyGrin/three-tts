@@ -25,10 +25,14 @@
 	const dragId = $derived($dragStore.isDragging);
 
 	const drop = $derived(
-		resolveDrop($gameStore, dragId, $dragStore.intersectionPoint, {
-			deckId: $dragStore.isDeckHovered,
-			tray: $dragStore.isTrayHovered
-		})
+		resolveDrop(
+			$gameStore,
+			dragId,
+			$dragStore.intersectionPoint,
+			{ deckId: $dragStore.isDeckHovered, tray: $dragStore.isTrayHovered },
+			// live: pressing or releasing Alt mid-drag redraws the preview
+			{ noSnap: $dragStore.noSnap }
+		)
 	);
 
 	// the deck / tray highlights are the cue for those targets — a table
