@@ -14,8 +14,19 @@ import { get } from 'svelte/store';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
-import type { GameDTO } from '$lib/store/game/types';
-import { parseScenarioFile, serializeScenarioFile, scenarioFileName, type Scenario } from './file';
+import { spawnPackDeck, spawnPackPiece, spawnPackOverlay } from '$lib/packs/spawn';
+import type { GamePackDef } from '$lib/packs/types';
+import type { DeckDTO, GameDTO, OverlayDTO, PackOrigin, PieceDTO } from '$lib/store/game/types';
+import {
+	parseScenarioFile,
+	serializeScenarioFile,
+	scenarioFileName,
+	scenarioVersion,
+	type PackPlacement,
+	type PackRef,
+	type Scenario
+} from './file';
+import { resolvePacks } from './resolve-packs';
 
 const STORAGE_KEY = 'scenarios:v1';
 
@@ -53,10 +64,80 @@ export function deleteScenario(name: string) {
 	writeAll(all);
 }
 
+/** owner segment of a `kind:owner:slug` id */
+function ownerOf(id: string): string | undefined {
+	return id.split(':')[1];
+}
+
+function seatOf(id: string): SeatIndex | undefined {
+	const owner = ownerOf(id);
+	return owner && isSeatPlaceholder(owner) ? (Number(owner.slice(4)) as SeatIndex) : undefined;
+}
+
+/**
+ * Card ids are `card:<owner>:<slot>-<code>` (see spawnPackDeck), so the pack
+ * card code is what's left after the deck's prefix.
+ */
+function cardCode(cardId: string, owner: string, slot: string): string | undefined {
+	const prefix = `card:${owner}:${slot}-`;
+	return cardId.startsWith(prefix) ? cardId.slice(prefix.length) : undefined;
+}
+
+/**
+ * Turn one pack-spawned entity into a placement, or return undefined to leave
+ * it in raw `state`. Only placeholder-owned content becomes a placement: a
+ * real player's entities can't be expressed seat-relatively, and table-scoped
+ * overlays carry no seat at all.
+ */
+function toPlacement(
+	kind: PackPlacement['kind'],
+	id: string,
+	entity: { packOrigin?: PackOrigin } & Record<string, unknown>
+): PackPlacement | undefined {
+	const packOrigin = entity.packOrigin;
+	if (!packOrigin) return undefined;
+	const seat = seatOf(id);
+	if (kind !== 'overlay' && seat === undefined) return undefined;
+
+	const placement: PackPlacement = {
+		kind,
+		pack: packOrigin.pack,
+		content: packOrigin.content,
+		...(seat !== undefined ? { seat } : {})
+	};
+	if (entity.position) placement.position = entity.position as [number, number, number];
+	if (entity.rotation) placement.rotation = entity.rotation as [number, number, number];
+
+	if (kind === 'deck') {
+		const deck = entity as unknown as Partial<DeckDTO>;
+		placement.isFaceUp = deck.isFaceUp ?? false;
+		// the authored order, as pack card codes — ids only, never card bodies
+		const owner = ownerOf(id) as string;
+		const order = (deck.cards ?? []).map((card) => cardCode(card.id, owner, packOrigin.content));
+		if (order.every((code) => code !== undefined)) placement.order = order as string[];
+		if (deck.shuffleOnLoad) placement.shuffleOnLoad = true;
+	}
+	if (kind === 'piece') {
+		const piece = entity as unknown as Partial<PieceDTO>;
+		if (piece.value !== undefined) placement.value = piece.value;
+	}
+	if (kind === 'overlay') {
+		const overlay = entity as unknown as Partial<OverlayDTO>;
+		if (overlay.scale !== undefined) placement.scale = overlay.scale;
+	}
+	return placement;
+}
+
 /**
  * Snapshot the current table as a scenario. Real players (and their trays)
  * are NOT saved — only placeholder seat players survive, so the preset stays
  * portable to any future lobby.
+ *
+ * Content that came from a pack is emitted as a pack ref + placement (tbps v2)
+ * rather than inlined, so the pack stays the single source of truth for what
+ * cards *are* and the scenario only says where they go. Hand-placed content —
+ * TTS imports, ad-hoc pieces, cards drawn onto the table — falls back to a raw
+ * `state` snapshot, exactly as v1 did.
  */
 export function saveScenario(name: string): Scenario {
 	const s = get(gameStore);
@@ -64,16 +145,47 @@ export function saveScenario(name: string): Scenario {
 	for (const [id, player] of Object.entries(s?.players ?? {})) {
 		if (isSeatPlaceholder(id)) players[id] = player as GameDTO['players'][string];
 	}
+
+	const placements: PackPlacement[] = [];
+	const refs = new Map<string, PackRef>();
+	const state: Partial<GameDTO> = {
+		cards: s?.cards ?? {},
+		decks: {},
+		pieces: {},
+		overlays: {},
+		players
+	};
+
+	for (const [kind, collection] of [
+		['deck', 'decks'],
+		['piece', 'pieces'],
+		['overlay', 'overlays']
+	] as const) {
+		for (const [id, entity] of Object.entries(s?.[collection] ?? {})) {
+			const placement = entity
+				? toPlacement(kind, id, entity as Parameters<typeof toPlacement>[2])
+				: undefined;
+			if (!placement) {
+				// not pack-derived (or not seat-relative) — keep the raw snapshot
+				(state[collection] as Record<string, unknown>)[id] = entity;
+				continue;
+			}
+			placements.push(placement);
+			const origin = (entity as { packOrigin: PackOrigin }).packOrigin;
+			if (!refs.has(origin.pack)) {
+				refs.set(origin.pack, {
+					id: origin.pack,
+					...(origin.source ? { source: origin.source } : {})
+				});
+			}
+		}
+	}
+
 	const scenario: Scenario = {
 		name,
 		createdAt: Date.now(),
-		state: {
-			cards: s?.cards ?? {},
-			decks: s?.decks ?? {},
-			pieces: s?.pieces ?? {},
-			overlays: s?.overlays ?? {},
-			players
-		}
+		state,
+		...(placements.length ? { packs: [...refs.values()], placements } : {})
 	};
 	const all = readAll();
 	all[name] = scenario;
@@ -90,16 +202,8 @@ export function ensureSeatPlaceholder(seat: SeatIndex) {
 	});
 }
 
-/**
- * Replace the table contents with a scenario. Goes through updateState, so on
- * /play (ws-wrapped) it broadcasts to the whole lobby. Real player entries are
- * kept. Sheet refs are prewarmed locally, then a re-render sweep repaints.
- *
- * Sent as several messages, one per deck: decks carry full card lists, and a
- * single all-in-one update can blow past the server's websocket read limit —
- * the server then silently drops the whole seed and joiners sync stale state.
- */
-export function applyScenario(scenario: Scenario) {
+/** nulls for everything currently on the table (real players survive) */
+function clearUpdate(): Record<string, Record<string, unknown>> {
 	const current = get(gameStore);
 	const update: Record<string, Record<string, unknown>> = {
 		cards: {},
@@ -108,26 +212,156 @@ export function applyScenario(scenario: Scenario) {
 		overlays: {},
 		players: {}
 	};
-	// clear the current table (placeholder players included; real players stay)
 	for (const collection of ['cards', 'decks', 'pieces', 'overlays'] as const) {
 		for (const key of Object.keys(current?.[collection] ?? {})) update[collection][key] = null;
 	}
 	for (const key of Object.keys(current?.players ?? {})) {
 		if (isSeatPlaceholder(key)) update.players[key] = null;
 	}
+	return update;
+}
+
+/**
+ * v1/v0 load: the scenario's `state` snapshot *is* the table. Synchronous, so
+ * legacy scenarios apply in the same tick they always did.
+ */
+function applyStateSnapshot(state: Partial<GameDTO> | undefined) {
+	const update = clearUpdate();
 	// small payloads ride with the clear — direct assignment overwrites the
 	// null for reused keys
 	for (const collection of ['cards', 'pieces', 'overlays', 'players'] as const) {
-		for (const [key, value] of Object.entries(scenario.state?.[collection] ?? {})) {
+		for (const [key, value] of Object.entries(state?.[collection] ?? {})) {
 			update[collection][key] = value;
 		}
 	}
 	gameStore.updateState(update as StateUpdate);
 	// each deck in its own message
+	for (const [key, value] of Object.entries(state?.decks ?? {})) {
+		gameStore.updateState({ decks: { [key]: value } } as StateUpdate);
+	}
+}
+
+/** Spawn one placement's content from its resolved pack. */
+function applyPlacement(placement: PackPlacement, pack: GamePackDef, source?: string) {
+	const ownerId = placement.seat !== undefined ? seatPlaceholderId(placement.seat) : undefined;
+	const common = { ownerId, source };
+
+	if (placement.kind === 'deck') {
+		const deck = pack.decks.find((d) => d.slot === placement.content);
+		if (!deck)
+			return console.error(`[scenario] pack '${pack.id}' has no deck '${placement.content}'`);
+		spawnPackDeck(pack, deck, {
+			...common,
+			position: placement.position,
+			rotation: placement.rotation,
+			isFaceUp: placement.isFaceUp,
+			// authored order is the default; shuffling is an explicit opt-in
+			order: placement.order,
+			shuffle: placement.shuffleOnLoad === true,
+			shuffleOnLoad: placement.shuffleOnLoad
+		});
+		return;
+	}
+	const index = Number(placement.content);
+	if (!Number.isInteger(index)) {
+		return console.error(`[scenario] ${placement.kind} placement content must be an index`);
+	}
+	if (placement.kind === 'piece') {
+		spawnPackPiece(pack, index, {
+			...common,
+			position: placement.position,
+			rotation: placement.rotation,
+			value: placement.value
+		});
+	} else {
+		spawnPackOverlay(pack, index, {
+			...common,
+			position: placement.position,
+			rotation: placement.rotation,
+			scale: placement.scale
+		});
+	}
+}
+
+export type ApplyReport = {
+	version: 1 | 2;
+	placed: number;
+	/** packs that could not be resolved — their placements were skipped */
+	failedPacks: { id: string; reason: string }[];
+};
+
+/**
+ * Replace the table contents with a scenario. Goes through updateState, so on
+ * /play (ws-wrapped) it broadcasts to the whole lobby. Real player entries are
+ * kept. Sheet refs are prewarmed locally, then a re-render sweep repaints.
+ *
+ * Sent as several messages, one per deck: decks carry full card lists, and a
+ * single all-in-one update can blow past the server's websocket read limit —
+ * the server then silently drops the whole seed and joiners sync stale state.
+ *
+ * v2 scenarios resolve their pack refs first, spawn each placement from the
+ * pack, then lay the `state` overrides on top. v1/v0 take the original
+ * synchronous snapshot path untouched. Never rejects — an un-awaited call
+ * (the /play seed button) can't produce an unhandled rejection; resolution
+ * failures come back in the report.
+ */
+export async function applyScenario(scenario: Scenario): Promise<ApplyReport> {
+	if (scenarioVersion(scenario) === 1) {
+		applyStateSnapshot(scenario.state);
+		prewarmGameState(scenario.state, () => gameStore.updateStateSilently({}));
+		return { version: 1, placed: 0, failedPacks: [] };
+	}
+
+	const placements = scenario.placements ?? [];
+	// clear, and seat the placeholders the placements need, before any await
+	const update = clearUpdate();
+	for (const [key, value] of Object.entries(scenario.state?.players ?? {})) {
+		update.players[key] = value;
+	}
+	for (const seat of new Set(placements.map((p) => p.seat))) {
+		if (seat === undefined) continue;
+		const id = seatPlaceholderId(seat);
+		update.players[id] ??= { id, seat, joinTimestamp: 0, tray: {}, metadata: {} };
+	}
+	gameStore.updateState(update as StateUpdate);
+
+	const { packs, failed } = await resolvePacks(scenario.packs ?? []);
+	for (const { ref, reason } of failed) {
+		console.error(`[scenario] could not resolve pack '${ref.id}': ${reason}`);
+	}
+
+	const sources = new Map((scenario.packs ?? []).map((ref) => [ref.id, ref.source]));
+	let placed = 0;
+	for (const placement of placements) {
+		const pack = packs.get(placement.pack);
+		if (!pack) continue; // already reported via failedPacks
+		applyPlacement(placement, pack, sources.get(placement.pack));
+		placed += 1;
+	}
+
+	// overrides land on top of pack-spawned content (ad-hoc pieces, tweaks)
+	const overrides: Record<string, Record<string, unknown>> = {
+		cards: {},
+		pieces: {},
+		overlays: {}
+	};
+	for (const collection of ['cards', 'pieces', 'overlays'] as const) {
+		for (const [key, value] of Object.entries(scenario.state?.[collection] ?? {})) {
+			overrides[collection][key] = value;
+		}
+	}
+	gameStore.updateState(overrides as StateUpdate);
 	for (const [key, value] of Object.entries(scenario.state?.decks ?? {})) {
 		gameStore.updateState({ decks: { [key]: value } } as StateUpdate);
 	}
-	prewarmGameState(scenario.state, () => gameStore.updateStateSilently({}));
+
+	// pack content only exists in the store now, so prewarm the result
+	prewarmGameState(get(gameStore), () => gameStore.updateStateSilently({}));
+	return {
+		version: 2,
+		placed,
+		failedPacks: failed.map(({ ref, reason }) => ({ id: ref.id, reason }))
+	};
 }
 
 /** ids are `kind:owner:slug` — swap the owner segment */

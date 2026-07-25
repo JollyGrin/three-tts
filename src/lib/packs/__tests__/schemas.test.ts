@@ -54,7 +54,55 @@ describe('generated JSON schemas', () => {
 		expect(ok).toBe(true);
 	});
 
+	it('scenario.schema.json validates a v2 pack-referencing scenario file', () => {
+		const scenario: Scenario = {
+			name: 'stacked-duel',
+			createdAt: 1700000000000,
+			state: {
+				pieces: { 'piece:seat0:objective-0': { kind: 'token', name: 'Objective' } }
+			},
+			packs: [
+				{ id: 'standard-52', source: 'builtin' },
+				{ id: 'my-proto', source: 'https://example.com/my-proto.tbpp.json' }
+			],
+			placements: [
+				{
+					kind: 'deck',
+					pack: 'standard-52',
+					content: 'main',
+					seat: 0,
+					position: [8.5, 0.4, 4.5],
+					rotation: [0, 0, 0],
+					isFaceUp: false,
+					order: ['7H', 'AS', '2C'],
+					shuffleOnLoad: false
+				},
+				{ kind: 'deck', pack: 'my-proto', content: 'draw', seat: 1, shuffleOnLoad: true },
+				{ kind: 'piece', pack: 'my-proto', content: '0', seat: 1, value: 12 },
+				{ kind: 'overlay', pack: 'my-proto', content: '0', scale: 14 }
+			]
+		};
+		const file = JSON.parse(serializeScenarioFile(scenario));
+		expect(file.tbps).toBe(2);
+		const ok = validateScenario(file);
+		expect(validateScenario.errors ?? []).toEqual([]);
+		expect(ok).toBe(true);
+	});
+
 	it('scenario.schema.json rejects a wrong-version discriminator', () => {
-		expect(validateScenario({ tbps: 2, name: 'x', createdAt: 1, state: {} })).toBe(false);
+		expect(validateScenario({ tbps: 3, name: 'x', createdAt: 1, state: {} })).toBe(false);
+	});
+
+	it('scenario.schema.json rejects an unknown placement kind', () => {
+		expect(
+			validateScenario({
+				tbps: 2,
+				name: 'x',
+				createdAt: 1,
+				state: {},
+				packs: [{ id: 'standard-52' }],
+				placements: [{ kind: 'zone', pack: 'standard-52', content: 'main' }]
+			})
+		).toBe(false);
 	});
 });

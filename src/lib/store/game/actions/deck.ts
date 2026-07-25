@@ -39,8 +39,6 @@ function addDeck(
 				id: deckId,
 				isFaceUp: props.isFaceUp ?? false,
 				deckBackImageUrl: props.deckBackImageUrl,
-				...(props.packOrigin ? { packOrigin: props.packOrigin } : {}),
-				...(props.shuffleOnLoad !== undefined ? { shuffleOnLoad: props.shuffleOnLoad } : {}),
 				position:
 					props?.position ??
 					(positions[seat % positions.length] as [number, number, number]),

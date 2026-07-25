@@ -18,6 +18,7 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import { cameraTransforms } from '$lib/utils/transforms/camera';
 	import { importTtsFile } from '$lib/tts/import';
+	import { spawnPack, STANDARD_52 } from '$lib/packs';
 	import {
 		saveScenario,
 		listScenarios,
@@ -93,18 +94,29 @@
 		toast(`Saved scenario: ${name}`);
 	}
 
-	function handleLoad() {
+	async function handleLoad() {
 		const scenario = getScenario(selectedScenario);
 		if (!scenario) return toast.error('Pick a saved scenario first');
-		applyScenario(scenario);
+		const report = await applyScenario(scenario);
 		scenarioName = scenario.name;
-		// reflect the loaded overlay in the controls
-		const overlay = scenario.state?.overlays?.table;
+		// reflect the loaded overlay in the controls (read from the store: a v2
+		// scenario's overlay may have come from a pack, not from `state`)
+		const overlay = $gameStore?.overlays?.table;
 		imageUrl = overlay?.imageUrl ?? '';
 		scale = overlay?.scale ?? 12;
 		rot = (overlay?.rotation?.[1] ?? 0) / DEG2RAD;
 		point3d = { x: overlay?.position?.[0] ?? 0, y: overlay?.position?.[2] ?? 0 };
+		for (const { id, reason } of report.failedPacks) {
+			toast.error(`Pack '${id}' failed to load: ${reason}`, { duration: 6000 });
+		}
 		toast(`Loaded: ${scenario.name}`);
+	}
+
+	/** Put pack content on the table for the active seat — the v2 authoring flow. */
+	function handleSpawnStandard52() {
+		ensureSeatPlaceholder(activeSeat);
+		spawnPack(STANDARD_52, { ownerId: seatPlaceholderId(activeSeat) });
+		toast(`Seat ${activeSeat}: spawned ${STANDARD_52.name}`);
 	}
 
 	function handleDelete() {
@@ -197,6 +209,10 @@
 	<Folder title="Seats" expanded={true}>
 		<List label="Editing seat" bind:value={activeSeat} options={seatOptions} />
 		<Button
+			title="Spawn {STANDARD_52.name} for seat {activeSeat}"
+			on:click={handleSpawnStandard52}
+		/>
+		<Button
 			title={isImporting ? 'Importing…' : `Import TTS deck for seat ${activeSeat}`}
 			disabled={isImporting}
 			on:click={() => deckFileInput?.click()}
@@ -245,6 +261,13 @@
 							value={deck?.isFaceUp ?? false}
 							on:change={(e) => setDeckField(deckId, { isFaceUp: !!e.detail.value })}
 						/>
+						{#if deck?.packOrigin}
+							<Checkbox
+								label="shuffle on load"
+								value={deck?.shuffleOnLoad ?? false}
+								on:change={(e) => setDeckField(deckId, { shuffleOnLoad: !!e.detail.value })}
+							/>
+						{/if}
 					</TabPage>
 				{/each}
 			</TabGroup>
@@ -282,6 +305,6 @@
 	<Textarea
 		disabled
 		rows={4}
-		value={`Everything here is local — no lobby is touched. Import a deck per seat, place the map, arrange, then Save. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
+		value={`Everything here is local — no lobby is touched. Spawn or import a deck per seat, place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
 	/>
 </Pane>

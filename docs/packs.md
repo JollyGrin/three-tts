@@ -13,7 +13,7 @@ The compound `.tbpp.json` / `.tbps.json` suffix keeps the brand while staying `.
 
 ## In-band discriminators
 
-Files get renamed and piped, so the _content_ identifies the format, not the filename. Every pack file carries `"tbpp": 1` and every scenario file carries `"tbps": 1` at the top level — the value is the format version. Parsers reject files without their marker (with one legacy exception, below) and files from a future version, with readable errors either way.
+Files get renamed and piped, so the _content_ identifies the format, not the filename. Every pack file carries `"tbpp": 1` and every scenario file carries `"tbps": 1` or `"tbps": 2` at the top level — the value is the format version. Parsers reject files without their marker (with one legacy exception, below) and files from a future version, with readable errors either way.
 
 ## Validation
 
@@ -76,29 +76,59 @@ The built-in `STANDARD_52` pack (`src/lib/packs/standard52.ts`) is the canonical
 
 ## tbps — scenarios
 
-A scenario file is a saved table arrangement (`src/lib/scenario/file.ts`) plus the discriminator:
+A scenario file is a saved table arrangement (`src/lib/scenario/file.ts`) plus the discriminator. A pack says what content _is_; a scenario says _where it goes_:
 
 ```json
 {
 	"$schema": "https://table.place/scenario.schema.json",
-	"tbps": 1,
+	"tbps": 2,
 	"name": "duel",
 	"createdAt": 1700000000000,
+	"packs": [{ "id": "standard-52", "source": "builtin" }],
+	"placements": [
+		{
+			"kind": "deck",
+			"pack": "standard-52",
+			"content": "main",
+			"seat": 0,
+			"position": [8.5, 0.4, 4.5],
+			"isFaceUp": false,
+			"order": ["7H", "AS", "2C", "KD", "10S"]
+		}
+	],
 	"state": {
-		"cards": {},
-		"decks": { "deck:seat0:main": { "…": "…" } },
-		"pieces": { "piece:seat0:hp-0": { "kind": "counter", "name": "HP", "value": 20 } },
-		"overlays": {},
-		"players": { "seat0": { "id": "seat0", "seat": 0, "tray": {} } }
+		"pieces": { "piece:seat0:hp-0": { "kind": "counter", "name": "HP", "value": 20 } }
 	}
 }
 ```
 
-`state` is a `Partial<GameDTO>` snapshot (`src/lib/store/game/types.ts`). Scenarios are **seat-relative**: entities belong to placeholder players `seat0`–`seat3` (entity ids are `kind:owner:slug`), and when a real player claims a seat every id containing that placeholder is renamed to the claimer. Only placeholder players are exported — real players never leak into a scenario file.
+Scenarios are **seat-relative**: entities belong to placeholder players `seat0`–`seat3` (entity ids are `kind:owner:slug`), and when a real player claims a seat every id containing that placeholder is renamed to the claimer. Only placeholder players are exported — real players never leak into a scenario file.
 
-**Legacy fallback:** exports older than tbps v1 were named `scenario-<name>.json` and have no `tbps` field. `parseScenarioFile` still accepts them (v0) — `name` + `state` is enough. New exports always write the discriminator and the `.tbps.json` name.
+### packs + placements (v2)
 
-**tbps v1 is self-contained** — `state` inlines full card lists. Scenarios that _reference_ packs (`<pack>/<slot>/<code>` instead of inlined data) are a planned follow-up; the sizing analysis lives in issue #39.
+- **`packs`** — every pack the scenario draws from: `{ id, source? }`. `source` is `"builtin"` (shipped with the app, e.g. `standard-52`) or a URL a `.tbpp.json` can be fetched from. That's enough to re-resolve the content, so the cards themselves are never copied into the scenario.
+- **`placements`** — one entry per spawned thing: `{ kind, pack, content, seat?, position?, rotation?, … }`.
+  - **`kind`** — `'deck' | 'piece' | 'overlay'`.
+  - **`content`** — the deck's `slot`, or the index into the pack's `pieces`/`overlays`. With `packs[].id` this is the `<pack>/<slot>` addressing from the pack section.
+  - **`seat`** — which placeholder owns the result (`0`–`3`). Omitted for table-scoped overlays.
+  - **`order`** (decks) — the authored card sequence as pack card `code`s. **A scenario preserves card order by default**: an encounter deck, a rigged opening, a tutorial setup all reload exactly as saved. It is a list of ids, never card bodies, so referencing the pack stays the point.
+  - **`shuffleOnLoad`** (decks, default `false`) — reshuffle on load instead of restoring `order`. It is **per placement**, so one scenario can hold a fixed stacked encounter deck _and_ a shuffled draw deck side by side.
+  - **`isFaceUp`** (decks), **`value`** (counter pieces), **`scale`** (overlays) — arrangement details that override the pack's defaults.
+- **`state`** — a `Partial<GameDTO>` snapshot (`src/lib/store/game/types.ts`) for everything _not_ pack-derived: ad-hoc pieces, hand-placed cards, TTS-imported decks. It is applied on top of the spawned placements, so it can also override them.
+
+Export decides per entity: content carrying pack provenance (a `packOrigin` stamp, written by `spawnPack`) becomes a pack ref + placement; everything else falls back to the raw snapshot. A table with no pack content at all still exports as **v1**.
+
+### Versions
+
+| Version | Shape                                                | Written by                     |
+| ------- | ---------------------------------------------------- | ------------------------------ |
+| **v2**  | `packs` + `placements` (+ `state` for the remainder) | tables containing pack content |
+| **v1**  | self-contained `state` snapshot, cards inlined       | hand-placed / TTS-only tables  |
+| **v0**  | legacy `scenario-<name>.json`, no `tbps` field       | historical exports             |
+
+All three load. `parseScenarioFile` accepts v0 (`name` + `state` is enough) and v1 unchanged, so existing files keep working; new exports always write the discriminator and the `.tbps.json` name. Loading v1/v0 applies the snapshot exactly as before — only v2 resolves packs first.
+
+Sizing analysis for public/remote scenario seeding lives in issue #39: pack refs are what make a fetchable scenario small enough to be practical.
 
 ## Versioning
 

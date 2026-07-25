@@ -14,7 +14,124 @@
 				},
 				"state": {
 					"$ref": "#/definitions/Partial%3CGameDTO%3E",
+					"description": "overrides + anything not pack-derived (ad-hoc pieces, hand-placed cards)",
 					"title": "state"
+				},
+				"packs": {
+					"description": "v2: packs this scenario draws content from",
+					"type": "array",
+					"items": {
+						"description": "Enough to re-resolve a pack's content at load time.",
+						"type": "object",
+						"properties": {
+							"id": {
+								"description": "pack id, e.g. 'standard-52'",
+								"type": "string",
+								"title": "id"
+							},
+							"source": {
+								"description": "`'builtin'` or a URL a `.tbpp.json` can be fetched from; defaults to builtin lookup",
+								"type": "string",
+								"title": "source"
+							}
+						},
+						"required": ["id"]
+					},
+					"title": "packs"
+				},
+				"placements": {
+					"description": "v2: where that content goes",
+					"type": "array",
+					"items": {
+						"description": "Where one piece of pack content goes. `content` is the deck `slot` (decks)\nor the array index (pieces/overlays) within the referenced pack — the\n`<pack>/<slot>` half of the `<pack>/<slot>/<code>` addressing in docs/packs.md.",
+						"type": "object",
+						"properties": {
+							"kind": {
+								"enum": ["deck", "overlay", "piece"],
+								"type": "string",
+								"title": "kind"
+							},
+							"pack": {
+								"description": "`PackRef.id` this content comes from",
+								"type": "string",
+								"title": "pack"
+							},
+							"content": {
+								"type": "string",
+								"title": "content"
+							},
+							"seat": {
+								"description": "placeholder seat that owns the spawned entity; omitted for table-scoped overlays",
+								"enum": [0, 1, 2, 3],
+								"type": "number",
+								"title": "seat"
+							},
+							"position": {
+								"type": "array",
+								"items": [
+									{
+										"type": "number"
+									},
+									{
+										"type": "number"
+									},
+									{
+										"type": "number"
+									}
+								],
+								"minItems": 3,
+								"maxItems": 3,
+								"title": "position"
+							},
+							"rotation": {
+								"type": "array",
+								"items": [
+									{
+										"type": "number"
+									},
+									{
+										"type": "number"
+									},
+									{
+										"type": "number"
+									}
+								],
+								"minItems": 3,
+								"maxItems": 3,
+								"title": "rotation"
+							},
+							"isFaceUp": {
+								"description": "decks only",
+								"type": "boolean",
+								"title": "isFaceUp"
+							},
+							"order": {
+								"description": "decks only — the authored card order as pack card `code`s. A scenario is a\nsaved arrangement, so a stacked deck round-trips exactly. Ids only, never\ncard bodies: referencing the pack is the whole point of v2.",
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"title": "order"
+							},
+							"shuffleOnLoad": {
+								"description": "decks only — reshuffle on load instead of restoring `order`. Per placement,\nso one scenario can hold a fixed encounter deck and a shuffled draw deck.",
+								"type": "boolean",
+								"title": "shuffleOnLoad"
+							},
+							"value": {
+								"description": "counter pieces only",
+								"type": "number",
+								"title": "value"
+							},
+							"scale": {
+								"description": "overlays only",
+								"type": "number",
+								"title": "scale"
+							}
+						},
+						"required": ["content", "kind", "pack"]
+					},
+					"title": "placements"
 				}
 			},
 			"required": ["createdAt", "name", "state"]
@@ -24,8 +141,8 @@
 			"properties": {
 				"tbps": {
 					"description": "format discriminator + version",
+					"enum": [1, 2],
 					"type": "number",
-					"const": 1,
 					"title": "tbps"
 				},
 				"$schema": {
@@ -202,6 +319,34 @@
 						"$ref": "#/definitions/CardInDeck"
 					},
 					"title": "cards"
+				},
+				"packOrigin": {
+					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
+					"type": "object",
+					"properties": {
+						"pack": {
+							"description": "pack id, e.g. 'standard-52'",
+							"type": "string",
+							"title": "pack"
+						},
+						"content": {
+							"description": "content id within the pack: deck slot, or piece/overlay index",
+							"type": "string",
+							"title": "content"
+						},
+						"source": {
+							"description": "where the pack re-resolves from: 'builtin' or a fetchable URL",
+							"type": "string",
+							"title": "source"
+						}
+					},
+					"required": ["content", "pack"],
+					"title": "packOrigin"
+				},
+				"shuffleOnLoad": {
+					"description": "scenario authoring intent (tbps v2): reshuffle this deck on scenario load",
+					"type": "boolean",
+					"title": "shuffleOnLoad"
 				}
 			}
 		},
@@ -258,6 +403,11 @@
 				"tray": {
 					"$ref": "#/definitions/Record%3Cstring%2CPartial%3CCardDTO%7Cnull%3E%3E",
 					"title": "tray"
+				},
+				"connected": {
+					"description": "server-owned presence: merged into the lobby state on socket\nconnect/disconnect. Absent until the server has said anything —\ntreat undefined as offline-unknown, never as connected.",
+					"type": "boolean",
+					"title": "connected"
 				},
 				"metadata": {
 					"description": "extend for future use with life/resources",
@@ -323,6 +473,29 @@
 				"scale": {
 					"type": "number",
 					"title": "scale"
+				},
+				"packOrigin": {
+					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
+					"type": "object",
+					"properties": {
+						"pack": {
+							"description": "pack id, e.g. 'standard-52'",
+							"type": "string",
+							"title": "pack"
+						},
+						"content": {
+							"description": "content id within the pack: deck slot, or piece/overlay index",
+							"type": "string",
+							"title": "content"
+						},
+						"source": {
+							"description": "where the pack re-resolves from: 'builtin' or a fetchable URL",
+							"type": "string",
+							"title": "source"
+						}
+					},
+					"required": ["content", "pack"],
+					"title": "packOrigin"
 				}
 			}
 		},
@@ -397,6 +570,29 @@
 				"maxValue": {
 					"type": "number",
 					"title": "maxValue"
+				},
+				"packOrigin": {
+					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
+					"type": "object",
+					"properties": {
+						"pack": {
+							"description": "pack id, e.g. 'standard-52'",
+							"type": "string",
+							"title": "pack"
+						},
+						"content": {
+							"description": "content id within the pack: deck slot, or piece/overlay index",
+							"type": "string",
+							"title": "content"
+						},
+						"source": {
+							"description": "where the pack re-resolves from: 'builtin' or a fetchable URL",
+							"type": "string",
+							"title": "source"
+						}
+					},
+					"required": ["content", "pack"],
+					"title": "packOrigin"
 				}
 			}
 		}

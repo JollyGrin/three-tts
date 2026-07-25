@@ -77,7 +77,8 @@ export function spawnPackDeck(pack: GamePackDef, deck: PackDeckDef, opts: SpawnD
 		? opts.order
 				.map((code) => {
 					const def = deck.cards.find((c) => c.code === code);
-					if (!def) console.warn(`[spawnPackDeck] unknown card code '${code}' in ${pack.id}/${deck.slot}`);
+					if (!def)
+						console.warn(`[spawnPackDeck] unknown card code '${code}' in ${pack.id}/${deck.slot}`);
 					return def;
 				})
 				.filter((def) => def !== undefined)
@@ -93,16 +94,23 @@ export function spawnPackDeck(pack: GamePackDef, deck: PackDeckDef, opts: SpawnD
 	const isFaceUp = opts.isFaceUp ?? deck.isFaceUp ?? false;
 	const defaults = deckDefaults(ownerSeat(ownerId), opts.index ?? 0, isFaceUp);
 	const deckId = `deck:${ownerId}:${deck.slot}`;
-	gameActions.addDeck({
-		id: deckId,
-		deckId,
-		isFaceUp,
-		deckBackImageUrl: deck.back,
-		cards,
-		position: opts.position ?? defaults.position,
-		rotation: opts.rotation ?? defaults.rotation,
-		packOrigin: origin(pack, deck.slot, opts.source),
-		...(opts.shuffleOnLoad !== undefined ? { shuffleOnLoad: opts.shuffleOnLoad } : {})
+	// written directly rather than via addDeck: that helper derives id, seat and
+	// position from the LOCAL player, but a pack spawns for an arbitrary owner
+	// (a `seatN` placeholder in the scenario editor). One update per deck keeps
+	// each card list under the server's websocket read limit.
+	gameStore.updateState({
+		decks: {
+			[deckId]: {
+				id: deckId,
+				isFaceUp,
+				deckBackImageUrl: deck.back,
+				cards,
+				position: opts.position ?? defaults.position,
+				rotation: opts.rotation ?? defaults.rotation,
+				packOrigin: origin(pack, deck.slot, opts.source),
+				...(opts.shuffleOnLoad !== undefined ? { shuffleOnLoad: opts.shuffleOnLoad } : {})
+			}
+		}
 	});
 }
 
