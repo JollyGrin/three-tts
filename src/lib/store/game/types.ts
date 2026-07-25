@@ -77,10 +77,13 @@ export type PlayerDTO = SeatState & {
 };
 
 /**
- * Non-card table objects (tokens, pawns, counters). One generic shape
+ * Non-card table objects (tokens, pawns, counters, dice). One generic shape
  * with a kind discriminator — see SPEC.md §4a.
  */
-export type PieceKind = 'token' | 'pawn' | 'counter';
+export type PieceKind = 'token' | 'pawn' | 'counter' | 'die';
+
+/** Face count of a die piece — the shapes the primitive library can build. */
+export type DieSides = 4 | 6 | 8 | 10 | 12 | 20;
 
 /** One alternate face of a multi-state piece — see `PackPieceStateDef`. */
 export type PieceStateDTO = {
@@ -108,9 +111,20 @@ export type PieceDTO = {
 	state?: number;
 	/** world radius of the piece footprint */
 	radius?: number;
-	/** counter state */
+	/** counter state — also the up-face of a die (1…sides) */
 	value?: number;
 	maxValue?: number;
+	/** dice only: how many faces the die has */
+	sides?: DieSides;
+	/**
+	 * dice only: bumped once per roll. The roll itself is sent as
+	 * `{value, rollSeq}` in one patch — never a stream of frames — and every
+	 * client plays the tumble locally when this number changes, settling on
+	 * `value`. It is therefore both the animation trigger and the dedupe
+	 * nonce: a client that has never seen this die seeds its last-seen seq on
+	 * first sync, so joining after a roll shows the settled face with no replay.
+	 */
+	rollSeq?: number;
 	packOrigin?: PackOrigin;
 };
 

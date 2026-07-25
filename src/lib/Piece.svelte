@@ -10,9 +10,13 @@
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	import { createCounterInput, DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import { setPieceHover, clearPieceHover, openPieceMenu } from '$lib/store/pieceUi';
+	import { createDieInput } from '$lib/utils/die-input';
+	import Die from './Die.svelte';
 	import {
+		DIE_SIDES_DEFAULT,
 		PIECE_DEFAULT_RADIUS,
 		PIECE_DRAG_Y,
+		PIECE_RADIUS,
 		PIECE_REST_Y,
 		PIECE_THICKNESS
 	} from '$lib/utils/constants-pieces';
@@ -21,13 +25,21 @@
 
 	const piece = $derived($gameStore?.pieces?.[id]);
 	const kind = $derived(piece?.kind ?? 'token');
-	const radius = $derived(piece?.radius ?? PIECE_DEFAULT_RADIUS);
+	const radius = $derived(
+		piece?.radius ?? (kind === 'die' ? PIECE_RADIUS.die : PIECE_DEFAULT_RADIUS)
+	);
 	const color = $derived(piece?.color ?? '#c8c4b8');
 
 	// multi-state piece: the face is whichever state it is showing. `states[0]`
 	// is the base face (see PackPieceDef.states), so `imageUrl` only applies to
 	// a piece with no states at all.
-	const states = $derived(piece?.states ?? []);
+	//
+	// Never a die. States are alternate face *images*; a die's faces are
+	// procedural geometry, so a hand-authored pack that puts `states` on one
+	// must not give it a state menu, a state name, or an image on top of the
+	// numbers. The two concepts are orthogonal and this is where that is kept
+	// true — `kind` decides the body, `states` only ever decorates the disc.
+	const states = $derived(kind === 'die' ? [] : (piece?.states ?? []));
 	const stateIndex = $derived(gameActions.currentPieceState(piece));
 	const faceRef = $derived(states.length ? states[stateIndex]?.face : piece?.imageUrl);
 	const imageUrl = $derived(resolveCardImage(faceRef, $sheetRefCache));
@@ -78,8 +90,15 @@
 		dragStart(id, position[1], piece?.position as [number, number, number] | undefined);
 	}
 
-	// Counters defer the lift until the pointer actually travels, so a plain
-	// click can adjust the value without picking the piece up and dropping it.
+	/**
+	 * Kinds that answer a plain click. They defer the lift until the pointer
+	 * actually travels, so clicking adjusts a counter / rolls a die without
+	 * picking the piece up and dropping it — while still being draggable.
+	 */
+	const clickable = $derived(kind === 'counter' || kind === 'die');
+
+	// Counters and dice defer the lift until the pointer actually travels, so a
+	// plain click can act without picking the piece up and dropping it.
 	function onPendingMove(ne: PointerEvent) {
 		if (!pendingDrag) return;
 		if (Math.hypot(ne.clientX - pendingDrag.x, ne.clientY - pendingDrag.y) < DRAG_THRESHOLD_PX)
@@ -104,7 +123,7 @@
 		// left button only: right-click is the state menu (and a counter's heal),
 		// and picking the piece up under the menu would drag it as you choose
 		if (e.nativeEvent.button !== 0) return;
-		if (kind !== 'counter') {
+		if (!clickable) {
 			liftIntoDrag();
 			return;
 		}
@@ -124,6 +143,21 @@
 		wasDrag: () => dragMoved,
 		increment: gameActions.incrementCounter
 	});
+
+	// click-to-roll, guarded the same way and for the same reason. Each input
+	// owns its own dispatch guard and bails out before claiming when the piece
+	// is not its kind, so exactly one of them ever acts on a given click.
+	const dieInput = createDieInput({
+		id: () => id,
+		isDie: () => kind === 'die',
+		wasDrag: () => dragMoved,
+		roll: gameActions.rollDie
+	});
+
+	function handleClick(e: IntersectionEvent<MouseEvent>) {
+		counterInput.onclick(e);
+		dieInput.onclick(e);
+	}
 
 	/**
 	 * Right-click on a multi-state piece opens the state picker instead of the
@@ -180,13 +214,21 @@
 	<T.Group
 		{position}
 		onpointerdown={handlePointerDown}
-		onclick={counterInput.onclick}
+		onclick={handleClick}
 		oncontextmenu={handleContextMenu}
 		onwheel={counterInput.onwheel}
 		onpointerenter={handlePointerEnter}
 		onpointerleave={handlePointerLeave}
 	>
-		{#if kind === 'pawn'}
+		{#if kind === 'die'}
+			<Die
+				sides={piece.sides ?? DIE_SIDES_DEFAULT}
+				value={piece.value ?? 1}
+				rollSeq={piece.rollSeq ?? 0}
+				{radius}
+				{color}
+			/>
+		{:else if kind === 'pawn'}
 			<!-- procedural pawn: base disc + stem + head -->
 			<T.Mesh castShadow position.y={0.06}>
 				<T.CylinderGeometry args={[radius * 0.5, radius * 0.6, 0.12, 24]} />

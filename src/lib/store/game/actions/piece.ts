@@ -2,8 +2,13 @@ import { get } from 'svelte/store';
 import { gameActions } from '.';
 import { gameStore } from '../gameStore.svelte';
 import { degrees } from '$lib/utils/constants-rotation';
-import { COUNTER_MAX_DEFAULT, PIECE_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
-import type { GameDTO, PackOrigin, PieceKind, PieceStateDTO } from '../types';
+import {
+	COUNTER_MAX_DEFAULT,
+	DIE_SIDES_DEFAULT,
+	PIECE_RADIUS,
+	PIECE_REST_Y
+} from '$lib/utils/constants-pieces';
+import type { DieSides, GameDTO, PackOrigin, PieceKind, PieceStateDTO } from '../types';
 
 type PieceState = NonNullable<NonNullable<GameDTO['pieces']>[string]>;
 
@@ -45,9 +50,15 @@ function currentPieceState(
  * Show one of a multi-state piece's faces. Out-of-range indexes wrap, so
  * `setPieceState(id, current + 1)` is the cycle verb and a menu can pass an
  * absolute index. No-op on a piece with fewer than two states.
+ *
+ * Refuses a die outright, the mirror of `rollDie` refusing everything else: a
+ * die shows a face because of how it is lying, so an index would be a second,
+ * disagreeing answer to the same question. `addPiece` already keeps `states`
+ * off a die, but state can also arrive over the wire from another client.
  */
 function setPieceState(pieceId: string, index: number) {
 	const piece = getPieceState(pieceId);
+	if (piece?.kind === 'die') return;
 	const count = piece?.states?.length ?? 0;
 	if (count < 2) return;
 	const wrapped = ((Math.trunc(index) % count) + count) % count;
@@ -55,11 +66,38 @@ function setPieceState(pieceId: string, index: number) {
 	return gameStore.updateState({ pieces: { [pieceId]: { state: wrapped } } });
 }
 
-/** Step a multi-state piece to its next (or previous) face. */
+/** Step a multi-state piece to its next (or previous) face. Never a die. */
 function cyclePieceState(pieceId: string, delta = 1) {
 	const piece = getPieceState(pieceId);
+	if (piece?.kind === 'die') return;
 	if ((piece?.states?.length ?? 0) < 2) return;
 	return setPieceState(pieceId, currentPieceState(piece) + delta);
+}
+
+/**
+ * Roll a die: pick the result here, then broadcast it — the animation is
+ * replayed from `rollSeq`, never streamed.
+ *
+ * One patch per roll, and a non-position patch at that, so it leaves
+ * immediately and unthrottled (see storeIntegration). Streaming the tumble
+ * instead would put us over the server's 7 msg/s sustained limit
+ * (server/lobby/lobby.go) and get the roller disconnected mid-roll.
+ *
+ * Every client — the roller included — reacts to `rollSeq` changing by playing
+ * the same tumble locally and settling on `value`, so what everyone watches is
+ * one agreed outcome rather than a race.
+ *
+ * Rolling is a die verb the way cycling is a stateful-piece verb: each refuses
+ * anything that is not its own kind, so the two never act on one piece.
+ */
+function rollDie(pieceId: string) {
+	const piece = getPieceState(pieceId);
+	if (!piece || piece.kind !== 'die') return;
+	const sides = piece.sides ?? DIE_SIDES_DEFAULT;
+	const value = 1 + Math.floor(Math.random() * sides);
+	return gameStore.updateState({
+		pieces: { [pieceId]: { value, rollSeq: (piece.rollSeq ?? 0) + 1 } }
+	});
 }
 
 /** Spawns fan sideways in front of the acting seat, wrapping to further rows. */
@@ -70,7 +108,8 @@ const SPAWN_EDGE_Z = 4.5;
 const KIND_LABEL: Record<PieceKind, string> = {
 	token: 'Token',
 	pawn: 'Pawn',
-	counter: 'Counter'
+	counter: 'Counter',
+	die: 'Die'
 };
 
 function slugify(name: string, fallback: string): string {
@@ -132,6 +171,8 @@ export type AddPieceOptions = {
 	maxValue?: number;
 	/** counters only; restores a saved count (scenario loads) instead of spawning full */
 	value?: number;
+	/** dice only; how many faces (defaults to a d6) */
+	sides?: DieSides;
 	/** defaults to the local player; the scenario editor passes placeholder seat ids */
 	ownerId?: string;
 	position?: [number, number, number];
@@ -152,7 +193,10 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 		return '';
 	}
 
-	const name = opts.name?.trim() || KIND_LABEL[kind];
+	const sides = opts.sides ?? DIE_SIDES_DEFAULT;
+	// dice name themselves after their shape: `d20`, not `Die` — the shape is
+	// the only thing that distinguishes one from another at a glance
+	const name = opts.name?.trim() || (kind === 'die' ? `d${sides}` : KIND_LABEL[kind]);
 	const id = nextPieceId(ownerId, slugify(name, kind));
 	const owned = Object.keys(get(gameStore)?.pieces ?? {}).filter((key) =>
 		key.includes(`:${ownerId}:`)
@@ -167,7 +211,11 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 	};
 	if (opts.color) piece.color = opts.color;
 	if (opts.imageUrl) piece.imageUrl = opts.imageUrl;
-	if (opts.states?.length) {
+	// not on a die: its faces are geometry, not images, so states would be dead
+	// weight on the wire and would hand it a state menu it has no use for.
+	// Dropped here rather than rejected at parse time so a pack that carries
+	// them anyway still imports — it just spawns a plain die.
+	if (kind !== 'die' && opts.states?.length) {
 		piece.states = opts.states.map((s) => ({ face: s.face, ...(s.name ? { name: s.name } : {}) }));
 		piece.state = currentPieceState({ states: opts.states, state: opts.state });
 	}
@@ -176,6 +224,12 @@ function addPiece(kind: PieceKind, opts: AddPieceOptions = {}): string {
 		const maxValue = opts.maxValue ?? COUNTER_MAX_DEFAULT;
 		piece.maxValue = maxValue;
 		piece.value = opts.value ?? maxValue;
+	}
+	if (kind === 'die') {
+		piece.sides = sides;
+		piece.value = opts.value ?? 1;
+		// a fresh die has never been rolled, so nothing animates on spawn
+		piece.rollSeq = 0;
 	}
 
 	gameStore.updateState({ pieces: { [id]: piece } });
@@ -190,5 +244,6 @@ export const pieceActions = {
 	incrementCounter,
 	currentPieceState,
 	setPieceState,
-	cyclePieceState
+	cyclePieceState,
+	rollDie
 };

@@ -44,7 +44,13 @@
 	import type { GamePackDef, PackPieceKind } from '$lib/packs/types';
 	import { parseSavedObject } from '$lib/tts/parse';
 	import { ttsToPack } from '$lib/tts/to-pack';
-	import { COUNTER_MAX_DEFAULT, PIECE_RADIUS } from '$lib/utils/constants-pieces';
+	import {
+		COUNTER_MAX_DEFAULT,
+		DIE_SIDES,
+		DIE_SIDES_DEFAULT,
+		PIECE_RADIUS
+	} from '$lib/utils/constants-pieces';
+	import type { DieSides } from '$lib/store/game/types';
 	import {
 		withEditorDefaults,
 		cleanForExport,
@@ -206,8 +212,13 @@
 	const kindOptions: Record<string, PackPieceKind> = {
 		Token: 'token',
 		Pawn: 'pawn',
-		Counter: 'counter'
+		Counter: 'counter',
+		Dice: 'die'
 	};
+
+	const sidesOptions: Record<string, DieSides> = Object.fromEntries(
+		DIE_SIDES.map((n) => [`d${n}`, n])
+	);
 	let newPieceKind: PackPieceKind = $state('token');
 
 	function addPiece() {
@@ -220,6 +231,7 @@
 			maxValue: COUNTER_MAX_DEFAULT,
 			states: [],
 			state: 0,
+			sides: DIE_SIDES_DEFAULT,
 			position: [0, 0]
 		});
 		pieceCursor = pack.pieces.length - 1;
@@ -687,6 +699,9 @@
 			<AutoValue label="Radius" bind:value={piece.radius} />
 			{#if piece.kind === 'counter'}
 				<AutoValue label="Max value" bind:value={piece.maxValue} />
+			{/if}
+			{#if piece.kind === 'die'}
+				<List label="Sides" bind:value={piece.sides} options={sidesOptions} />
 			{/if}
 			<Point
 				label="Position"

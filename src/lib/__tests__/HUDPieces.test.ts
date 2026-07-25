@@ -18,12 +18,21 @@ const button = (container: HTMLElement, label: string) =>
 const labels = (container: HTMLElement) =>
 	[...container.querySelectorAll('.tp-lblv_l')].map((el) => el.textContent);
 
-/** tweakpane's List binds by option index, not by value */
-function selectKind(container: HTMLElement, index: number) {
-	const select = container.querySelector('select') as HTMLSelectElement;
-	select.selectedIndex = index;
+/**
+ * tweakpane's List binds by option index, not by value. Found by label rather
+ * than by position: the Color blade owns a <select> of its own, so counting
+ * selects picks up the colour-mode picker.
+ */
+function selectList(container: HTMLElement, label: string, optionIndex: number) {
+	const row = [...container.querySelectorAll('.tp-lblv')].find(
+		(el) => el.querySelector('.tp-lblv_l')?.textContent === label
+	);
+	const select = row?.querySelector('select') as HTMLSelectElement;
+	select.selectedIndex = optionIndex;
 	select.dispatchEvent(new Event('change', { bubbles: true }));
 }
+
+const selectKind = (container: HTMLElement, index: number) => selectList(container, 'Kind', index);
 
 async function mount(ownerId = 'seat0') {
 	const { container } = render(HUDPieces, { props: { ownerId, expanded: true } });
@@ -53,7 +62,7 @@ describe('HUDPieces', () => {
 		expect(labels(container)).toContain('Image URL'); // token-only
 		expect(labels(container)).not.toContain('Max value');
 
-		selectKind(container, 2); // Token, Pawn, Counter
+		selectKind(container, 2); // Token, Pawn, Counter, Dice
 		await settle();
 
 		expect(labels(container)).toContain('Max value'); // counter-only
@@ -109,6 +118,38 @@ describe('HUDPieces', () => {
 		});
 		const container = await mount('seat0');
 		expect(labels(container)).not.toContain('state');
+	});
+
+	it('spawns a d6 by default and a d20 when Sides says so', async () => {
+		const container = await mount();
+
+		selectKind(container, 3); // Dice
+		await settle();
+
+		// the pane is still alive after swapping in the die-only blade — a
+		// tweakpane pane that tears itself down leaves no controls behind at all
+		expect(labels(container)).toContain('Sides');
+		expect(labels(container)).not.toContain('Max value');
+		expect(button(container, 'Spawn die')).toBeTruthy();
+
+		button(container, 'Spawn')!.click();
+		await settle();
+		expect(get(gameStore).pieces?.['piece:seat0:d6-0']).toMatchObject({
+			kind: 'die',
+			sides: 6,
+			value: 1,
+			rollSeq: 0
+		});
+
+		selectList(container, 'Sides', 5); // d4, d6, d8, d10, d12, d20
+		await settle();
+		button(container, 'Spawn')!.click();
+		await settle();
+
+		expect(get(gameStore).pieces?.['piece:seat0:d20-0']).toMatchObject({
+			kind: 'die',
+			sides: 20
+		});
 	});
 
 	it('lists and removes every piece on the table, whoever owns it', async () => {
