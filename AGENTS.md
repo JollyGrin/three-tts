@@ -13,7 +13,8 @@ containerized for Railway.
 ## Layout
 
 - `src/routes/` — SvelteKit pages: `/` landing, `/play` (the table +
-  `Pane.svelte`/`PaneDecks.svelte` tweakpane HUD), `/setup` (scenario editor).
+  `Pane.svelte`/`PaneDecks.svelte` tweakpane HUD), `/setup` (scenario editor),
+  `/create` (pack editor — authors `.tbpp.json` packs with live 3D preview).
 - `src/lib/` — Threlte components (`TableScene.svelte`, `Card.svelte`,
   `Deck.svelte`, `Piece.svelte`, `Table.svelte`, `TableCamera.svelte`,
   `HUDTray/`, `HUDPreview/`, `table-overlay/`).
@@ -89,6 +90,20 @@ go build -o tts-server .
   radii, rotations) rather than inline literals.
 - Commits: lowercase conventional prefixes (`feat:`, `fix:`, `chore:`, `docs:`,
   `revert:`) with a short subject, often followed by an em-dash rationale.
+
+## Primitive parity rule
+
+The `/create` pack editor exposing **everything the primitives allow** is an
+invariant. Any PR that expands the primitive vocabulary — a new `PieceKind`,
+a new imported-object kind, a new deck/card field, a new face-ref scheme —
+must, in the same change, also update:
+
+- the `/create` editor (`src/routes/create/`) so the new primitive can be
+  authored, previewed, and exported;
+- the tbpp/tbps types and validators (`src/lib/packs/types.ts`,
+  `src/lib/packs/file.ts`) and the published JSON schemas;
+- the TTS import mapping (`src/lib/tts/parse.ts`, `src/lib/tts/to-pack.ts`)
+  so the TTS analog of the primitive converts into it.
 
 ## Gotchas
 

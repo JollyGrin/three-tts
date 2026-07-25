@@ -30,7 +30,9 @@
 	const position: [number, number, number] = $derived(deck.position ?? [0, 0, 0]);
 	const rotation: [number, number, number] = $derived(deck.rotation ?? [0, 0, 0]);
 	const isFaceUp = $derived(deck.isFaceUp ?? false); // true = cards[0] is top, false = cards[cards.length - 1] is top
-	const lastCardImage = $derived(cards?.[0].faceImageUrl ?? '');
+	// the element, not just the array, can be missing: a pack may declare a deck
+	// with no cards (the tbpp schema allows it) and spawn it empty
+	const lastCardImage = $derived(cards?.[0]?.faceImageUrl ?? '');
 	const displayedImage = $derived(
 		resolveCardImage(isFaceUp ? lastCardImage : deckBackImage, $sheetRefCache)
 	);
