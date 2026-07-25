@@ -24,7 +24,7 @@ export const PACK_SPEC_VERSION = '1.0.0';
  * compatibility promise (issue #39), and semver's 0.x rule — where the minor
  * is the breaking component — says exactly that.
  */
-export const SCENARIO_SPEC_VERSION = '0.1.0';
+export const SCENARIO_SPEC_VERSION = '0.1.1';
 
 export type Semver = { major: number; minor: number; patch: number };
 
