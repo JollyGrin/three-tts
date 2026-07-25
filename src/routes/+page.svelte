@@ -115,6 +115,46 @@
 		</div>
 	</section>
 
+	<!-- ============ pack → scenario → play ============ -->
+	<section class="paper hairline px-6 py-16 sm:py-20">
+		<div class="mx-auto max-w-5xl">
+			<h2 class="wordmark text-3xl text-emerald-950 sm:text-4xl">Make it your game</h2>
+			<p class="mt-4 max-w-2xl text-lg text-emerald-950/80">
+				The 52-card deck is just the house game. Your own game reaches the table in three steps — a
+				<strong>Pack</strong> is what exists, a <strong>Scenario</strong> is how it's arranged.
+			</p>
+			<div class="mt-8 grid gap-4 sm:grid-cols-3">
+				<a class="flow-step" href="/create">
+					<span class="flow-tag">1 · Pack</span>
+					<h3>Create a Pack</h3>
+					<p>
+						Everything your game is made of — decks, cards, tokens, boards. Build it in the pack
+						editor, or import a Tabletop Simulator save.
+					</p>
+					<span class="flow-link">Open the pack editor →</span>
+				</a>
+				<a class="flow-step" href="/setup">
+					<span class="flow-tag">2 · Scenario</span>
+					<h3>Arrange a Scenario</h3>
+					<p>
+						Place the pack's contents on the table, deal decks to seats, and save the starting
+						arrangement. One pack, as many scenarios as ways to play it.
+					</p>
+					<span class="flow-link">Open the scenario editor →</span>
+				</a>
+				<a class="flow-step" href="/play">
+					<span class="flow-tag">3 · Play</span>
+					<h3>Host it live</h3>
+					<p>
+						Load the scenario into a lobby and the table is set before your friends even click the
+						link.
+					</p>
+					<span class="flow-link">Open a table →</span>
+				</a>
+			</div>
+		</div>
+	</section>
+
 	<!-- ============ create scenarios ============ -->
 	<section class="felt-deep px-6 py-16 text-emerald-50 sm:py-20">
 		<div class="mx-auto max-w-5xl">
@@ -395,6 +435,62 @@
 		font-size: 0.95rem;
 		color: rgba(20, 53, 31, 0.75);
 	}
+	/* --- pack → scenario → play flow cards --- */
+	.hairline {
+		border-top: 1px solid rgba(30, 41, 34, 0.1);
+	}
+	.flow-step {
+		display: block;
+		position: relative;
+		background: #fffdf6;
+		border: 1px solid rgba(30, 41, 34, 0.1);
+		border-radius: 0.9rem;
+		padding: 1.5rem;
+		box-shadow: 0 6px 16px rgba(30, 41, 34, 0.08);
+		transition:
+			transform 0.15s ease,
+			box-shadow 0.15s ease;
+	}
+	.flow-step:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 10px 22px rgba(30, 41, 34, 0.14);
+	}
+	.flow-tag {
+		display: inline-block;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: #1d5c3a;
+		background: rgba(29, 92, 58, 0.09);
+		border: 1px solid rgba(29, 92, 58, 0.2);
+		border-radius: 9999px;
+		padding: 0.15rem 0.6rem;
+	}
+	.flow-step h3 {
+		margin-top: 0.8rem;
+		font-family: 'Fraunces', Georgia, serif;
+		font-weight: 600;
+		font-size: 1.2rem;
+		color: #14351f;
+	}
+	.flow-step p {
+		margin-top: 0.5rem;
+		font-size: 0.95rem;
+		color: rgba(20, 53, 31, 0.75);
+	}
+	.flow-link {
+		display: inline-block;
+		margin-top: 0.8rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: #1d5c3a;
+	}
+	.flow-step:hover .flow-link {
+		text-decoration: underline;
+		text-underline-offset: 4px;
+	}
+
 	.step code,
 	.paper code {
 		background: rgba(30, 41, 34, 0.07);
