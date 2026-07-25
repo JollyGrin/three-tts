@@ -7,6 +7,7 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import { claimPointerDown } from '$lib/utils/single-hit-pointerdown';
 	import {
 		PIECE_DEFAULT_RADIUS,
 		PIECE_DRAG_Y,
@@ -33,9 +34,11 @@
 		precision: 0.0001
 	});
 
+	// Entirely derived from this piece's own drag ownership and store state —
+	// see the matching comment on Card's height effect — so a piece that
+	// starts a drag it never actually wins can't stay stuck airborne.
 	$effect(() => {
-		if (isDragging) return;
-		height.target = piece?.position?.[1] ?? REST_Y;
+		height.target = isDragging ? PIECE_DRAG_Y : (piece?.position?.[1] ?? REST_Y);
 	});
 
 	// Horizontal glide: remote drags only arrive every ~200ms (network throttle),
@@ -67,7 +70,6 @@
 	function liftIntoDrag() {
 		// origin (pre-lift store position) is what Esc returns the piece to
 		dragStart(id, position[1], piece?.position as [number, number, number] | undefined);
-		height.target = PIECE_DRAG_Y;
 	}
 
 	// Counters defer the lift until the pointer actually travels, so a plain
@@ -90,13 +92,13 @@
 	$effect(() => cancelPendingDrag);
 
 	function handlePointerDown(e: IntersectionEvent<PointerEvent>) {
-		if (e.nativeEvent.button !== 0) return; // right-click is contextmenu, not drag
+		// claims the pointerdown for the topmost piece in a pile — see
+		// claimPointerDown — so the rest of the stack never sees this event
+		if (!claimPointerDown(e)) return;
 		if (kind !== 'counter') {
 			liftIntoDrag();
 			return;
 		}
-		// keep OrbitControls from rotating during the pre-threshold pixels
-		e.stopImmediatePropagation();
 		dragMoved = false;
 		pendingDrag = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
 		window.addEventListener('pointermove', onPendingMove);
