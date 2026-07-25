@@ -112,6 +112,29 @@ export type OverlayDTO = {
 	packOrigin?: PackOrigin;
 };
 
+/**
+ * An authored placement guide on the felt: a card or piece released inside
+ * `radius` of one finishes exactly on it. Table-scoped like overlays — snap
+ * points belong to the board, not to a seat — and inert: nothing renders them
+ * in /play, they only steer where a drop lands (see `utils/transforms/snap`).
+ */
+export type SnapPointDTO = {
+	id: string;
+	/**
+	 * Table-space `[x, z]`. No y: a snap point is a spot on the felt, and what
+	 * lands on it keeps its own resting height (a card on a card still stacks).
+	 */
+	position: [number, number];
+	/**
+	 * Yaw the landing snaps to, in **degrees**, or omitted to keep whatever
+	 * rotation the entity already had. Degrees to match the card DTO's tap
+	 * rotation (`actions/card.ts`) and TTS's `SnapPoints`.
+	 */
+	rotation?: number;
+	/** catch radius in world units; omitted means `SNAP_RADIUS_DEFAULT` */
+	radius?: number;
+};
+
 // index signatures (not Record<…>) so the generated JSON Schema keeps the
 // entity value shapes — typescript-json-schema drops Record value types
 export interface GameDTO {
@@ -122,4 +145,6 @@ export interface GameDTO {
 	overlays?: { [overlayId: string]: Partial<OverlayDTO> | null };
 	/** null = remove */
 	pieces?: { [pieceId: string]: Partial<PieceDTO> | null };
+	/** authored placement guides, keyed `snap:<n>`. null = remove */
+	snapPoints?: { [snapId: string]: Partial<SnapPointDTO> | null };
 }

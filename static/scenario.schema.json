@@ -132,6 +132,43 @@
 						"required": ["content", "kind", "pack"]
 					},
 					"title": "placements"
+				},
+				"snapPoints": {
+					"description": "Placement guides for whatever ends up on the table, pack-derived or not —\nand the only place a file should author them. Additive: a scenario without\nthem behaves exactly as it did before they existed, and they don't decide\nthe file version (a hand-placed table with snap points is still v1).",
+					"type": "array",
+					"items": {
+						"description": "An authored placement guide: a spot on the felt that a dropped card or piece\nfinishes exactly on. Scenario-level and table-space — a snap point belongs\nto the board, not to a seat, so it is not mirrored per seat the way pack\npiece positions are.\n\nDeliberately shaped like TTS's save-level `SnapPoints` (position + optional\nrotation) so importing those stays a mechanical mapping.",
+						"type": "object",
+						"properties": {
+							"position": {
+								"description": "table-space `[x, z]`; no y — snap points live on the felt",
+								"type": "array",
+								"items": [
+									{
+										"type": "number"
+									},
+									{
+										"type": "number"
+									}
+								],
+								"minItems": 2,
+								"maxItems": 2,
+								"title": "position"
+							},
+							"rotation": {
+								"description": "Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's\nown rotation alone. Degrees, not the radians `placements` use, because\nthis is a single table yaw and it maps 1:1 onto both the card DTO's tap\nrotation and TTS's snap-point rotation.",
+								"type": "number",
+								"title": "rotation"
+							},
+							"radius": {
+								"description": "catch radius in world units; omitted means the app default (0.9)",
+								"type": "number",
+								"title": "radius"
+							}
+						},
+						"required": ["position"]
+					},
+					"title": "snapPoints"
 				}
 			},
 			"required": ["createdAt", "name", "state"]
@@ -214,6 +251,21 @@
 						]
 					},
 					"title": "pieces"
+				},
+				"snapPoints": {
+					"description": "authored placement guides, keyed `snap:<n>`. null = remove",
+					"type": "object",
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/definitions/Partial%3CSnapPointDTO%3E"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"title": "snapPoints"
 				}
 			}
 		},
@@ -605,10 +657,45 @@
 					"title": "packOrigin"
 				}
 			}
+		},
+		"Partial<SnapPointDTO>": {
+			"title": "Partial<SnapPointDTO>",
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"title": "id"
+				},
+				"position": {
+					"description": "Table-space `[x, z]`. No y: a snap point is a spot on the felt, and what\nlands on it keeps its own resting height (a card on a card still stacks).",
+					"type": "array",
+					"items": [
+						{
+							"type": "number"
+						},
+						{
+							"type": "number"
+						}
+					],
+					"minItems": 2,
+					"maxItems": 2,
+					"title": "position"
+				},
+				"rotation": {
+					"description": "Yaw the landing snaps to, in **degrees**, or omitted to keep whatever\nrotation the entity already had. Degrees to match the card DTO's tap\nrotation (`actions/card.ts`) and TTS's `SnapPoints`.",
+					"type": "number",
+					"title": "rotation"
+				},
+				"radius": {
+					"description": "catch radius in world units; omitted means `SNAP_RADIUS_DEFAULT`",
+					"type": "number",
+					"title": "radius"
+				}
+			}
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.1",
-	"x-generated-at": "2026-07-25T13:32:45.257Z",
-	"x-tableplace-source-sha": "6ccfc198d3635c87b35a3752e3ac880f9087a12a-dirty"
+	"x-tableplace-spec-version": "0.1.2",
+	"x-generated-at": "2026-07-25T13:38:51.890Z",
+	"x-tableplace-source-sha": "c1967e35f3217eb0cca78f79142f0730009865fc-dirty"
 }

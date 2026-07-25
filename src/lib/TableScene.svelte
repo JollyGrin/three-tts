@@ -9,6 +9,7 @@
 	import HudTrayScene from '$lib/HUDTray/HUDTrayScene.svelte';
 	import Deck from './Deck.svelte';
 	import Piece from './Piece.svelte';
+	import SnapPointMarker from './SnapPointMarker.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import RemoteCameraAvatar from './RemoteCameraAvatar.svelte';
@@ -33,11 +34,15 @@
 	 * a pack has no way to represent a hand). It also has to reach the drop
 	 * resolver — the tray hover flag is module-global and can arrive stale from
 	 * a previous /play visit, so an unmounted tray must not win a drop.
+	 *
+	 * `snapEditing` draws the authored snap-point markers and makes them
+	 * draggable — the /setup layer. Snapping itself needs no flag: it is part of
+	 * resolving a drop wherever the points exist.
 	 */
-	let { hand = true }: { hand?: boolean } = $props();
+	let { hand = true, snapEditing = false }: { hand?: boolean; snapEditing?: boolean } = $props();
 
 	$effect(() => {
-		setTableFeatures({ hand });
+		setTableFeatures({ hand, snapEditing });
 		if (!hand) setTrayHover(false);
 		return () => setTableFeatures(TABLE_FEATURES_DEFAULT);
 	});
@@ -194,6 +199,13 @@
 {#each Object.keys($gameStore?.pieces ?? {}).filter((key) => $gameStore?.pieces?.[key]) as id (id)}
 	<Piece {id} />
 {/each}
+
+<!-- authored placement guides, drawn only while they're being authored -->
+{#if snapEditing}
+	{#each Object.keys($gameStore?.snapPoints ?? {}).filter((key) => $gameStore?.snapPoints?.[key]) as id (id)}
+		<SnapPointMarker {id} />
+	{/each}
+{/if}
 
 {#each remoteCameras as { id, color } (id)}
 	<RemoteCameraAvatar playerId={id} {color} />

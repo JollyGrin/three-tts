@@ -1,0 +1,158 @@
+/**
+ * Snap points have to survive the whole authoring pipeline — /setup edit →
+ * save → export → import → load — and land in the store in the shape the drop
+ * resolver reads (tableplace-96).
+ *
+ * The file keeps them as a top-level array with no ids; the store keys them
+ * `snap:<n>`. Everything below is about that translation holding in both
+ * directions, and about a scenario with no snap points behaving as it always
+ * did.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { get } from 'svelte/store';
+import { gameStore } from '$lib/store/game/gameStore.svelte';
+import { gameActions } from '$lib/store/game/actions';
+import { resolveDrop } from '$lib/utils/transforms/drop';
+import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
+import { CARD_REST_Y } from '$lib/utils/constants-cards';
+import { serializeScenarioFile } from '../file';
+import {
+	applyScenario,
+	ensureSeatPlaceholder,
+	importScenarioFromText,
+	saveScenario,
+	seatPlaceholderId
+} from '../scenario';
+
+const emptyTable = () =>
+	gameStore.set({ players: {}, cards: {}, decks: {}, pieces: {}, overlays: {}, snapPoints: {} });
+
+const snapPointsInStore = () => get(gameStore).snapPoints ?? {};
+
+describe('authoring snap points in /setup', () => {
+	beforeEach(() => {
+		localStorage.clear();
+		emptyTable();
+	});
+
+	it('places, moves and deletes through ordinary state patches', () => {
+		const first = gameActions.addSnapPoint({ position: [3, 1], rotation: 90 });
+		const second = gameActions.addSnapPoint({ position: [-3, 1] });
+		expect(gameActions.snapPointIds()).toEqual([first, second]);
+		expect(snapPointsInStore()[first]).toMatchObject({
+			id: first,
+			position: [3, 1],
+			rotation: 90,
+			radius: SNAP_RADIUS_DEFAULT
+		});
+
+		gameActions.moveSnapPoint(first, [5, -2]);
+		expect(snapPointsInStore()[first]?.position).toEqual([5, -2]);
+
+		gameActions.updateSnapPoint(first, { radius: 2 });
+		expect(snapPointsInStore()[first]?.radius).toBe(2);
+
+		gameActions.removeSnapPoint(first);
+		expect(snapPointsInStore()[first]).toBeUndefined();
+		expect(gameActions.snapPointIds()).toEqual([second]);
+	});
+
+	it('clears an authored rotation back to "no rotation"', () => {
+		const id = gameActions.addSnapPoint({ position: [0, 0], rotation: 45 });
+		gameActions.updateSnapPoint(id, { rotation: undefined });
+		expect(snapPointsInStore()[id]?.rotation).toBeUndefined();
+	});
+
+	it('keeps ids clear of the points still on the table', () => {
+		gameActions.addSnapPoint({ position: [0, 0] });
+		const middle = gameActions.addSnapPoint({ position: [1, 1] });
+		gameActions.addSnapPoint({ position: [2, 2] });
+		gameActions.removeSnapPoint(middle);
+		// one past the highest in use — never a collision with a live point
+		expect(gameActions.addSnapPoint({ position: [3, 3] })).toBe('snap:3');
+	});
+
+	it('clamps a placement inside the felt', () => {
+		const id = gameActions.addSnapPoint({ position: [999, -999] });
+		const [x, z] = snapPointsInStore()[id]?.position ?? [0, 0];
+		expect(x).toBeLessThan(30);
+		expect(z).toBeGreaterThan(-15);
+	});
+});
+
+describe('snap points through save → export → import → load', () => {
+	beforeEach(() => {
+		localStorage.clear();
+		emptyTable();
+	});
+
+	it('round-trips as a top-level array and comes back keyed in the store', async () => {
+		ensureSeatPlaceholder(0);
+		gameActions.addPiece('token', { ownerId: seatPlaceholderId(0), name: 'Objective' });
+		gameActions.addSnapPoint({ position: [0, 2.5], rotation: 180, radius: 1.5 });
+		gameActions.addSnapPoint({ position: [-4, 0] });
+
+		const exported = serializeScenarioFile(saveScenario('snappy'));
+		expect(JSON.parse(exported).snapPoints).toEqual([
+			{ position: [0, 2.5], rotation: 180, radius: 1.5 },
+			{ position: [-4, 0], radius: SNAP_RADIUS_DEFAULT }
+		]);
+
+		emptyTable();
+		await applyScenario(importScenarioFromText(exported));
+		expect(Object.values(snapPointsInStore())).toEqual([
+			{ id: 'snap:0', position: [0, 2.5], rotation: 180, radius: 1.5 },
+			{ id: 'snap:1', position: [-4, 0], radius: SNAP_RADIUS_DEFAULT }
+		]);
+	});
+
+	it('replaces the points already on the table instead of merging into them', async () => {
+		gameActions.addSnapPoint({ position: [7, 7] });
+		gameActions.addSnapPoint({ position: [8, 8] });
+		const stale = saveScenario('two-points');
+
+		emptyTable();
+		gameActions.addSnapPoint({ position: [1, 1] });
+		gameActions.addSnapPoint({ position: [2, 2] });
+		gameActions.addSnapPoint({ position: [3, 3] });
+		await applyScenario(stale);
+
+		expect(gameActions.snapPointIds()).toEqual(['snap:0', 'snap:1']);
+		expect(snapPointsInStore()['snap:0']?.position).toEqual([7, 7]);
+	});
+
+	it('loads a scenario that has no snap points without inventing any', async () => {
+		ensureSeatPlaceholder(0);
+		gameActions.addPiece('token', { ownerId: seatPlaceholderId(0), name: 'Objective' });
+		const scenario = saveScenario('plain');
+		expect('snapPoints' in scenario).toBe(false);
+
+		emptyTable();
+		gameActions.addSnapPoint({ position: [1, 1] });
+		await applyScenario(scenario);
+		expect(gameActions.snapPointIds()).toEqual([]);
+	});
+
+	it('leaves a loaded table where a dropped card actually snaps', async () => {
+		const scenario = importScenarioFromText(
+			JSON.stringify({
+				tbps: 1,
+				name: 'board',
+				createdAt: 1,
+				state: {
+					cards: { 'card:seat0:a': { position: [0, 2, 0], rotation: [0, 0, 0] } }
+				},
+				snapPoints: [{ position: [6, 3], rotation: 90, radius: 1 }]
+			})
+		);
+		emptyTable();
+		await applyScenario(scenario);
+
+		const drop = resolveDrop(get(gameStore), 'card:seat0:a', { x: 6.5, z: 3 });
+		expect(drop).toMatchObject({
+			kind: 'snap',
+			position: [6, CARD_REST_Y, 3],
+			rotation: [0, 0, 90]
+		});
+	});
+});

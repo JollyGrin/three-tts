@@ -35,6 +35,7 @@ import {
 	PIECE_RADIUS,
 	COUNTER_MAX_DEFAULT
 } from '../src/lib/utils/constants-pieces';
+import { SNAP_RADIUS_DEFAULT } from '../src/lib/utils/constants-snap';
 import { TBPP_VERSION, PACK_SCHEMA_URL } from '../src/lib/packs/file';
 import { TBPS_VERSION, TBPS_SUPPORTED, SCENARIO_SCHEMA_URL } from '../src/lib/scenario/file';
 import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from '../src/lib/formats/spec-version';
@@ -66,7 +67,8 @@ const CONSTANTS: [name: string, value: number | string, note: string][] = [
 	['PIECE_RADIUS.token', PIECE_RADIUS.token, 'default radius per kind — token'],
 	['PIECE_RADIUS.pawn', PIECE_RADIUS.pawn, 'default radius per kind — pawn'],
 	['PIECE_RADIUS.counter', PIECE_RADIUS.counter, 'default radius per kind — counter'],
-	['COUNTER_MAX_DEFAULT', COUNTER_MAX_DEFAULT, 'starting max for a counter with no `maxValue`']
+	['COUNTER_MAX_DEFAULT', COUNTER_MAX_DEFAULT, 'starting max for a counter with no `maxValue`'],
+	['SNAP_RADIUS_DEFAULT', SNAP_RADIUS_DEFAULT, 'catch radius of a snap point that omits `radius`']
 ];
 
 function constantsTable(): string {

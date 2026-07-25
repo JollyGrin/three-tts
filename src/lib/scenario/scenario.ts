@@ -13,6 +13,7 @@
 import { get } from 'svelte/store';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
+import { snapPointIds } from '$lib/store/game/actions/snap';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
 import { spawnPackDeck, spawnPackPiece, spawnPackOverlay } from '$lib/packs/spawn';
 import type { GamePackDef } from '$lib/packs/types';
@@ -24,7 +25,8 @@ import {
 	scenarioVersion,
 	type PackPlacement,
 	type PackRef,
-	type Scenario
+	type Scenario,
+	type SnapPoint
 } from './file';
 import { resolvePacks } from './resolve-packs';
 
@@ -129,6 +131,36 @@ function toPlacement(
 }
 
 /**
+ * Snap points live in the store keyed by id, but a file has no use for those
+ * ids: they are table-scoped, nothing references them, and a stable array reads
+ * far better in a hand-edited scenario. Sorted by id so an export is
+ * deterministic, and dropped from `state` — the top-level `snapPoints` field is
+ * their only home in the file.
+ */
+function collectSnapPoints(s: Partial<GameDTO> | undefined | null): SnapPoint[] {
+	return snapPointIds(s ?? undefined)
+		.map((id) => s?.snapPoints?.[id])
+		.flatMap((point) => {
+			const position = point?.position;
+			if (!position) return [];
+			const snap: SnapPoint = { position: [position[0], position[1]] };
+			if (point?.rotation !== undefined) snap.rotation = point.rotation;
+			if (point?.radius !== undefined) snap.radius = point.radius;
+			return [snap];
+		});
+}
+
+/** The store patch that puts a file's snap points on the table, ids reassigned. */
+function snapPointUpdate(snapPoints: SnapPoint[] | undefined): Record<string, unknown> {
+	const update: Record<string, unknown> = {};
+	(snapPoints ?? []).forEach((point, index) => {
+		const id = `snap:${index}`;
+		update[id] = { id, ...point };
+	});
+	return update;
+}
+
+/**
  * Snapshot the current table as a scenario. Real players (and their trays)
  * are NOT saved — only placeholder seat players survive, so the preset stays
  * portable to any future lobby.
@@ -181,11 +213,13 @@ export function saveScenario(name: string): Scenario {
 		}
 	}
 
+	const snapPoints = collectSnapPoints(s);
 	const scenario: Scenario = {
 		name,
 		createdAt: Date.now(),
 		state,
-		...(placements.length ? { packs: [...refs.values()], placements } : {})
+		...(placements.length ? { packs: [...refs.values()], placements } : {}),
+		...(snapPoints.length ? { snapPoints } : {})
 	};
 	const all = readAll();
 	all[name] = scenario;
@@ -210,9 +244,10 @@ function clearUpdate(): Record<string, Record<string, unknown>> {
 		decks: {},
 		pieces: {},
 		overlays: {},
+		snapPoints: {},
 		players: {}
 	};
-	for (const collection of ['cards', 'decks', 'pieces', 'overlays'] as const) {
+	for (const collection of ['cards', 'decks', 'pieces', 'overlays', 'snapPoints'] as const) {
 		for (const key of Object.keys(current?.[collection] ?? {})) update[collection][key] = null;
 	}
 	for (const key of Object.keys(current?.players ?? {})) {
@@ -225,11 +260,14 @@ function clearUpdate(): Record<string, Record<string, unknown>> {
  * v1/v0 load: the scenario's `state` snapshot *is* the table. Synchronous, so
  * legacy scenarios apply in the same tick they always did.
  */
-function applyStateSnapshot(state: Partial<GameDTO> | undefined) {
+function applyStateSnapshot(state: Partial<GameDTO> | undefined, snapPoints?: SnapPoint[]) {
 	const update = clearUpdate();
+	Object.assign(update.snapPoints, snapPointUpdate(snapPoints));
 	// small payloads ride with the clear — direct assignment overwrites the
-	// null for reused keys
-	for (const collection of ['cards', 'pieces', 'overlays', 'players'] as const) {
+	// null for reused keys. `state` goes last, since it is the override layer:
+	// a `state.snapPoints` entry beats the top-level array rather than being
+	// silently dropped, same as it does for every other collection.
+	for (const collection of ['cards', 'pieces', 'overlays', 'snapPoints', 'players'] as const) {
 		for (const [key, value] of Object.entries(state?.[collection] ?? {})) {
 			update[collection][key] = value;
 		}
@@ -307,7 +345,7 @@ export type ApplyReport = {
  */
 export async function applyScenario(scenario: Scenario): Promise<ApplyReport> {
 	if (scenarioVersion(scenario) === 1) {
-		applyStateSnapshot(scenario.state);
+		applyStateSnapshot(scenario.state, scenario.snapPoints);
 		prewarmGameState(scenario.state, () => gameStore.updateStateSilently({}));
 		return { version: 1, placed: 0, failedPacks: [] };
 	}
@@ -323,6 +361,8 @@ export async function applyScenario(scenario: Scenario): Promise<ApplyReport> {
 		const id = seatPlaceholderId(seat);
 		update.players[id] ??= { id, seat, joinTimestamp: 0, tray: {}, metadata: {} };
 	}
+	// snap points are pure data — they ride with the clear, no pack to resolve
+	Object.assign(update.snapPoints, snapPointUpdate(scenario.snapPoints));
 	gameStore.updateState(update as StateUpdate);
 
 	const { packs, failed } = await resolvePacks(scenario.packs ?? []);
@@ -343,9 +383,10 @@ export async function applyScenario(scenario: Scenario): Promise<ApplyReport> {
 	const overrides: Record<string, Record<string, unknown>> = {
 		cards: {},
 		pieces: {},
-		overlays: {}
+		overlays: {},
+		snapPoints: {}
 	};
-	for (const collection of ['cards', 'pieces', 'overlays'] as const) {
+	for (const collection of ['cards', 'pieces', 'overlays', 'snapPoints'] as const) {
 		for (const [key, value] of Object.entries(scenario.state?.[collection] ?? {})) {
 			overrides[collection][key] = value;
 		}

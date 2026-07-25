@@ -12,9 +12,19 @@ import { writable } from 'svelte/store';
 export interface TableFeatures {
 	/** whether the local hand tray is mounted, and so may win a drop */
 	hand: boolean;
+	/**
+	 * Whether snap points are being authored, and so drawn on the felt.
+	 *
+	 * Only /setup sets it. Snap points still *work* everywhere — a drop is
+	 * caught by them on any route — they just aren't drawn at rest in /play,
+	 * where an authored board would otherwise be permanently speckled with
+	 * rings. The drop preview highlights the one that caught the drag, which is
+	 * the moment the guide is actually worth seeing.
+	 */
+	snapEditing: boolean;
 }
 
-export const TABLE_FEATURES_DEFAULT: TableFeatures = { hand: true };
+export const TABLE_FEATURES_DEFAULT: TableFeatures = { hand: true, snapEditing: false };
 
 export const tableFeatures = writable<TableFeatures>({ ...TABLE_FEATURES_DEFAULT });
 

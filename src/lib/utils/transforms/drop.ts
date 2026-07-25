@@ -9,12 +9,15 @@ import {
 import { PIECE_DEFAULT_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { EDGE_MARGIN, TABLE_HALF_X, TABLE_HALF_Z, TABLE_TOP_Y } from '$lib/utils/constants-table';
 import { resolveStack } from './stacking';
+import { applySnapRotation, resolveSnap, type SnapResolution } from './snap';
 
 export type DropKind =
 	/** lands on bare felt (or an overlay) */
 	| 'table'
 	/** lands on top of one or more cards already at that spot */
 	| 'stack'
+	/** caught by an authored snap point: lands exactly on it */
+	| 'snap'
 	/** returns to a deck instead of the table */
 	| 'deck'
 	/** goes into the local player's hand tray */
@@ -40,6 +43,13 @@ export interface DropTarget {
 	 * a disc above the felt, and the footprint belongs on the felt.
 	 */
 	footprintY: number;
+	/**
+	 * Set when `kind === 'snap'`: the point that caught the drop — its id, its
+	 * catch radius (the preview draws it), and the yaw it authored, if any, so
+	 * the commit can tell "this drop turned the entity" from "this drop only
+	 * moved it" without diffing rotations.
+	 */
+	snap?: { id: string; radius: number; rotation?: number };
 }
 
 export interface DropHover {
@@ -52,8 +62,9 @@ export interface DropHover {
 export interface DropOptions {
 	/**
 	 * Alt held at release: place the card exactly where the pointer is, with
-	 * no XZ square-up onto a nearby pile and no stack-height merge. The escape
-	 * hatch for laying cards out next to each other on purpose.
+	 * no XZ square-up onto a nearby pile, no stack-height merge, and no pull
+	 * onto an authored snap point. The escape hatch for laying cards out next
+	 * to each other on purpose.
 	 */
 	noSnap?: boolean;
 	/**
@@ -63,6 +74,15 @@ export interface DropOptions {
 	 * module-global — can't win a drop the editor has no way to represent.
 	 */
 	hand?: TableFeatures['hand'];
+}
+
+/** What the caught drop reports back about the point that caught it. */
+function snapInfo(snap: SnapResolution): NonNullable<DropTarget['snap']> {
+	return {
+		id: snap.id,
+		radius: snap.radius,
+		...(snap.rotation !== undefined ? { rotation: snap.rotation } : {})
+	};
 }
 
 /** Keep a drop a margin inside the felt edge. */
@@ -84,6 +104,14 @@ export function clampToTable(x: number, z: number): [number, number] {
  * `rawPoint` is the unclamped table raycast hit; when it's missing (pointer
  * off the table plane) the entity's own position is used instead so a drag
  * keeps previewing.
+ *
+ * Pieces and whole decks only ever settle, so they resolve first: felt position,
+ * pulled onto an authored snap point if one catches them. For a card the order
+ * is, most explicit first: the hand tray, then a hovered deck (both aimed at),
+ * then Alt's opt-out, then an authored snap point within radius, then the
+ * loose-pile square-up. A snap point beats a pile because it is authored intent
+ * rather than a side effect of where cards drifted; Alt opts out of every kind
+ * of snapping at once.
  *
  * `options` carries what the release itself asks for (`noSnap`, from Alt) and
  * what the route actually mounted (`hand`): a target that isn't on screen
@@ -114,30 +142,45 @@ export function resolveDrop(
 	const [x, z] = clampToTable(rawPoint?.x ?? ex, rawPoint?.z ?? ez);
 	const rotation = (entity.rotation ?? [0, 0, 0]) as [number, number, number];
 
+	// An authored snap point pulls the landing onto itself. Alt opts out — it is
+	// already the "put it exactly where I said" modifier — and the aimed-at
+	// targets (deck, tray, checked below for cards) still beat proximity.
+	const snap = options.noSnap ? null : resolveSnap(state?.snapPoints, x, z);
+
 	// pieces don't stack, join decks, or enter the tray — they just settle
 	if (isPiece) {
 		const r = ('radius' in entity ? entity.radius : undefined) ?? PIECE_DEFAULT_RADIUS;
+		const [px, pz] = snap ? [snap.x, snap.z] : [x, z];
 		return {
-			kind: 'table',
-			position: [x, PIECE_REST_Y, z],
-			rotation,
+			kind: snap ? 'snap' : 'table',
+			position: [px, PIECE_REST_Y, pz],
+			rotation: applySnapRotation(rotation, snap?.rotation, 'piece'),
 			footprint: { shape: 'circle', r },
-			footprintY: TABLE_TOP_Y
+			footprintY: TABLE_TOP_Y,
+			...(snap ? { snap: snapInfo(snap) } : {})
 		};
 	}
 
 	// decks don't nest, stack, or enter the tray: a dragged pile settles on
 	// the felt wherever it's pointed, centred at half its body height (the
-	// group origin is the slab's middle, not its base)
+	// group origin is the slab's middle, not its base) — or exactly on an
+	// authored snap point when one catches it.
+	//
+	// A snap only ever moves the deck in XZ and turns it: `restY` stays its own
+	// half-height, because a deck landing on an occupied point still doesn't
+	// stack. And the yaw goes in as radians here, unlike a card's — see
+	// applySnapRotation.
 	if (isDeck) {
 		const count = ('cards' in entity ? entity.cards : undefined)?.length ?? 0;
 		const restY = TABLE_TOP_Y + deckHeightForCount(count) / 2;
+		const [dx, dz] = snap ? [snap.x, snap.z] : [x, z];
 		return {
-			kind: 'table',
-			position: [x, restY, z],
-			rotation,
+			kind: snap ? 'snap' : 'table',
+			position: [dx, restY, dz],
+			rotation: applySnapRotation(rotation, snap?.rotation, 'deck'),
 			footprint: { shape: 'rect', w: CARD_WIDTH, h: CARD_HEIGHT },
-			footprintY: TABLE_TOP_Y
+			footprintY: TABLE_TOP_Y,
+			...(snap ? { snap: snapInfo(snap) } : {})
 		};
 	}
 
@@ -180,6 +223,21 @@ export function resolveDrop(
 			rotation,
 			footprint,
 			footprintY: CARD_REST_Y
+		};
+	}
+
+	// A caught card commits on the point exactly, but still stacks: the resting
+	// height comes from whatever is already sitting there, so a second card on
+	// the same snap point lands on top of the first instead of inside it.
+	if (snap) {
+		const stack = resolveStack(state?.cards, dragId, snap.x, snap.z);
+		return {
+			kind: 'snap',
+			position: [snap.x, stack.restY, snap.z],
+			rotation: applySnapRotation(rotation, snap.rotation, 'card'),
+			footprint,
+			footprintY: stack.restY,
+			snap: snapInfo(snap)
 		};
 	}
 

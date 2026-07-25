@@ -20,6 +20,13 @@ const packFile = (overrides: Record<string, unknown> = {}) =>
 const scenarioFile = (overrides: Record<string, unknown> = {}) =>
 	JSON.stringify({ tbps: 1, name: 's', createdAt: 1, state: {}, ...overrides });
 
+// derived from the live version, so a spec bump doesn't turn "one minor ahead"
+// into a version this build already reads and quietly stop testing the rule
+const scenario = parseSemver(SCENARIO_SPEC_VERSION)!;
+const NEWER_SCENARIO_PATCH = `0.${scenario.minor}.${scenario.patch + 9}`;
+const NEWER_SCENARIO_MINOR = `0.${scenario.minor + 1}.0`;
+const OLDER_SCENARIO_PATCH = `0.${scenario.minor}.0`;
+
 describe('emitted documents declare their spec version', () => {
 	it('stamps a pack export', () => {
 		expect(JSON.parse(serializePackFile(STANDARD_52)).specVersion).toBe(PACK_SPEC_VERSION);
@@ -80,12 +87,22 @@ describe('a scenario importer applies the 0.x rule', () => {
 	});
 
 	it('accepts a newer patch', () => {
-		expect(() => parseScenarioFile(scenarioFile({ specVersion: '0.1.9' }))).not.toThrow();
+		expect(() =>
+			parseScenarioFile(scenarioFile({ specVersion: NEWER_SCENARIO_PATCH }))
+		).not.toThrow();
+	});
+
+	it('accepts an older patch — a file from before the last additive bump', () => {
+		// additive changes bump the patch while the spec is 0.x (see
+		// spec-version.ts), so this is what "the previous release" looks like
+		expect(() =>
+			parseScenarioFile(scenarioFile({ specVersion: OLDER_SCENARIO_PATCH }))
+		).not.toThrow();
 	});
 
 	it('refuses a newer minor, because 0.x minors are allowed to break', () => {
-		expect(() => parseScenarioFile(scenarioFile({ specVersion: '0.2.0' }))).toThrow(
-			/declares scenario spec 0\.2\.0/
+		expect(() => parseScenarioFile(scenarioFile({ specVersion: NEWER_SCENARIO_MINOR }))).toThrow(
+			new RegExp(`declares scenario spec ${NEWER_SCENARIO_MINOR.replace(/\./g, '\\.')}`)
 		);
 	});
 

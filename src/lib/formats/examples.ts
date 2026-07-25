@@ -108,6 +108,15 @@ export const EXAMPLE_SCENARIO: ScenarioFile = {
 		{ kind: 'piece', pack: 'ember-duel', content: '0', seat: 0, value: 25 },
 		{ kind: 'overlay', pack: 'ember-duel', content: '0', scale: 14 }
 	],
+	// placement guides: a card or token released within `radius` of one of these
+	// lands exactly on it, turned to `rotation` when it has one. Table-space
+	// [x, z], not per-seat — they belong to the board.
+	snapPoints: [
+		{ position: [0, 2.5], rotation: 0, radius: 1 },
+		{ position: [0, -2.5], rotation: 180, radius: 1 },
+		// no rotation: a position guide that leaves the card facing as it was
+		{ position: [-4, 0] }
+	],
 	// anything not pack-derived: hand-placed props, ad-hoc counters
 	state: {
 		pieces: {

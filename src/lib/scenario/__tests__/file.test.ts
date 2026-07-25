@@ -48,6 +48,57 @@ describe('legacy scenario-<name>.json fallback (v0)', () => {
 	});
 });
 
+describe('snapPoints', () => {
+	const withSnap: Scenario = {
+		...scenario,
+		snapPoints: [{ position: [0, 2.5], rotation: 0, radius: 1 }, { position: [-4, 0] }]
+	};
+
+	it('round-trips through export → parse', () => {
+		expect(parseScenarioFile(serializeScenarioFile(withSnap))).toEqual(withSnap);
+	});
+
+	it('is written at the top level, not buried in state', () => {
+		const file = JSON.parse(serializeScenarioFile(withSnap));
+		expect(file.snapPoints).toHaveLength(2);
+		expect(file.state.snapPoints).toBeUndefined();
+	});
+
+	it('does not decide the file version — a hand-placed table stays v1', () => {
+		expect(JSON.parse(serializeScenarioFile(withSnap)).tbps).toBe(1);
+	});
+
+	it('keeps a rotation of 0 distinct from no rotation at all', () => {
+		const parsed = parseScenarioFile(serializeScenarioFile(withSnap));
+		expect(parsed.snapPoints?.[0].rotation).toBe(0);
+		expect(parsed.snapPoints?.[1]).toEqual({ position: [-4, 0] });
+	});
+
+	it('leaves a scenario without the field untouched — no key invented on read', () => {
+		const parsed = parseScenarioFile(serializeScenarioFile(scenario));
+		expect(parsed).toEqual(scenario);
+		expect('snapPoints' in parsed).toBe(false);
+	});
+
+	it('reports the offending path for a malformed point', () => {
+		const bad = (points: unknown) =>
+			JSON.stringify({ tbps: 1, name: 'x', state: {}, snapPoints: points });
+		expect(() => parseScenarioFile(bad('nope'))).toThrow(/`snapPoints` must be an array/);
+		expect(() => parseScenarioFile(bad([{}]))).toThrow(
+			/snapPoints\[0\]\.position must be \[x, z\]/
+		);
+		expect(() => parseScenarioFile(bad([{ position: [0, 0, 0] }]))).toThrow(
+			/snapPoints\[0\]\.position/
+		);
+		expect(() => parseScenarioFile(bad([{ position: [0, 0], rotation: 'east' }]))).toThrow(
+			/snapPoints\[0\]\.rotation must be a yaw in degrees/
+		);
+		expect(() => parseScenarioFile(bad([{ position: [0, 0], radius: 0 }]))).toThrow(
+			/snapPoints\[0\]\.radius must be a positive number/
+		);
+	});
+});
+
 describe('parseScenarioFile errors', () => {
 	it('rejects non-JSON', () => {
 		expect(() => parseScenarioFile('nope')).toThrow(/valid JSON/);
