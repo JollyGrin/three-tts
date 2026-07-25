@@ -37,6 +37,7 @@ import {
 } from '../src/lib/utils/constants-pieces';
 import { TBPP_VERSION, PACK_SCHEMA_URL } from '../src/lib/packs/file';
 import { TBPS_VERSION, TBPS_SUPPORTED, SCENARIO_SCHEMA_URL } from '../src/lib/scenario/file';
+import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from '../src/lib/formats/spec-version';
 
 /**
  * World-coordinate constants an outside generator needs in order to place
@@ -108,6 +109,8 @@ export function renderLlmsTxt(packSchemaJson: string, scenarioSchemaJson: string
 		TBPP_VERSION: String(TBPP_VERSION),
 		TBPS_VERSION: String(TBPS_VERSION),
 		TBPS_SUPPORTED: TBPS_SUPPORTED.join(' and '),
+		PACK_SPEC_VERSION,
+		SCENARIO_SPEC_VERSION,
 		PACK_SCHEMA_URL,
 		SCENARIO_SCHEMA_URL
 	});

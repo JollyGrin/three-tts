@@ -22,6 +22,7 @@ import {
 	seatPlaceholderId
 } from '../scenario';
 import { parseScenarioFile, serializeScenarioFile, scenarioVersion, type Scenario } from '../file';
+import { SCENARIO_SPEC_VERSION } from '$lib/formats/spec-version';
 
 const emptyTable = () =>
 	gameStore.set({ players: {}, cards: {}, decks: {}, pieces: {}, overlays: {} });
@@ -394,6 +395,9 @@ describe('legacy scenarios keep loading unchanged', () => {
 		expect(JSON.parse(serializeScenarioFile(scenario))).toEqual({
 			$schema: 'https://table.place/scenario.schema.json',
 			tbps: 1,
+			// a legacy file re-exports as v1, but stamped with the spec it was
+			// written by — that is what makes it identifiable later
+			specVersion: SCENARIO_SPEC_VERSION,
 			name: 'legacy',
 			createdAt: 1,
 			state: legacyState

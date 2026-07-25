@@ -24,7 +24,7 @@ JSON Schemas are generated from the TypeScript types (`bun run schemas` → `sta
 
 Add the `$schema` line to a hand-written file and VS Code gives you autocomplete and inline validation for free. The app's own parsers (`parsePackFile` / `parseScenarioFile`) validate independently at import time and point at the offending field (`decks[0].cards[3].face must be a non-empty string`). Both import surfaces — the pack file picker and scenario load in `/setup` — surface those messages as toasts rather than console errors.
 
-Generation runs as part of `bun run build`, and CI regenerates and fails on any diff, so the published schemas cannot drift from the types.
+Generation runs as part of `bun run build`, and CI (`bun run schemas:check`) fails if regeneration produces different content than what is committed, or if a schema changed without a spec-version bump — see [Spec versioning](#spec-versioning) below. The published schemas therefore cannot drift from the types.
 
 The schema plus this doc is the whole authoring contract — the format is deliberately small enough to hand-write, generate from a spreadsheet, or ask an LLM for.
 
@@ -48,6 +48,7 @@ A pack file is a `GamePackDef` (`src/lib/packs/types.ts`) plus the discriminator
 {
 	"$schema": "https://table.place/pack.schema.json",
 	"tbpp": 1,
+	"specVersion": "1.0.0",
 	"id": "my-proto",
 	"name": "My Prototype",
 	"scope": "player",
@@ -109,6 +110,7 @@ A scenario file is a saved table arrangement (`src/lib/scenario/file.ts`) plus t
 {
 	"$schema": "https://table.place/scenario.schema.json",
 	"tbps": 2,
+	"specVersion": "0.1.0",
 	"name": "duel",
 	"createdAt": 1700000000000,
 	"packs": [{ "id": "standard-52", "source": "builtin" }],
@@ -160,6 +162,44 @@ Sizing analysis for public/remote scenario seeding lives in issue #39: pack refs
 ## Versioning
 
 The discriminator value is the format version. Breaking changes bump it (`"tbpp": 2`); parsers reject versions they don't know rather than misread them. This matches the `{tableplace: 1}` pattern from the raw-link-loading research.
+
+### Spec versioning
+
+Alongside the discriminator, every emitted document carries **`specVersion`** — the semver of the spec revision it was authored against (`src/lib/formats/spec-version.ts`). The two answer different questions: the discriminator says _which format and container shape_ this is, `specVersion` says _which revision of the rules_ produced it, finely enough to tell an additive change from a breaking one.
+
+Schema-side metadata is not a substitute. A schema can say what the current spec is; only the document can say what it was written against, and it is the documents that escape into the wild.
+
+`specVersion` is **optional on read** — files exported before it existed still validate and still import — and **always written on export**. `parsePackFile` / `parseScenarioFile` judge readability from the document's declared version:
+
+| Declared                       | Result                                                        |
+| ------------------------------ | ------------------------------------------------------------- |
+| absent                         | accepted — predates spec versioning                           |
+| older                          | accepted; keeping old files readable is the point             |
+| newer, same breaking component | accepted — additive by convention, unknown fields are ignored |
+| newer breaking component       | rejected, with a message naming the tag that schema lives at  |
+
+The breaking component is the major, except under `0.x` where semver makes the minor breaking — which is why the scenario spec sits at `0.x`.
+
+### Schema provenance
+
+Both generated schemas carry three annotation keywords:
+
+- `x-tableplace-spec-version` — the semver above.
+- `x-generated-at` — ISO timestamp of generation.
+- `x-tableplace-source-sha` — **the commit the schema was generated _from_**, not the commit that contains it. A file cannot contain the hash of the commit that introduces it, so this is necessarily an ancestor — normally the parent of the commit that ships the file. Read it as "generated from the tree at". A `-dirty` suffix means the tree had uncommitted changes at generation time.
+
+`x-generated-at` and `x-tableplace-source-sha` are **excluded** from CI's comparison (`scripts/check-schemas.ts`): the timestamp changes on every run and the sha always differs between the committed value and a CI regeneration, so comparing either would make the check fail constantly and train everyone to ignore it.
+
+Note for consumers: ajv's strict mode rejects unknown keywords, so validating these schemas needs `new Ajv({ strict: false })` or an `addVocabulary` call. Most validators ignore unknown keywords as the spec intends.
+
+### Release convention
+
+On a version bump the schema is tagged **`spec/pack/vX.Y.Z`** / **`spec/scenario/vX.Y.Z`**, so an older schema stays fetchable at its tag after `static/` moves on.
+
+- **Major** — a breaking change: a field removed, renamed, or made required (a required-tightening rejects documents that were previously valid).
+- **Minor** — an additive change: a new optional field.
+
+CI enforces the bump: `bun run schemas:check --base <ref>` fails if a schema's content changed against the base branch without `x-tableplace-spec-version` changing.
 
 ## Known gaps
 

@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        # full history: the version-bump check diffs the schemas against the base branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -19,13 +22,18 @@ jobs:
         run: bun install
 
       # The published contract (static/{pack,scenario}.schema.json, llms.txt) is
-      # generated from the TypeScript types. Regenerate and fail on any diff, so
-      # a type change that was not reflected in the schemas cannot ship.
-      - name: Schemas are up to date with the types
+      # generated from the TypeScript types. Fails if regeneration produces
+      # different content than what is committed, or if a schema's content
+      # changed without x-tableplace-spec-version being bumped.
+      - name: Published contract is current and versioned
         run: |
-          bun run schemas
-          git diff --exit-code --stat static/ \
-            || { echo "::error::static/ is stale — run 'bun run schemas' and commit the result"; exit 1; }
+          BASE="${{ github.event.pull_request.base.sha }}"
+          [ -n "$BASE" ] || BASE="$(git rev-parse HEAD~1 2>/dev/null || true)"
+          if [ -n "$BASE" ]; then
+            bun run schemas:check --base "$BASE"
+          else
+            bun run schemas:check
+          fi
 
       - name: Test
         run: bun run test

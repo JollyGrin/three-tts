@@ -20,11 +20,36 @@
 
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import * as TJS from 'typescript-json-schema';
 import { format, resolveConfig } from 'prettier';
 import { renderLlmsTxt } from './llms-txt';
+import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from '../src/lib/formats/spec-version';
 
 export const root = resolve(import.meta.dirname, '..');
+
+/**
+ * Keys whose value changes on every regeneration regardless of content. The
+ * drift check strips them before comparing — see scripts/check-schemas.ts.
+ */
+export const VOLATILE_KEYS = ['x-generated-at', 'x-tableplace-source-sha'] as const;
+
+/**
+ * HEAD at generation time, with `-dirty` when the tree has uncommitted
+ * changes. This is the tree the schema was generated FROM; it can never be
+ * the commit that introduces the schema, since a file cannot contain the hash
+ * of the commit that adds it.
+ */
+function sourceSha(): string {
+	try {
+		const git = (args: string[]) => execFileSync('git', args, { cwd: root }).toString().trim();
+		const sha = git(['rev-parse', 'HEAD']);
+		const dirty = git(['status', '--porcelain']).length > 0;
+		return dirty ? `${sha}-dirty` : sha;
+	} catch {
+		return 'unknown';
+	}
+}
 
 const settings: TJS.PartialArgs = {
 	required: true,
@@ -45,13 +70,23 @@ function generateSchemas(): { pack: object; scenario: object } {
 	const generator = TJS.buildGenerator(program, settings);
 	if (!generator) throw new Error('schema generator failed to build — see TS errors above');
 
+	// provenance, identical in shape for both schemas
+	const stamp = { generatedAt: new Date().toISOString(), sha: sourceSha() };
+	const provenance = (specVersion: string) => ({
+		'x-tableplace-spec-version': specVersion,
+		'x-generated-at': stamp.generatedAt,
+		'x-tableplace-source-sha': stamp.sha
+	});
+
 	const pack = generator.getSchemaForSymbol('PackFile');
 	pack.description = 'table.place pack (.tbpp.json) — see docs/packs.md and llms.txt';
+	Object.assign(pack, provenance(PACK_SPEC_VERSION));
 
 	const scenario = generator.getSchemaForSymbol('ScenarioFile');
 	scenario.description =
 		'table.place scenario (.tbps.json) — UNSTABLE, generated from the live types, ' +
 		'no compatibility promise. See docs/packs.md and llms.txt.';
+	Object.assign(scenario, provenance(SCENARIO_SPEC_VERSION));
 
 	return { pack, scenario };
 }

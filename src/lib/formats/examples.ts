@@ -10,6 +10,7 @@
 
 import type { PackFile } from '../packs/file';
 import type { ScenarioFile } from '../scenario/file';
+import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from './spec-version';
 
 /** The URL `EXAMPLE_SCENARIO` claims to fetch `EXAMPLE_PACK` from. */
 export const EXAMPLE_PACK_URL = 'https://example.com/packs/ember-duel.tbpp.json';
@@ -21,6 +22,7 @@ export const EXAMPLE_PACK_URL = 'https://example.com/packs/ember-duel.tbpp.json'
 export const EXAMPLE_PACK: PackFile = {
 	$schema: 'https://table.place/pack.schema.json',
 	tbpp: 1,
+	specVersion: PACK_SPEC_VERSION,
 	id: 'ember-duel',
 	name: 'Ember Duel',
 	scope: 'player',
@@ -72,6 +74,7 @@ export const EXAMPLE_PACK: PackFile = {
 export const EXAMPLE_SCENARIO: ScenarioFile = {
 	$schema: 'https://table.place/scenario.schema.json',
 	tbps: 2,
+	specVersion: SCENARIO_SPEC_VERSION,
 	name: 'ember-duel-opening',
 	createdAt: 1700000000000,
 	packs: [

@@ -31,11 +31,45 @@ Every file carries an in-band discriminator at the top level: `"tbpp": {{TBPP_VE
 
 **The scenario format (tbps) is UNSTABLE.** Its schema is generated from live internal types that are still changing, and it is published so you can see the current shape — not as a promise. There is no compatibility guarantee and no deprecation policy for tbps. It may change without notice. Generate scenarios against the schema you fetch at the time you generate them, and expect to regenerate. Packs are the stable thing to build on.
 
+### 2.1 Spec versions
+
+Current: **pack `{{PACK_SPEC_VERSION}}`**, **scenario `{{SCENARIO_SPEC_VERSION}}`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
+
+Two version fields exist and they answer different questions:
+
+- **`tbpp` / `tbps`** — the in-band discriminator. Identifies _which format_ a file is, and gates the container shape.
+- **`specVersion`** — semver of the spec revision the document was authored against.
+
+Write **both**. Set `specVersion` to the version above that you generated against.
+
+The importer decides from the **document's** declared `specVersion`, not from its own:
+
+| Declared                       | Result                                                            |
+| ------------------------------ | ----------------------------------------------------------------- |
+| absent                         | accepted — the file predates spec versioning                      |
+| older                          | accepted; keeping old files readable is the point                 |
+| newer, same breaking component | accepted — those changes are additive, unknown fields are ignored |
+| newer breaking component       | **rejected**, naming the tag its schema lives at                  |
+
+The "breaking component" is the major, except for `0.x` where it is the minor.
+
+### 2.2 Schema provenance and release tags
+
+Each schema carries three annotation keywords:
+
+- `x-tableplace-spec-version` — the semver above.
+- `x-generated-at` — ISO timestamp of generation.
+- `x-tableplace-source-sha` — **the commit the schema was generated _from_.** It is not the commit that contains the schema, and cannot be: a file cannot contain the hash of the commit that introduces it. Read it as "generated from the tree at this commit" — normally the parent of the commit that ships the file. A `-dirty` suffix means the tree had uncommitted changes.
+
+On a version bump the schema is tagged `spec/pack/vX.Y.Z` / `spec/scenario/vX.Y.Z`, so an older schema stays fetchable at its tag. **Breaking** (a field removed, renamed, or made required) bumps the major; **additive** (a new optional field) bumps the minor.
+
+> **Validating with ajv:** these `x-` keywords are annotations, and ajv's strict mode rejects keywords it does not know. Use `new Ajv({ strict: false })`, or register them with `ajv.addVocabulary(['x-tableplace-spec-version', 'x-generated-at', 'x-tableplace-source-sha'])`. Most other validators ignore unknown keywords as the JSON Schema spec intends.
+
 ## 3. Hard rules
 
 1. Emit **JSON only**. No comments, no trailing commas.
 2. Include the discriminator (`"tbpp": {{TBPP_VERSION}}` / `"tbps": {{TBPS_VERSION}}`). A file without it is rejected.
-3. Include the `$schema` line. It costs nothing and gives editors inline validation.
+3. Include `specVersion` (§2.1) and the `$schema` line. The `$schema` line costs nothing and gives editors inline validation.
 4. **Never inline image data.** Faces are short ref strings (§5); base64 or data-URLs in a file will be carried into synced multiplayer state and break it.
 5. table.place hosts **no assets**. Every `https://` ref points at hosting you control, and must be CORS-readable and hotlinkable.
 6. `code` (within a deck) and `slot` (within a pack) are stable ids. Keep them stable across re-exports — scenarios reference cards by them.
@@ -108,6 +142,7 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 
 ### 6.1 Fields
 
+- **`specVersion`** — the pack spec you generated against (§2.1). Currently `{{PACK_SPEC_VERSION}}`.
 - **`id`** — stable identity for the pack, e.g. `ember-duel`. See §8 on collisions.
 - **`name`** — human-readable title.
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
@@ -137,6 +172,7 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
 
 ### 7.1 Fields
 
+- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `{{SCENARIO_SPEC_VERSION}}`.
 - **`name`**, **`createdAt`** — title and a Unix epoch timestamp in milliseconds.
 - **`packs[]`** — `{ id, source? }` for every pack the scenario draws from. `source` is `"builtin"` for packs shipped with the app (currently only `standard-52`), or an `https://` URL a `.tbpp.json` can be fetched from. A remote pack goes through the same validation as a local import.
 - **`placements[]`** — one entry per spawned thing:
@@ -174,8 +210,8 @@ Deliberately unresolved. Do not invent syntax for these — a file using it will
 ## 9. Before you emit a file
 
 1. It parses as JSON.
-2. The discriminator is present and correct.
-3. Validate against the schema (`ajv`, or any JSON Schema validator, or paste into an editor that honours `$schema`).
+2. The discriminator is present and correct, and `specVersion` is set (§2.1).
+3. Validate against the schema (`ajv` with `strict: false`, any other JSON Schema validator, or an editor that honours `$schema`).
 4. Every `face`, `back` and `imageUrl` is one of the three schemes in §5 — and every `https://` URL actually resolves.
 5. Every `code` is unique within its deck; every `slot` is unique within its pack.
 6. For a scenario: every `placements[].pack` appears in `packs[]`, and every `order` entry matches a `code` in the referenced deck.

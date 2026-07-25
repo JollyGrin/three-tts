@@ -17,6 +17,7 @@ import { get } from 'svelte/store';
 import Ajv from 'ajv';
 
 import { EXAMPLE_PACK, EXAMPLE_PACK_URL, EXAMPLE_SCENARIO } from '../examples';
+import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from '../spec-version';
 import { parsePackFile, serializePackFile } from '$lib/packs/file';
 import { spawnPack } from '$lib/packs/spawn';
 import { RANKS, STANDARD_52, SUITS } from '$lib/packs/standard52';
@@ -40,7 +41,10 @@ const packSchemaText = read('pack.schema.json');
 const scenarioSchemaText = read('scenario.schema.json');
 const llms = read('llms.txt');
 
-const ajv = new Ajv({ allowUnionTypes: true });
+// strict:false — the schemas carry `x-tableplace-*` provenance annotations, and
+// ajv's strict mode rejects any keyword it does not know. Third parties hit the
+// same thing, so llms.txt says so (asserted below).
+const ajv = new Ajv({ allowUnionTypes: true, strict: false });
 const validatePack = ajv.compile(JSON.parse(packSchemaText));
 const validateScenario = ajv.compile(JSON.parse(scenarioSchemaText));
 
@@ -115,6 +119,48 @@ describe('llms.txt is self-contained', () => {
 
 	it('leaves no unfilled template placeholder', () => {
 		expect(llms).not.toMatch(/\{\{\w+\}\}/);
+	});
+});
+
+describe('the schemas carry provenance metadata', () => {
+	const packSchema = JSON.parse(packSchemaText);
+	const scenarioSchema = JSON.parse(scenarioSchemaText);
+
+	it('stamps each schema with its spec version', () => {
+		expect(packSchema['x-tableplace-spec-version']).toBe(PACK_SPEC_VERSION);
+		expect(scenarioSchema['x-tableplace-spec-version']).toBe(SCENARIO_SPEC_VERSION);
+	});
+
+	it('stamps an ISO generation timestamp', () => {
+		for (const schema of [packSchema, scenarioSchema]) {
+			const at = schema['x-generated-at'];
+			expect(at).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/);
+			expect(Number.isNaN(Date.parse(at))).toBe(false);
+		}
+	});
+
+	it('stamps the source sha it was generated from', () => {
+		for (const schema of [packSchema, scenarioSchema]) {
+			// 40-hex, optionally `-dirty`; `unknown` outside a git checkout
+			expect(schema['x-tableplace-source-sha']).toMatch(/^([0-9a-f]{40}(-dirty)?|unknown)$/);
+		}
+	});
+
+	it('explains that the sha is the tree generated FROM, not the file own commit', () => {
+		// the subtle part: a file cannot contain the hash of the commit adding it
+		expect(llms).toContain('cannot be: a file cannot contain the hash of the commit');
+		expect(llms).toContain('generated from the tree at this commit');
+	});
+
+	it('tells consumers how to validate past the x- keywords', () => {
+		// ajv strict mode rejects unknown keywords; we hit this ourselves
+		expect(llms).toContain('strict: false');
+		expect(llms).toContain('addVocabulary');
+	});
+
+	it('documents the release-tag convention for both formats', () => {
+		expect(llms).toContain('spec/pack/vX.Y.Z');
+		expect(llms).toContain('spec/scenario/vX.Y.Z');
 	});
 });
 
