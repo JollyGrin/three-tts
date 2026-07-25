@@ -9,6 +9,12 @@ interface DragState {
 	isPreview?: boolean;
 	dragHeight?: number;
 	intersectionPoint?: Vector3;
+	/**
+	 * Where the dragged entity sat before it was picked up, so Esc can put it
+	 * back. Only set for entities that were already on the table — a card
+	 * drawn out of a deck or tray has no table origin to return to.
+	 */
+	origin?: [number, number, number];
 }
 
 const initialState: DragState = {
@@ -18,18 +24,20 @@ const initialState: DragState = {
 	isTrayHovered: false,
 	isPreview: false,
 	dragHeight: undefined,
-	intersectionPoint: undefined
+	intersectionPoint: undefined,
+	origin: undefined
 };
 
 const dragStore = writable<DragState>(initialState);
 
 // Start dragging a card
-function dragStart(id: string, height: number) {
+function dragStart(id: string, height: number, origin?: [number, number, number]) {
 	dragStore.update((state) => ({
 		...state,
 		isDragging: id,
 		isHovered: id,
-		dragHeight: height
+		dragHeight: height,
+		origin
 	}));
 }
 
@@ -48,7 +56,7 @@ function updateIntersection(point: Vector3) {
 
 // End dragging and reset state
 function dragEnd() {
-	dragStore.update((state) => ({ ...state, isDragging: null }));
+	dragStore.update((state) => ({ ...state, isDragging: null, origin: undefined }));
 }
 
 // Set hover state

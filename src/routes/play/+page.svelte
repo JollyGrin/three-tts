@@ -23,6 +23,7 @@
 		if (event.code === 'KeyC') cameraTransforms.resetView();
 		if (event.code === 'KeyT') gameActions.tapCard();
 		if (event.code === 'KeyR') gameActions.tapCard(true);
+		if (event.code === 'KeyG') gameActions.groupStackIntoDeck();
 		if (event.code === 'ArrowUp') gameActions.incrementHeight(0.01);
 		if (event.code === 'ArrowDown') gameActions.incrementHeight(-0.01);
 	}

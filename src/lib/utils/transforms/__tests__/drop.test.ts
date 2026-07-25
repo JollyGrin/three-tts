@@ -76,6 +76,21 @@ describe('resolveDrop', () => {
 		expect(drop?.footprintY).toBeCloseTo(CARD_REST_Y + CARD_THICKNESS);
 	});
 
+	it('squares a stack drop up to the base card XZ, not the pointer', () => {
+		const s = state({ cards: { a: card(0, 2, 0), b: card(1, CARD_REST_Y, -2) } });
+		const drop = resolveDrop(s, 'a', { x: 1.4, z: -1.6 });
+		expect(drop?.kind).toBe('stack');
+		expect(drop?.position[0]).toBe(1);
+		expect(drop?.position[2]).toBe(-2);
+	});
+
+	it('leaves a bare-felt drop exactly where the pointer is', () => {
+		const s = state({ cards: { a: card(0, 2, 0), b: card(8, CARD_REST_Y, 8) } });
+		const drop = resolveDrop(s, 'a', { x: 1.4, z: -1.6 });
+		expect(drop?.kind).toBe('table');
+		expect(drop?.position).toEqual([1.4, CARD_REST_Y, -1.6]);
+	});
+
 	it('carries the card rotation through so the preview matches the landing', () => {
 		const s = state({ cards: { a: card(0, 2, 0, [180, 0, -90]) } });
 		expect(resolveDrop(s, 'a', { x: 1, z: 1 })?.rotation).toEqual([180, 0, -90]);
