@@ -1,0 +1,91 @@
+/**
+ * Spec versions for the tbpp/tbps document formats, and the reader policy
+ * that makes old files keep working.
+ *
+ * Two version fields exist and they answer different questions:
+ *
+ * - `tbpp` / `tbps` — the in-band format discriminator. Identifies *which
+ *   format* a file is, and gates the container shape (tbps 1 vs 2 are
+ *   genuinely different layouts).
+ * - `specVersion` — semver of the spec revision the document was authored
+ *   against. Fine-grained enough to tell an additive change from a breaking
+ *   one, and to fetch the exact schema from its release tag.
+ *
+ * Schema-side metadata alone is not enough: a file that has escaped into the
+ * wild has to say what it was written against, or nothing downstream can
+ * decide whether it is safe to read.
+ */
+
+/** Bump on any change to the pack schema. See docs/packs.md § Spec versioning. */
+export const PACK_SPEC_VERSION = '1.0.0';
+
+/**
+ * The scenario spec is deliberately 0.x: it is unstable and carries no
+ * compatibility promise (issue #39), and semver's 0.x rule — where the minor
+ * is the breaking component — says exactly that.
+ */
+export const SCENARIO_SPEC_VERSION = '0.1.0';
+
+export type Semver = { major: number; minor: number; patch: number };
+
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/;
+
+export function parseSemver(value: string): Semver | null {
+	const m = SEMVER.exec(value);
+	if (!m) return null;
+	return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
+}
+
+/**
+ * The component that changes on a breaking change. Under semver, 0.x releases
+ * may break on every minor, so for them the breaking component is `0.<minor>`.
+ */
+function breakingRank(v: Semver): [number, number] {
+	return v.major === 0 ? [0, v.minor] : [v.major, 0];
+}
+
+/** `a` is newer than `b` in the component that is allowed to break. */
+function isBreakingNewer(a: Semver, b: Semver): boolean {
+	const [aMajor, aMinor] = breakingRank(a);
+	const [bMajor, bMinor] = breakingRank(b);
+	return aMajor !== bMajor ? aMajor > bMajor : aMinor > bMinor;
+}
+
+/**
+ * Validate a document's declared `specVersion` against what this build reads.
+ *
+ * The policy, and why:
+ * - **absent** — the file predates spec versioning. Accepted: refusing it would
+ *   break every file exported before this field existed.
+ * - **older** — accepted. Keeping old files readable is the point.
+ * - **newer, same breaking component** — accepted. Those changes are additive
+ *   by the release convention, and unknown fields are ignored on import.
+ * - **newer breaking component** — rejected, because the file may rely on a
+ *   field that was removed, renamed, or tightened out from under this build.
+ *
+ * Throws an Error naming the version and where to find its schema.
+ */
+export function assertReadableSpecVersion(
+	declared: unknown,
+	supported: string,
+	format: 'pack' | 'scenario'
+): void {
+	if (declared === undefined || declared === null) return;
+	if (typeof declared !== 'string') {
+		throw new Error(`specVersion must be a semver string like "${supported}"`);
+	}
+	const version = parseSemver(declared);
+	if (!version) {
+		throw new Error(
+			`specVersion ${JSON.stringify(declared)} is not a semver version like "${supported}"`
+		);
+	}
+	const current = parseSemver(supported);
+	if (current && isBreakingNewer(version, current)) {
+		throw new Error(
+			`This file declares ${format} spec ${declared}, which is newer than the ${supported} ` +
+				`this build reads. Fetch the matching schema at the tag spec/${format}/v${declared}, ` +
+				`or re-export the file from a current build.`
+		);
+	}
+}

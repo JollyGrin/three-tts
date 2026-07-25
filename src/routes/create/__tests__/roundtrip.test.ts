@@ -23,7 +23,9 @@ const cloneFixture = JSON.parse(
 	readFileSync(join(__dirname, '../../../../tts-clonetroopers.json'), 'utf-8')
 );
 
-const validatePack = new Ajv().compile(
+// strict:false — the schema carries `x-tableplace-*` provenance annotations,
+// which ajv's strict mode would reject as unknown keywords
+const validatePack = new Ajv({ strict: false }).compile(
 	JSON.parse(readFileSync(join(__dirname, '../../../../static/pack.schema.json'), 'utf-8'))
 );
 

@@ -14,6 +14,7 @@
  */
 
 import type { GameDTO } from '../store/game/types';
+import { assertReadableSpecVersion, SCENARIO_SPEC_VERSION } from '../formats/spec-version';
 
 export const TBPS_VERSION = 2;
 /** versions this app can read */
@@ -80,6 +81,12 @@ export type ScenarioFile = Scenario & {
 	tbps: 1 | 2;
 	/** optional editor-validation hint; always written on export */
 	$schema?: string;
+	/**
+	 * Semver of the scenario spec this document was authored against. Always
+	 * written on export; optional on read so files predating spec versioning
+	 * still validate and still import. 0.x — see `SCENARIO_SPEC_VERSION`.
+	 */
+	specVersion?: string;
 };
 
 /** v2 iff it references packs — a hand-placed table still exports as v1. */
@@ -100,11 +107,12 @@ export function serializeScenarioFile(scenario: Scenario): string {
 			? {
 					$schema: SCENARIO_SCHEMA_URL,
 					tbps: 2,
+					specVersion: SCENARIO_SPEC_VERSION,
 					...rest,
 					packs: packs ?? [],
 					placements: placements ?? []
 				}
-			: { $schema: SCENARIO_SCHEMA_URL, tbps: 1, ...rest };
+			: { $schema: SCENARIO_SCHEMA_URL, tbps: 1, specVersion: SCENARIO_SPEC_VERSION, ...rest };
 	return JSON.stringify(file, null, '\t');
 }
 
@@ -198,6 +206,8 @@ export function parseScenarioFile(text: string): Scenario {
 			`Unsupported scenario version ${JSON.stringify(obj.tbps)} — this app reads tbps ${TBPS_SUPPORTED.join(' and ')}`
 		);
 	}
+	// validate against what the DOCUMENT declares, not against our own version
+	assertReadableSpecVersion(obj.specVersion, SCENARIO_SPEC_VERSION, 'scenario');
 	if (typeof obj.name !== 'string' || obj.name === '') {
 		throw new Error('Not a scenario file: `name` must be a non-empty string');
 	}

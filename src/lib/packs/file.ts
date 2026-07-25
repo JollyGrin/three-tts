@@ -8,6 +8,7 @@
  */
 
 import type { GamePackDef, PackDeckDef, PackCardDef, PackPieceDef, PackOverlayDef } from './types';
+import { assertReadableSpecVersion, PACK_SPEC_VERSION } from '../formats/spec-version';
 
 export const TBPP_VERSION = 1;
 export const PACK_SCHEMA_URL = 'https://table.place/pack.schema.json';
@@ -18,6 +19,12 @@ export type PackFile = GamePackDef & {
 	tbpp: 1;
 	/** optional editor-validation hint; always written on export */
 	$schema?: string;
+	/**
+	 * Semver of the pack spec this document was authored against. Always
+	 * written on export; optional on read so files predating spec versioning
+	 * still validate and still import.
+	 */
+	specVersion?: string;
 };
 
 export function packFileName(pack: GamePackDef): string {
@@ -26,7 +33,12 @@ export function packFileName(pack: GamePackDef): string {
 
 /** Serialize a pack for download as `<name>.tbpp.json`. */
 export function serializePackFile(pack: GamePackDef): string {
-	const file: PackFile = { $schema: PACK_SCHEMA_URL, tbpp: TBPP_VERSION, ...pack };
+	const file: PackFile = {
+		$schema: PACK_SCHEMA_URL,
+		tbpp: TBPP_VERSION,
+		specVersion: PACK_SPEC_VERSION,
+		...pack
+	};
 	return JSON.stringify(file, null, '\t');
 }
 
@@ -126,6 +138,8 @@ export function parsePackFile(text: string): GamePackDef {
 			`Unsupported pack version ${JSON.stringify(raw.tbpp)} — this app reads tbpp ${TBPP_VERSION}`
 		);
 	}
+	// validate against what the DOCUMENT declares, not against our own version
+	assertReadableSpecVersion(raw.specVersion, PACK_SPEC_VERSION, 'pack');
 
 	const scope = raw.scope;
 	if (scope !== 'table' && scope !== 'player') fail('scope', `must be 'table' or 'player'`);
