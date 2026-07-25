@@ -19,6 +19,7 @@
 		cardBodyGeometry
 	} from '$lib/utils/constants-cards';
 	import { fanOffset } from '$lib/utils/transforms/stacking';
+	import { pickCard } from './store/cardPick';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import { claimPointerDown } from '$lib/utils/single-hit-pointerdown';
 	type Vec3Array = [number, number, number];
@@ -187,6 +188,18 @@
 		window.addEventListener('pointerup', cancelPendingDrag);
 	}
 
+	// A click that never became a drag. Inert unless something registered a
+	// handler (only /create does — see store/cardPick.ts).
+	function handleClick(e: IntersectionEvent<MouseEvent>) {
+		if (e.delta > DRAG_THRESHOLD_PX) return; // was a drag, not a click
+		// threlte dispatches click to every hit near → far, same as pointerdown
+		// (see claimPointerDown): stop here so overlapping cards pick the topmost
+		// rather than whichever happened to be furthest. Not
+		// stopImmediatePropagation — the native click is nobody else's problem.
+		e.stopPropagation();
+		pickCard(id);
+	}
+
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
 		isHovered = true;
@@ -208,6 +221,7 @@
 	onpointerdown={handleDragStart}
 	onpointerleave={handlePointerLeave}
 	onpointerenter={handlePointerEnter}
+	onclick={handleClick}
 >
 	<!-- card body: visible paper edge between the two faces (unlit so side faces
 	     never go black). Rounded to match the face's corner radius — a square box

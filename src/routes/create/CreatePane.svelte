@@ -16,7 +16,20 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { gameActions } from '$lib/store/game/actions';
 	import { prewarmGameState } from '$lib/packs/prewarm-state';
-	import { spawnPackDeck, spawnPackPiece, spawnPackOverlay } from '$lib/packs/spawn';
+	import {
+		spawnPackDeck,
+		spawnPackDeckSpread,
+		spawnPackPiece,
+		spawnPackOverlay
+	} from '$lib/packs/spawn';
+	import {
+		spreadCardCount,
+		spreadLayout,
+		spreadRefusal,
+		SPREAD_MAX_CARDS
+	} from '$lib/packs/spread';
+	import { onCardPick } from '$lib/store/cardPick';
+	import { previewLayout, type PreviewLayout } from './preview-layout';
 	import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 	import { parsePackFile, serializePackFile, packFileName } from '$lib/packs/file';
 	import { listPackDrafts, getPackDraft, savePackDraft, deletePackDraft } from '$lib/packs/drafts';
@@ -46,12 +59,14 @@
 		'format (docs/packs.md), then /setup spawns the file onto a seat.';
 
 	const TABLE_HELP_TEXT =
-		'Preview table: drag a card off a pile to look at it. It arrives showing the ' +
-		'side the deck starts on, so use "Flip cards on table" (or hover a card and ' +
-		'press F) to turn it over. T / R tap, ↑ / ↓ lift, C recentres the camera, hold ' +
-		'Space for a close-up. Moving cards here is inspection only — nothing on the ' +
-		'table is written back into the pack. The durable start face is the deck’s ' +
-		'"Face up" box.';
+		'Preview table: "Deck" shows one pile per deck — drag a card off to look at ' +
+		'it, then F (or "Flip cards on table") to turn it over. "Spread" (or L) lays ' +
+		'every card out face-up and clicking one selects it here; that grid is ' +
+		'DERIVED from the draft, so editing or adding a card never re-lays it out. ' +
+		'Either way the table is inspection only: flips, taps (T / R), lifts (↑ / ↓) ' +
+		'and anything you drag are neither saved into the pack nor kept — the next ' +
+		'edit respawns the preview from the draft. C recentres the camera, hold Space ' +
+		'for a close-up. The durable start face is the deck’s "Face up" box.';
 
 	function emptyPack(): EditorPack {
 		return withEditorDefaults({
@@ -249,17 +264,56 @@
 		gameStore.updateState(update as Parameters<typeof gameStore.updateState>[0]);
 	}
 
-	function respawnPreview() {
+	/**
+	 * Preview card id → the cursors that select it, rebuilt by every spread
+	 * respawn (and empty in Deck mode, where a card on the table was dragged
+	 * off a pile rather than laid out from a known slot). Not $state: only the
+	 * click handler reads it.
+	 */
+	let spreadCursors: Record<string, { deck: number; card: number }> = {};
+
+	function respawnPreview(mode: PreviewLayout) {
 		clearPreview();
+		spreadCursors = {};
 		const preview = exportable;
-		// spawned per entity rather than through spawnPack: the preview must show
-		// the deck in AUTHORED order (spawnPack shuffles facedown decks), and an
-		// empty deck mid-authoring has no cards[0] for Deck.svelte to render
-		preview.decks
-			.filter((deck) => deck.cards.length > 0)
-			.forEach((deck, index) =>
-				spawnPackDeck(preview, deck, { ownerId: PREVIEW_OWNER, index, shuffle: false })
+
+		// carpeting the felt with tiles too small to read is worse than a pile,
+		// so past the cap the spread refuses and the CONTROL follows the table —
+		// which also means the toast fires once, not on every keystroke after
+		const refusal = mode === 'spread' ? spreadRefusal(preview.decks) : null;
+		if (refusal) {
+			previewLayout.set('deck');
+			toast(
+				refusal === 'too-many'
+					? `${spreadCardCount(preview.decks)} cards is more than a spread shows ` +
+							`(max ${SPREAD_MAX_CARDS}) — showing piles instead`
+					: `${preview.decks.length} decks would spread off the table — showing piles instead`
 			);
+			mode = 'deck';
+		}
+
+		if (mode === 'spread') {
+			// no empty-deck filter here: with no pile to render, an empty deck is
+			// simply an empty block
+			const layout = spreadLayout(preview.decks);
+			preview.decks.forEach((deck, index) => {
+				const ids = spawnPackDeckSpread(deck, {
+					ownerId: PREVIEW_OWNER,
+					tiles: layout[index]
+				});
+				ids.forEach((id, card) => (spreadCursors[id] = { deck: index, card }));
+			});
+		} else {
+			// spawned per entity rather than through spawnPack: the preview must show
+			// the deck in AUTHORED order (spawnPack shuffles facedown decks), and an
+			// empty deck mid-authoring has no cards[0] for Deck.svelte to render
+			preview.decks
+				.filter((deck) => deck.cards.length > 0)
+				.forEach((deck, index) =>
+					spawnPackDeck(preview, deck, { ownerId: PREVIEW_OWNER, index, shuffle: false })
+				);
+		}
+
 		preview.pieces?.forEach((_, index) =>
 			spawnPackPiece(preview, index, { ownerId: PREVIEW_OWNER })
 		);
@@ -272,9 +326,24 @@
 
 	$effect(() => {
 		JSON.stringify(pack); // subscribe to every field of the draft
-		const timer = setTimeout(respawnPreview, 300);
+		const mode = $previewLayout;
+		const timer = setTimeout(() => respawnPreview(mode), 300);
 		return () => clearTimeout(timer);
 	});
+
+	/**
+	 * Click a laid-out card to select it — with the cards on the table, that's
+	 * the obvious gesture, and it saves hunting the same card down in the Card
+	 * list. Ignores ids no spread put there (a card dragged off a pile).
+	 */
+	$effect(() =>
+		onCardPick((id) => {
+			const cursors = spreadCursors[id];
+			if (!cursors) return;
+			deckCursor = cursors.deck;
+			cardCursor = cursors.card;
+		})
+	);
 
 	// ——— drafts (localStorage packs:v1) ———
 	let selectedDraft = $state(listPackDrafts()[0]?.pack.id ?? '');
@@ -402,6 +471,12 @@
 	width={320}
 	localStoreId="create-pane-decks"
 >
+	<!-- first row, above the cursors: it decides what the whole table shows -->
+	<List
+		label="Layout"
+		bind:value={$previewLayout}
+		options={{ 'Deck — a pile per deck': 'deck', 'Spread — cards side by side (L)': 'spread' }}
+	/>
 	<List label="Deck" bind:value={deckCursor} options={deckOptions} />
 	<Button title="Add deck" on:click={addDeck} />
 	{#if deck}
@@ -432,7 +507,7 @@
 	{/if}
 
 	<Button title="Flip cards on table (F)" on:click={flipTableCards} />
-	<Textarea disabled rows={6} value={TABLE_HELP_TEXT} />
+	<Textarea disabled rows={8} value={TABLE_HELP_TEXT} />
 </Pane>
 
 <Pane
