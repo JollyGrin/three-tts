@@ -155,6 +155,14 @@ export type BulkAddOptions = CodePlanOptions & {
  * One `PackCardDef` per included cell, in row-major order, each pointing at
  * its own cell of the sheet. A 1×1 grid degrades to a plain URL ref, the same
  * shortcut the TTS importer takes.
+ *
+ * A named cell puts its name inside the `sheet:` payload as well as on the
+ * card. That field exists for exactly one purpose (docs/packs.md): when the
+ * sheet can't be fetched, `resolveCardImage` draws a named placeholder instead
+ * of a blank one — which is the whole point of a bulk-authored deck degrading
+ * gracefully. The cost is that renaming the card later leaves the ref's copy
+ * stale; it only ever affects that fallback art, never identity or ordering,
+ * and re-adding the cell refreshes it. The TTS importer makes the same trade.
  */
 export function buildBulkCards(options: BulkAddOptions): PackCardDef[] {
 	const size = grid(options.cols, options.rows);
@@ -172,7 +180,10 @@ export function buildBulkCards(options: BulkAddOptions): PackCardDef[] {
 			return {
 				code: codes.get(cell.index) ?? '',
 				...(name ? { name } : {}),
-				face: cellToRef({ url, cols: size.cols, rows: size.rows, index: cell.index })
+				face: cellToRef(
+					{ url, cols: size.cols, rows: size.rows, index: cell.index },
+					name ? { name } : {}
+				)
 			};
 		});
 }
