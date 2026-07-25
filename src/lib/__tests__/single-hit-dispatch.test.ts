@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { get } from 'svelte/store';
 import type { IntersectionEvent } from '@threlte/extras';
 import { dragActions, dragStore } from '../store/dragStore.svelte';
-import { claimPointerDown } from '../utils/single-hit-pointerdown';
+import { claimPointerDown } from '../utils/single-hit-dispatch';
 
 type FakeEvent = IntersectionEvent<PointerEvent>;
 

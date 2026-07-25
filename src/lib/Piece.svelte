@@ -7,7 +7,8 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
-	import { claimPointerDown } from '$lib/utils/single-hit-pointerdown';
+	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
+	import { createCounterInput, DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import {
 		PIECE_DEFAULT_RADIUS,
 		PIECE_DRAG_Y,
@@ -61,9 +62,6 @@
 		planar.current.z
 	]);
 
-	// px the pointer may travel between down and up and still count as a click
-	const DRAG_THRESHOLD_PX = 5;
-
 	let pendingDrag: { x: number; y: number } | null = null;
 	let dragMoved = false;
 
@@ -105,38 +103,16 @@
 		window.addEventListener('pointerup', cancelPendingDrag);
 	}
 
-	function handleClick(e: IntersectionEvent<MouseEvent>) {
-		if (kind !== 'counter') return;
-		if (dragMoved || e.delta > DRAG_THRESHOLD_PX) return; // was a drag, not a click
-		// click deals damage; shift (or alt) heals
-		const ne = e.nativeEvent;
-		gameActions.incrementCounter(id, ne.shiftKey || ne.altKey ? 1 : -1);
-	}
-
-	function handleContextMenu(e: IntersectionEvent<MouseEvent>) {
-		if (kind !== 'counter') return;
-		e.nativeEvent.preventDefault();
-		if (e.delta > DRAG_THRESHOLD_PX) return;
-		gameActions.incrementCounter(id, 1);
-	}
-
-	// ±1 per wheel notch; accumulate so trackpads don't spray increments
-	let wheelAccum = 0;
-	const WHEEL_NOTCH = 100;
-	function handleWheel(e: IntersectionEvent<WheelEvent>) {
-		if (kind !== 'counter') return;
-		e.stopImmediatePropagation(); // don't zoom the camera while adjusting
-		const ne = e.nativeEvent;
-		wheelAccum += ne.deltaMode === 1 ? ne.deltaY * (WHEEL_NOTCH / 3) : ne.deltaY;
-		while (wheelAccum >= WHEEL_NOTCH) {
-			wheelAccum -= WHEEL_NOTCH;
-			gameActions.incrementCounter(id, -1);
-		}
-		while (wheelAccum <= -WHEEL_NOTCH) {
-			wheelAccum += WHEEL_NOTCH;
-			gameActions.incrementCounter(id, 1);
-		}
-	}
+	// click / right-click / wheel on a counter. Lives in counter-input so the
+	// one-step-per-input guarantee is unit-tested against Threlte's dispatch
+	// loop — a counter group has 2-3 raycastable children and Threlte queues
+	// the group once per child the ray pierces (tableplace-84).
+	const counterInput = createCounterInput({
+		id: () => id,
+		isCounter: () => kind === 'counter',
+		wasDrag: () => dragMoved,
+		increment: gameActions.incrementCounter
+	});
 
 	const label = $derived.by(() => {
 		if (kind !== 'counter') return piece?.name ?? '';
@@ -161,9 +137,9 @@
 	<T.Group
 		{position}
 		onpointerdown={handlePointerDown}
-		onclick={handleClick}
-		oncontextmenu={handleContextMenu}
-		onwheel={handleWheel}
+		onclick={counterInput.onclick}
+		oncontextmenu={counterInput.oncontextmenu}
+		onwheel={counterInput.onwheel}
 		onpointerenter={() => (isHovered = true)}
 		onpointerleave={() => (isHovered = false)}
 	>

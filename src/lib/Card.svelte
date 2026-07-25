@@ -21,7 +21,7 @@
 	import { fanOffset } from '$lib/utils/transforms/stacking';
 	import { pickCard } from './store/cardPick';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
-	import { claimPointerDown } from '$lib/utils/single-hit-pointerdown';
+	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	type Vec3Array = [number, number, number];
 
 	let { id }: { id: string } = $props();
