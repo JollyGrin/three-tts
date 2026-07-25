@@ -4,6 +4,7 @@
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import { tableFeatures } from '$lib/store/tableFeatures';
 	import { resolveDrop } from '$lib/utils/transforms/drop';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import DropFootprint from './DropFootprint.svelte';
@@ -25,10 +26,13 @@
 	const dragId = $derived($dragStore.isDragging);
 
 	const drop = $derived(
-		resolveDrop($gameStore, dragId, $dragStore.intersectionPoint, {
-			deckId: $dragStore.isDeckHovered,
-			tray: $dragStore.isTrayHovered
-		})
+		resolveDrop(
+			$gameStore,
+			dragId,
+			$dragStore.intersectionPoint,
+			{ deckId: $dragStore.isDeckHovered, tray: $dragStore.isTrayHovered },
+			$tableFeatures
+		)
 	);
 
 	// the deck / tray highlights are the cue for those targets — a table

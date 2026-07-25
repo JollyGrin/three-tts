@@ -1,4 +1,5 @@
 import type { GameDTO } from '$lib/store/game/types';
+import { TABLE_FEATURES_DEFAULT, type TableFeatures } from '$lib/store/tableFeatures';
 import { CARD_WIDTH, CARD_HEIGHT, CARD_REST_Y } from '$lib/utils/constants-cards';
 import { PIECE_DEFAULT_RADIUS, PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { EDGE_MARGIN, TABLE_HALF_X, TABLE_HALF_Z, TABLE_TOP_Y } from '$lib/utils/constants-table';
@@ -62,13 +63,19 @@ export function clampToTable(x: number, z: number): [number, number] {
  * `rawPoint` is the unclamped table raycast hit; when it's missing (pointer
  * off the table plane) the entity's own position is used instead so a drag
  * keeps previewing.
+ *
+ * `features` is what the current route actually mounted (see
+ * `store/tableFeatures`): a target that isn't on screen can't win a drop, even
+ * if a stale hover flag from another route says the pointer is over it.
  */
 export function resolveDrop(
 	state: Partial<GameDTO> | undefined | null,
 	dragId: string | null | undefined,
 	rawPoint: { x: number; z: number } | null | undefined,
-	hover: DropHover = {}
+	hover: DropHover = {},
+	features: Partial<TableFeatures> = {}
 ): DropTarget | null {
+	const hasHand = features.hand ?? TABLE_FEATURES_DEFAULT.hand;
 	if (!dragId) return null;
 
 	const isPiece = dragId.startsWith('piece:');
@@ -94,8 +101,9 @@ export function resolveDrop(
 	const footprint = { shape: 'rect', w: CARD_WIDTH, h: CARD_HEIGHT } as const;
 
 	// the tray wins over a deck: dropping into your hand is the more explicit
-	// gesture, and the two hover states can briefly overlap
-	if (hover.tray) {
+	// gesture, and the two hover states can briefly overlap. No hand on this
+	// route (the pack editor) and the card just lands on the table instead.
+	if (hover.tray && hasHand) {
 		return {
 			kind: 'tray',
 			position: [x, CARD_REST_Y, z],

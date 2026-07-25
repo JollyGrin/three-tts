@@ -141,6 +141,24 @@ describe('resolveDrop', () => {
 		);
 	});
 
+	it('refuses a tray drop on a route with no hand, landing the card on the table', () => {
+		// the pack editor: the tray isn't mounted, and a hover flag can arrive
+		// stale from a previous /play visit
+		const s = state({ cards: { a: card(0, 2, 0) } });
+		const drop = resolveDrop(s, 'a', { x: 3, z: -1 }, { tray: true }, { hand: false });
+		expect(drop?.kind).toBe('table');
+		expect(drop?.position).toEqual([3, CARD_REST_Y, -1]);
+	});
+
+	it('still lets a deck win when there is no hand', () => {
+		const s = state({
+			cards: { a: card(0, 2, 0) },
+			decks: { 'deck:1': { position: [8, 0.4, 4], cards: [] } }
+		});
+		const hover = { tray: true, deckId: 'deck:1' };
+		expect(resolveDrop(s, 'a', { x: 0, z: 0 }, hover, { hand: false })?.kind).toBe('deck');
+	});
+
 	it('is unfazed by an empty state', () => {
 		expect(resolveDrop(undefined, 'a', { x: 0, z: 0 })).toBeNull();
 	});

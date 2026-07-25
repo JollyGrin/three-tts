@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { dragEnd, dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
+import { tableFeatures } from '$lib/store/tableFeatures';
 import { resolveDrop } from '$lib/utils/transforms/drop';
 
 /**
@@ -19,10 +20,13 @@ export function commitActiveDrag() {
 
 	// resolved by the same pure function the DropIndicator previews with, so
 	// what the player saw while dragging is what gets committed
-	const drop = resolveDrop(get(gameStore), id, intersectionPoint, {
-		deckId: isDeckHovered,
-		tray: isTrayHovered
-	});
+	const drop = resolveDrop(
+		get(gameStore),
+		id,
+		intersectionPoint,
+		{ deckId: isDeckHovered, tray: isTrayHovered },
+		get(tableFeatures)
+	);
 
 	if (drop?.kind === 'tray') {
 		gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);
