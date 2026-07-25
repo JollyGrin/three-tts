@@ -44,6 +44,22 @@ export interface DropHover {
 	tray?: boolean;
 }
 
+export interface DropOptions {
+	/**
+	 * Alt held at release: place the card exactly where the pointer is, with
+	 * no XZ square-up onto a nearby pile and no stack-height merge. The escape
+	 * hatch for laying cards out next to each other on purpose.
+	 */
+	noSnap?: boolean;
+	/**
+	 * Whether the route mounted a hand tray (see `store/tableFeatures`).
+	 * Defaults to true; `/create` passes false, and then a tray hover — which
+	 * can arrive stale from a previous `/play` visit, the flag being
+	 * module-global — can't win a drop the editor has no way to represent.
+	 */
+	hand?: TableFeatures['hand'];
+}
+
 /** Keep a drop a margin inside the felt edge. */
 export function clampToTable(x: number, z: number): [number, number] {
 	return [
@@ -64,18 +80,20 @@ export function clampToTable(x: number, z: number): [number, number] {
  * off the table plane) the entity's own position is used instead so a drag
  * keeps previewing.
  *
- * `features` is what the current route actually mounted (see
- * `store/tableFeatures`): a target that isn't on screen can't win a drop, even
- * if a stale hover flag from another route says the pointer is over it.
+ * `options` carries what the release itself asks for (`noSnap`, from Alt) and
+ * what the route actually mounted (`hand`): a target that isn't on screen
+ * can't win a drop, even if a stale hover flag says the pointer is over it.
+ * Both call sites — the indicator's preview and the commit — pass the same
+ * object, which is what keeps the preview honest.
  */
 export function resolveDrop(
 	state: Partial<GameDTO> | undefined | null,
 	dragId: string | null | undefined,
 	rawPoint: { x: number; z: number } | null | undefined,
 	hover: DropHover = {},
-	features: Partial<TableFeatures> = {}
+	options: DropOptions = {}
 ): DropTarget | null {
-	const hasHand = features.hand ?? TABLE_FEATURES_DEFAULT.hand;
+	const hasHand = options.hand ?? TABLE_FEATURES_DEFAULT.hand;
 	if (!dragId) return null;
 
 	const isPiece = dragId.startsWith('piece:');
@@ -121,6 +139,20 @@ export function resolveDrop(
 			targetId: hover.deckId,
 			position: [dx, CARD_REST_Y, dz],
 			rotation: (deck?.rotation ?? rotation) as [number, number, number],
+			footprint,
+			footprintY: CARD_REST_Y
+		};
+	}
+
+	// Alt beats the pile: commit at the pointer, resting on the felt rather
+	// than merging into whatever the card happens to overlap. Checked after
+	// the deck and tray, which are aimed-at targets rather than a side effect
+	// of proximity.
+	if (options.noSnap) {
+		return {
+			kind: 'table',
+			position: [x, CARD_REST_Y, z],
+			rotation,
 			footprint,
 			footprintY: CARD_REST_Y
 		};

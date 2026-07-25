@@ -162,4 +162,44 @@ describe('resolveDrop', () => {
 	it('is unfazed by an empty state', () => {
 		expect(resolveDrop(undefined, 'a', { x: 0, z: 0 })).toBeNull();
 	});
+
+	describe('noSnap (Alt held at release)', () => {
+		const overlapping = () =>
+			state({ cards: { a: card(0, 2, 0), resting: card(0.2, CARD_REST_Y, 0.2) } });
+
+		it('commits at the raw point instead of squaring up to the pile', () => {
+			const drop = resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: true });
+			expect(drop).toMatchObject({ kind: 'table', position: [0.5, CARD_REST_Y, 0.4] });
+		});
+
+		it('rests on the felt rather than on top of the card it overlaps', () => {
+			const snapped = resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 });
+			expect(snapped?.kind).toBe('stack');
+			expect(snapped?.position[1]).toBe(CARD_REST_Y + CARD_THICKNESS);
+			expect(
+				resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: true })?.position[1]
+			).toBe(CARD_REST_Y);
+		});
+
+		it('still clamps to the felt', () => {
+			const drop = resolveDrop(overlapping(), 'a', { x: 999, z: 0 }, {}, { noSnap: true });
+			expect(drop?.position[0]).toBe(TABLE_HALF_X - EDGE_MARGIN);
+		});
+
+		it('leaves the aimed-at targets alone: deck and tray still win', () => {
+			const s = state({ cards: { a: card(0, 2, 0) }, decks: { 'deck:1': { cards: [] } } });
+			expect(resolveDrop(s, 'a', { x: 0, z: 0 }, { tray: true }, { noSnap: true })?.kind).toBe(
+				'tray'
+			);
+			expect(
+				resolveDrop(s, 'a', { x: 0, z: 0 }, { deckId: 'deck:1' }, { noSnap: true })?.kind
+			).toBe('deck');
+		});
+
+		it('changes nothing when the modifier is not held', () => {
+			expect(resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: false })).toEqual(
+				resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 })
+			);
+		});
+	});
 });

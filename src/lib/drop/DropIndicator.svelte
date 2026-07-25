@@ -31,7 +31,9 @@
 			dragId,
 			$dragStore.intersectionPoint,
 			{ deckId: $dragStore.isDeckHovered, tray: $dragStore.isTrayHovered },
-			$tableFeatures
+			// live: pressing or releasing Alt mid-drag redraws the preview. Same
+			// options the commit resolves with, so the preview stays honest.
+			{ noSnap: $dragStore.noSnap, hand: $tableFeatures.hand }
 		)
 	);
 

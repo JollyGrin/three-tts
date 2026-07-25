@@ -6,6 +6,8 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import OverlayCustom from './table-overlay/OverlayCustom.svelte';
 	import { commitActiveDrag } from './drop/commit';
+	import { setNoSnap } from './store/dragStore.svelte';
+	import type { IntersectionEvent } from '@threlte/extras';
 	import { TABLE_TOP_Y } from './utils/constants-table';
 
 	let { mesh = $bindable() }: { mesh?: THREE.Mesh } = $props();
@@ -13,7 +15,13 @@
 	// The drop lives in drop/commit.ts — shared with the window-level release
 	// fallback, and resolved by the same pure function the DropIndicator
 	// previews with, so what the player saw while dragging is what lands.
-	const handleDragEnd = commitActiveDrag;
+	// Alt state is taken off the release itself, so a modifier let go in the
+	// same instant as the button can't leave the commit disagreeing with the
+	// preview.
+	function handleDragEnd(event: IntersectionEvent<PointerEvent>) {
+		setNoSnap(event.nativeEvent.altKey);
+		commitActiveDrag();
+	}
 
 	// Create procedural felt texture. Built synchronously: this component only
 	// mounts client-side (inside <Canvas>, behind isConnected), so the material

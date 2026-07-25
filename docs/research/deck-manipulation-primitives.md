@@ -42,10 +42,12 @@ UI surface; L = needs new interaction infra (selection, menus).
 | # | Primitive | TTS analog | Effort | Notes |
 |---|-----------|-----------|--------|-------|
 | A1 | **Group loose stack → deck** (hotkey `G` on hovered card) | `G` group | **S/M** | Everything needed exists: reuse the `resolveStackHeight` radius scan for membership, order by Y, `addDeck` at base-card XZ, delete loose card entities. Instantly gives piles draw-1 / count / return-to-top semantics for free. |
-| A2 | **Square-up on stack drop** — snap XZ to stack base | auto-align | **S** | Pure change in the drop commit; makes stacks read as intentional piles instead of drift. Optional small random jitter for feel. |
+| A2 | **Square-up on stack drop** — snap XZ to stack base | auto-align | **S** | Pure change in the drop commit; makes stacks read as intentional piles instead of drift. Optional small random jitter for feel. Holding `Alt` at release opts out (raw pointer XZ, rests on the felt), so cards can still be laid out deliberately next to each other. |
 | A3 | **Grab whole pile** (modifier-drag or long-press on a stack/deck) | RMB-drag / container drag | **M** | For decks: drag threshold on pointerdown — move = drag deck, click = draw (today drawing is the only possible outcome). |
 | A4 | **Split / take N** (drag off top with count, or cut at midpoint) | number+drag, Cut | **M** | Depends on A1 (needs real pile objects to split). |
 | A5 | **Re-settle stack Ys** when a mid-card is removed | gravity | **S** | Run the stack scan on pickup, not just drop. |
+| A6 | **Ungroup deck → loose stack** (hotkey `Shift+G` on a hovered deck) | unpack container | **S** | *Shipped.* The inverse of A1 and the only way back out of a `G` short of drawing one card at a time. `DeckDTO.cards` is already the full ordered list, so it's one patch: delete the deck, write the cards. `orderForDeck` is its own inverse, so the ordering convention survives the round trip. Own decks only (matches shuffle), and capped at `UNGROUP_MAX_CARDS` (40) so a 200-card deck can't carpet the felt. |
+| A7 | **Hover-fan a loose pile** (cascade members on hover) | — | **S** | *Shipped.* Membership comes from the same `collectStackGroup` scan `G` uses, so the fan is an honest preview of what `G` will swallow — and it's what tells a squared-up loose pile apart from a `DeckDTO` slab. Render-time only: a local hover never patches `GameDTO`. Anchored on the visual top card so fanning can't slide the pile out from under the cursor. |
 
 ### B. Deck verbs
 
