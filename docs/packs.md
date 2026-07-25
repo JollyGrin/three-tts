@@ -70,7 +70,7 @@ Field notes:
 
 - **`id`** — stable identity for the pack (`standard-52`, `imported:<slug>`…).
 - **`scope`** — `'table'` (the shared game: board, communal decks; loaded once per lobby by the host) or `'player'` (what one player brings, spawned per seat — a deck-builder export is a player pack). See SPEC.md §4d.
-- **`decks[].slot`** — stable id within the pack; **`cards[].code`** — stable id within the deck. Both survive re-exports, so external tools can reference cards as `<pack>/<slot>/<code>`.
+- **`decks[].slot`** — stable id within the pack; **`cards[].code`** — stable id within the deck, and **unique within it**: spawning builds table entity ids as `card:<owner>:<slot>-<code>`, so two cards sharing a code collapse into one entity. /create allocates every code through `allocateCode` (`src/routes/create/bulk-sheet.ts`) — a taken `AS` becomes `AS-2`, then `AS-3`. Both survive re-exports, so external tools can reference cards as `<pack>/<slot>/<code>`.
 - **`pieces`** (optional) — tokens, pawns, and counters: `{ kind: 'token'|'pawn'|'counter', name, color?, imageUrl?, radius?, maxValue?, position: [x, z] }`.
 - **`overlays`** (optional) — board/map images: `{ imageUrl, ratio, scale }` (`ratio` = width/height).
 - **`source`** (optional) — provenance stamp written by converters (currently only `"tts"`). Native packs omit it.
@@ -93,6 +93,8 @@ Card `face`/`back` (and piece/overlay `imageUrl`) are **refs** — tiny strings 
 | `back`  | boolean | no       | if true, fall back to the generated card back instead of a named placeholder |
 
 Resolution is asynchronous and failure is non-fatal — an unreachable sheet falls back to a placeholder rather than breaking the table. Mostly produced by the TTS importer; prefer plain URLs when authoring by hand.
+
+Two producers in this repo emit these, and both follow the table above: the TTS importer, and /create's "Bulk add from sheet" pane, which enumerates a whole `cols × rows` grid into one card per cell (`src/routes/create/bulk-sheet.ts`). Excluding a cell in that pane simply omits its card — `cols`/`rows` stay the sheet's real dimensions and the remaining `index` values keep their absolute positions, because an index is only meaningful against the grid it was cut from. A 1×1 grid is not written as a `sheet:` ref at all; it degrades to the plain-URL case below.
 
 **`https://…`** — a plain image URL, creator-hosted (imgur, GitHub raw, your own site), used verbatim. table.place hosts no assets, so it must be publicly reachable, CORS-readable and hotlinkable. Any ref matching neither prefix above is treated as a literal URL.
 

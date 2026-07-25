@@ -26,7 +26,7 @@ function slugify(name: string, fallback: string): string {
 }
 
 /** Whole-image cells become plain URLs; real sheet cells become `sheet:` refs. */
-function cellToRef(cell: SheetCell, opts: { name?: string; back?: boolean } = {}): string {
+export function cellToRef(cell: SheetCell, opts: { name?: string; back?: boolean } = {}): string {
 	if (cell.cols === 1 && cell.rows === 1) return cell.url;
 	return makeSheetRef({ ...cell, ...opts });
 }

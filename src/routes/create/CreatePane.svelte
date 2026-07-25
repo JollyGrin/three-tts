@@ -31,6 +31,9 @@
 		type EditorPack
 	} from './normalize';
 	import FaceRef from './FaceRef.svelte';
+	import BulkSheet from './BulkSheet.svelte';
+	import { allocateCode } from './bulk-sheet';
+	import type { PackCardDef } from '$lib/packs/types';
 	import toast from 'svelte-french-toast';
 
 	/** Everything the /create preview spawns is owned by this placeholder id */
@@ -124,13 +127,20 @@
 		deckCursor = Math.max(0, deckIndex - 1);
 	}
 
+	/**
+	 * Codes in play in the selected deck. `code` is the entity-id component
+	 * (`card:<owner>:<slot>-<code>`), so a repeat collapses two cards into one
+	 * table entity — every code minted below is allocated against this set.
+	 */
+	const takenCodes = $derived(deck?.cards.map((c) => c.code) ?? []);
+
 	function addCard() {
 		if (!deck) return toast.error('Add a deck first');
 		// the deck's back, not an empty ref: an empty face resolves to '' and
 		// renders nothing, so a brand new card would be invisible on the table
 		// until someone found the face controls
 		deck.cards.push({
-			code: `card-${deck.cards.length}`,
+			code: allocateCode(`card-${deck.cards.length}`, new Set(takenCodes)),
 			name: '',
 			face: deck.back || CARD_BACK_DEFAULT
 		});
@@ -139,8 +149,20 @@
 
 	function duplicateCard() {
 		if (!deck || !card) return;
-		deck.cards.splice(cardIndex + 1, 0, { ...card, code: `${card.code}-copy` });
+		// `AS` duplicated twice gives `AS-2` then `AS-3`, never two of either
+		deck.cards.splice(cardIndex + 1, 0, {
+			...card,
+			code: allocateCode(card.code, new Set(takenCodes))
+		});
 		cardCursor = cardIndex + 1;
+	}
+
+	/** Append a bulk-sheet batch to the selected deck (codes already allocated). */
+	function addBulkCards(cards: PackCardDef[]) {
+		if (!deck) return toast.error('Add a deck first');
+		deck.cards.push(...cards.map((c) => ({ ...c, name: c.name ?? '' })));
+		cardCursor = deck.cards.length - 1;
+		toast(`Added ${cards.length} card${cards.length === 1 ? '' : 's'} to ${deck.slot}`);
 	}
 
 	function removeCard() {
@@ -498,3 +520,10 @@
 		</Element>
 	</Folder>
 </Pane>
+
+<!--
+	A fifth pane rather than a folder under "Decks & Cards": the grid it shows
+	is wider than a card's controls, and burying it would push Save / Export
+	back under a section (#71 §4).
+-->
+<BulkSheet deckSlot={deck?.slot} takenCodes={[...takenCodes]} onadd={addBulkCards} />

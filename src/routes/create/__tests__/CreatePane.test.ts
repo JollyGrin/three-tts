@@ -33,6 +33,17 @@ const input = (container: HTMLElement, label: string) =>
 		.find((el) => el.textContent === label)
 		?.parentElement?.querySelector('input');
 
+/**
+ * The card picker's options, which are labelled `<index>: <code>` — the deck
+ * picker is labelled the same way and comes first, so this takes the second.
+ */
+const cardCodes = (container: HTMLElement) => {
+	const select = [...container.querySelectorAll('select')].filter((s) =>
+		[...s.options].some((o) => /^\d+: /.test(o.textContent ?? ''))
+	)[1];
+	return [...(select?.options ?? [])].map((o) => (o.textContent ?? '').replace(/^\d+: /, ''));
+};
+
 /** every face-scheme picker on screen, in DOM order (deck back, then card face) */
 const schemePickers = (container: HTMLElement) =>
 	[...container.querySelectorAll('select')].filter((s) =>
@@ -139,6 +150,62 @@ describe('CreatePane', () => {
 		expect(cards).toHaveLength(2);
 		// starter deck's back — a blank face resolves to '' and shows nothing
 		expect(cards[1].faceImageUrl).toBe(CARD_BACK_DEFAULT);
+	});
+
+	it('gives every card a distinct code — duplicating twice never repeats one', async () => {
+		const container = await mount();
+		// the starter deck holds `AS`; `code` is the entity-id component, so a
+		// repeat would collapse two cards into one table entity
+		button(container, 'Duplicate card')!.click();
+		await settle();
+		expect(cardCodes(container)).toEqual(['AS', 'AS-2']);
+
+		// duplicate the original again: the copy can't be `AS-2` a second time
+		button(container, 'Duplicate card')!.click();
+		await settle();
+		expect(cardCodes(container)).toEqual(['AS', 'AS-2', 'AS-3']);
+	});
+
+	it('does not reuse a `card-N` code after a card is removed', async () => {
+		const container = await mount();
+		button(container, 'Add card')!.click(); // card-1
+		await settle();
+		button(container, 'Add card')!.click(); // card-2
+		await settle();
+		button(container, 'Remove card')!.click();
+		await settle();
+		// `card-${cards.length}` is `card-2` again here, and it's still in use —
+		// the old code minted the collision, this one steps past it
+		button(container, 'Add card')!.click();
+		await settle();
+
+		const codes = cardCodes(container);
+		expect(codes).toHaveLength(3);
+		expect(new Set(codes).size).toBe(3);
+	});
+
+	it('bulk-adds a sheet grid into the selected deck', async () => {
+		const container = await mount();
+
+		// the bulk pane's own controls: URL, columns, rows, then Load grid
+		type(input(container, 'Sheet URL')!, 'https://example.test/sheet.png');
+		await settle();
+		type(input(container, 'Columns')!, '2');
+		await settle();
+		type(input(container, 'Rows')!, '2');
+		await settle();
+		button(container, 'Load grid')!.click();
+		await settle();
+
+		button(container, 'Add 4 cards to main')!.click();
+		await settlePreview();
+
+		const cards = get(gameStore).decks?.['deck:preview:main'].cards ?? [];
+		expect(cards).toHaveLength(5); // the starter Ace plus the grid
+		expect(
+			cards.slice(1).map((c) => JSON.parse(c.faceImageUrl!.slice('sheet:'.length)).index)
+		).toEqual([0, 1, 2, 3]);
+		expect(cardCodes(container)).toEqual(['AS', 'card-1', 'card-2', 'card-3', 'card-4']);
 	});
 
 	it('sets the selected card face inline, without a separate builder', async () => {
