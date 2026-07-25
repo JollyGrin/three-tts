@@ -53,6 +53,15 @@
 	const tablePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -TABLE_TOP_Y);
 	const planeHit = new THREE.Vector3();
 
+	/**
+	 * The main scene's one and only interactivity context (see #86). Every
+	 * interactive entity on the table — Card, Deck, Piece, Table — registers into
+	 * this one, so they share a Raycaster, a dispatch loop (which is what lets
+	 * stopPropagation pick the topmost hit across entity types) and the compute
+	 * below. Descendants must not call interactivity() themselves: setContext
+	 * would shadow this for their subtree. The only other call in the app is
+	 * HUDTrayScene's, which needs a second one for its own camera.
+	 */
 	interactivity({
 		compute: (event, state) => {
 			if (!mesh) return;

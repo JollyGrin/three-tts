@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import { dragStore } from '$lib/store/dragStore.svelte';
-	import { useViewport, interactivity } from '@threlte/extras';
+	import { useViewport } from '@threlte/extras';
 	import PreviewCard from './PreviewCard.svelte';
 
-	interactivity();
+	// No interactivity() — the preview pane is display-only. If it ever gains a
+	// pointer handler it needs its own call, not the parent's: this HUD has its
+	// own camera (see HUDTrayScene) and the table camera's ray would never hit it.
 	let {}: {} = $props();
 
 	const viewport = useViewport();

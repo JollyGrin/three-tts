@@ -2,10 +2,11 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import type { GameDTO } from '$lib/store/game/types';
 	import { T } from '@threlte/core';
-	import { ImageMaterial, interactivity } from '@threlte/extras';
+	import { ImageMaterial } from '@threlte/extras';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 
-	interactivity();
+	// The preview is display-only: nothing here registers a pointer handler, so
+	// it needs no interactivity context of its own.
 	let { id }: { id: string } = $props();
 	const card = $derived($gameStore?.cards?.[id] as NonNullable<GameDTO['cards'][string]>);
 	const isFlipped = $derived((card?.rotation ?? [0])[0] === 180);
