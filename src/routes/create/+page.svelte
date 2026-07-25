@@ -7,6 +7,8 @@
 	import { gameActions } from '$lib/store/game/actions';
 	import { disconnect } from '$lib/websocket/connection';
 	import CreatePane from './CreatePane.svelte';
+	import { togglePreviewLayout } from './preview-layout';
+	import toast from 'svelte-french-toast';
 
 	/**
 	 * Authoring is mostly typing — codes, names, image URLs — and the editor's
@@ -35,6 +37,10 @@
 		if (event.code === 'KeyR') gameActions.tapCard(true);
 		if (event.code === 'ArrowUp') gameActions.incrementHeight(0.01);
 		if (event.code === 'ArrowDown') gameActions.incrementHeight(-0.01);
+		// L for layout — editor-only, the pane's Layout list without reaching for
+		// the mouse. Toasted because the pane can be collapsed or dragged away.
+		if (event.code === 'KeyL')
+			toast(togglePreviewLayout() === 'spread' ? 'Spread: cards side by side' : 'Deck: piles');
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {

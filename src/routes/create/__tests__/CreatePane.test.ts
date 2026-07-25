@@ -9,6 +9,10 @@ import { get } from 'svelte/store';
 import CreatePane from '../CreatePane.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
+import { previewLayout } from '../preview-layout';
+import { pickCard } from '$lib/store/cardPick';
+import { SPREAD_MAX_CARDS, SPREAD_PITCH_X } from '$lib/packs/spread';
+import type { GamePackDef } from '$lib/packs/types';
 
 // the draggable Pane observes its own size; jsdom has no ResizeObserver
 globalThis.ResizeObserver ??= class {
@@ -27,11 +31,20 @@ const button = (container: HTMLElement, label: string) =>
 const labels = (container: HTMLElement) =>
 	[...container.querySelectorAll('.tp-lblv_l')].map((el) => el.textContent);
 
-/** the text input of the (single) row carrying this label */
-const input = (container: HTMLElement, label: string) =>
+/** the text inputs of every row carrying this label, in DOM order */
+const inputs = (container: HTMLElement, label: string) =>
 	[...container.querySelectorAll('.tp-lblv_l')]
-		.find((el) => el.textContent === label)
-		?.parentElement?.querySelector('input');
+		.filter((el) => el.textContent === label)
+		.map((el) => el.parentElement?.querySelector('input'));
+
+/** the text input of the (first) row carrying this label */
+const input = (container: HTMLElement, label: string) => inputs(container, label)[0];
+
+/** the (single) list offering this option — lists render as <select> */
+const listWith = (container: HTMLElement, option: string) =>
+	[...container.querySelectorAll('select')].find((s) =>
+		[...s.options].some((o) => o.textContent?.includes(option))
+	)!;
 
 /**
  * The card picker's options, which are labelled `<index>: <code>` — the deck
@@ -70,6 +83,7 @@ describe('CreatePane', () => {
 	beforeEach(() => {
 		gameStore.set({ players: {}, cards: {}, decks: {}, pieces: {}, overlays: {} });
 		localStorage.clear();
+		previewLayout.set('deck'); // module state: the last test's choice would leak
 	});
 
 	it('mounts with a starter pack and previews it on the table', async () => {
@@ -252,6 +266,137 @@ describe('CreatePane', () => {
 		await settle();
 
 		expect(get(gameStore).cards?.['card:preview:main-AS'].rotation).toEqual([0, 0, 0]);
+	});
+
+	describe('Spread layout', () => {
+		/** switch the preview to Spread through the real pane control */
+		async function spread(container: HTMLElement) {
+			choose(listWith(container, 'Spread'), 'Spread');
+			await settlePreview();
+		}
+
+		it('lays every card of every deck out face-up, with no piles left', async () => {
+			const container = await mount();
+			button(container, 'Add deck')!.click();
+			await settle();
+			button(container, 'Add card')!.click();
+			await settle();
+			await spread(container);
+
+			const state = get(gameStore);
+			expect(Object.keys(state.decks ?? {})).toEqual([]);
+			expect(Object.keys(state.cards ?? {}).sort()).toEqual([
+				'card:preview:deck-1-card-0',
+				'card:preview:main-AS'
+			]);
+			// face-up regardless of the decks' isFaceUp (both start facedown)
+			expect(Object.values(state.cards ?? {}).every((c) => c.rotation?.[0] === 0)).toBe(true);
+			// separate blocks: each deck starts its own grid at the same left column
+			const [a, b] = Object.keys(state.cards ?? {})
+				.sort()
+				.map((id) => state.cards![id].position!);
+			expect(a[0]).toBeCloseTo(b[0]);
+			expect(a[2]).not.toBeCloseTo(b[2]);
+		});
+
+		it('leaves the other tiles in place when a card is added or edited', async () => {
+			const container = await mount();
+			await spread(container);
+			const before = get(gameStore).cards!['card:preview:main-AS'].position;
+
+			button(container, 'Add card')!.click();
+			await settlePreview();
+
+			const cards = get(gameStore).cards!;
+			expect(Object.keys(cards)).toHaveLength(2);
+			expect(cards['card:preview:main-AS'].position).toEqual(before);
+			// the new card is appended one column across, not re-laid out
+			expect(cards['card:preview:main-card-1'].position![0] - before![0]).toBeCloseTo(
+				SPREAD_PITCH_X
+			);
+
+			// third Name row: pack, deck, then the selected card (DOM order) — the
+			// draft check below is what proves it was the card's
+			type(inputs(container, 'Name')[2]!, 'renamed');
+			await settlePreview();
+			expect(get(gameStore).cards!['card:preview:main-AS'].position).toEqual(before);
+			expect(cards['card:preview:main-card-1'].position).toEqual(
+				get(gameStore).cards!['card:preview:main-card-1'].position
+			);
+
+			button(container, 'Save draft')!.click();
+			await settle();
+			const saved = JSON.parse(localStorage.getItem('packs:v1') ?? '{}');
+			expect(saved['my-pack'].pack.decks[0].cards[1].name).toBe('renamed');
+		});
+
+		it('re-forms the piles when switched back to Deck', async () => {
+			const container = await mount();
+			await spread(container);
+			const spreadPositions = get(gameStore).cards!['card:preview:main-AS'].position;
+
+			choose(listWith(container, 'Spread'), 'Deck');
+			await settlePreview();
+			expect(Object.keys(get(gameStore).decks ?? {})).toEqual(['deck:preview:main']);
+			expect(Object.keys(get(gameStore).cards ?? {})).toEqual([]);
+
+			await spread(container);
+			expect(Object.keys(get(gameStore).decks ?? {})).toEqual([]);
+			expect(get(gameStore).cards!['card:preview:main-AS'].position).toEqual(spreadPositions);
+		});
+
+		it('falls back to Deck mode past the card cap', async () => {
+			const pack: GamePackDef = {
+				id: 'big',
+				name: 'Big',
+				scope: 'player',
+				decks: [
+					{
+						slot: 'main',
+						name: 'Main',
+						back: CARD_BACK_DEFAULT,
+						cards: Array.from({ length: SPREAD_MAX_CARDS + 1 }, (_, i) => ({
+							code: `c${i}`,
+							face: CARD_BACK_DEFAULT
+						}))
+					}
+				]
+			};
+			localStorage.setItem('packs:v1', JSON.stringify({ big: { updatedAt: 1, pack } }));
+
+			const container = await mount();
+			await spread(container);
+			button(container, 'Load selected')!.click();
+			await settlePreview();
+
+			// piles, not 61 tiles — and the control follows the table
+			expect(get(previewLayout)).toBe('deck');
+			expect(Object.keys(get(gameStore).cards ?? {})).toEqual([]);
+			expect(get(gameStore).decks?.['deck:preview:main'].cards).toHaveLength(SPREAD_MAX_CARDS + 1);
+		});
+
+		it('selects the clicked card in the pane', async () => {
+			const container = await mount();
+			await spread(container);
+			button(container, 'Add card')!.click(); // cursor follows the new card
+			await settlePreview();
+			expect(input(container, 'Code')!.value).toBe('card-1');
+
+			pickCard('card:preview:main-AS'); // what Card.svelte calls on a click
+			await settle();
+			expect(input(container, 'Code')!.value).toBe('AS');
+		});
+
+		it('ignores a click on a card no spread laid out', async () => {
+			const container = await mount();
+			await settlePreview(); // Deck mode: cards come off a pile by hand
+			button(container, 'Add card')!.click();
+			await settlePreview();
+
+			pickCard('card:preview:main-AS');
+			await settle();
+			expect(input(container, 'Code')!.value).toBe('card-1'); // cursor unmoved
+		});
 	});
 
 	it('previews only under the preview owner, leaving other entities alone', async () => {

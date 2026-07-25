@@ -3,8 +3,9 @@ import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { BUILTIN_PACKS, PACK_SOURCE_BUILTIN } from './builtin';
+import type { SpreadTile } from './spread';
 import type { GamePackDef, PackDeckDef } from './types';
-import type { PackOrigin } from '$lib/store/game/types';
+import type { CardDTO, PackOrigin } from '$lib/store/game/types';
 
 export type SpawnPackOptions = {
 	/** entity owner — defaults to the local player (the scenario editor passes `seat0`…`seat3`) */
@@ -112,6 +113,50 @@ export function spawnPackDeck(pack: GamePackDef, deck: PackDeckDef, opts: SpawnD
 			}
 		}
 	});
+}
+
+export type SpawnDeckSpreadOptions = SpawnPackOptions & {
+	/** where each card lands — `spreadLayout(pack.decks)[deckIndex]` */
+	tiles: SpreadTile[];
+};
+
+/**
+ * Spawn one of a pack's decks as loose, face-up cards on a grid instead of a
+ * pile — the /create preview's Spread mode.
+ *
+ * Same card ids as `spawnPackDeck`, so `clearPreview`'s `:preview:` sweep
+ * keeps working and a spread respawn replaces exactly what the last one put
+ * down. Face-up regardless of the deck's `isFaceUp`: the point of a spread is
+ * to see the faces, and `isFaceUp` stays the durable start-face for play.
+ * Positions come from the caller because the grid is a function of the WHOLE
+ * pack (decks stack into blocks), not of one deck. No `packOrigin` either:
+ * a loose CardDTO has nowhere to carry it, and a spread is inspection only.
+ *
+ * Returns the card ids it wrote, in tile order, so a caller can map a card on
+ * the table back to the tile (and the pack card) it came from.
+ */
+export function spawnPackDeckSpread(deck: PackDeckDef, opts: SpawnDeckSpreadOptions): string[] {
+	const ownerId = opts.ownerId ?? gameActions.getMyId();
+	if (!ownerId) {
+		console.error('Cannot spawn a spread without an owner id');
+		return [];
+	}
+
+	const ids: string[] = [];
+	const cards: Record<string, Partial<CardDTO>> = {};
+	for (const tile of opts.tiles) {
+		const id = `card:${ownerId}:${deck.slot}-${tile.card.code}`;
+		ids.push(id);
+		cards[id] = {
+			faceImageUrl: tile.card.face,
+			...(deck.back ? { backImageUrl: deck.back } : {}),
+			position: tile.position,
+			rotation: [0, 0, 0]
+		};
+	}
+	// one update per deck, matching spawnPackDeck: keeps each patch small
+	if (ids.length) gameStore.updateState({ cards });
+	return ids;
 }
 
 export type SpawnPieceOptions = SpawnPackOptions & {
