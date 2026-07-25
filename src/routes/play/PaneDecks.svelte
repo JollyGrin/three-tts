@@ -6,10 +6,15 @@
 	import { importTtsFile } from '$lib/tts/import';
 	import toast from 'svelte-french-toast';
 
-	const playerId = gameActions.getMyId();
-	const myDecks = $derived(
-		Object.keys($gameStore?.decks ?? {}).filter((key) => key.split(':').includes(playerId ?? ''))
-	);
+	// getMyId() reads localStorage, which a first-time visitor only gets during
+	// websocket init — re-read on store changes so decks claimed via an invite
+	// link show up without a refresh
+	const myDecks = $derived.by(() => {
+		const playerId = gameActions.getMyId();
+		return Object.keys($gameStore?.decks ?? {}).filter((key) =>
+			key.split(':').includes(playerId || '')
+		);
+	});
 
 	let fileInput: HTMLInputElement | undefined = $state();
 	let isImporting = $state(false);

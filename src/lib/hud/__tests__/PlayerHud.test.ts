@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/svelte';
+import { get } from 'svelte/store';
 import PlayerHud from '../PlayerHud.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import type { GameDTO } from '$lib/store/game/types';
@@ -74,9 +75,27 @@ describe('PlayerHud', () => {
 		expect(container.textContent).toContain('main 0');
 	});
 
+	it('claims an open seat when its row is clicked', async () => {
+		gameStore.updateState({
+			decks: {
+				'deck:seat2:main': {
+					id: 'deck:seat2:main',
+					cards: [{ id: 'card:seat2:main-1', faceImageUrl: 'face.png' }]
+				}
+			}
+		});
+		render(PlayerHud);
+		await fireEvent.click(screen.getByRole('button', { name: /seat 2 — open/i }));
+
+		const state = get(gameStore);
+		expect(state.players?.seat2).toBeUndefined();
+		expect(state.players?.me?.seat).toBe(2);
+		expect(Object.keys(state.decks ?? {})).toContain('deck:me:main');
+	});
+
 	it('collapses to a summary and persists the choice', async () => {
 		const { container, unmount } = render(PlayerHud);
-		await fireEvent.click(screen.getByRole('button'));
+		await fireEvent.click(screen.getByRole('button', { name: /players/i }));
 
 		expect(container.textContent).toContain('2 players · 1 open');
 		expect(container.textContent).not.toContain('Seat 2 — open');
