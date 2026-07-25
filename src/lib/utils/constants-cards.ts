@@ -105,3 +105,10 @@ export const CARD_STACK_RADIUS = 1.7;
  * when resolving where a dropped card should rest.
  */
 export const CARD_STACK_MAX_Y = 1.0;
+
+/**
+ * Per-card cascade of a hovered loose pile (render-only, see `fanOffset`).
+ * Roughly a fifth of the card's 2-unit length: enough of the top edge to read
+ * the title band, without throwing a big pile across the felt.
+ */
+export const CARD_FAN_STEP = 0.42;

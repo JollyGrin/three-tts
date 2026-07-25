@@ -4,16 +4,14 @@ import { gameStore } from '../gameStore.svelte';
 import { get } from 'svelte/store';
 import { dragStore } from '$lib/store/dragStore.svelte';
 import { collectStackGroup, orderForDeck } from '$lib/utils/transforms/stacking';
-import { deckHeightForCount } from '$lib/utils/constants-cards';
+import { CARD_REST_Y, CARD_THICKNESS, deckHeightForCount } from '$lib/utils/constants-cards';
 import { TABLE_TOP_Y } from '$lib/utils/constants-table';
 import type { GameDTO } from '../types';
 
 function getMyDecks() {
 	const myPlayerId = gameActions.getMe()?.id;
 	const decks = get(gameStore)?.decks ?? {};
-	return Object.entries(decks).filter(([key]) =>
-		key.startsWith(`deck:${myPlayerId}:`)
-	);
+	return Object.entries(decks).filter(([key]) => key.startsWith(`deck:${myPlayerId}:`));
 }
 
 type DeckProps = GameDTO['decks']['string'] & {
@@ -56,12 +54,8 @@ function buildDeck(props: DeckProps) {
 			id: deckId,
 			isFaceUp: props.isFaceUp ?? false,
 			deckBackImageUrl: props.deckBackImageUrl,
-			position:
-				props?.position ??
-				(positions[seat % positions.length] as [number, number, number]),
-			rotation:
-				props.rotation ??
-				(rotations[seat % rotations.length] as [number, number, number]),
+			position: props?.position ?? (positions[seat % positions.length] as [number, number, number]),
+			rotation: props.rotation ?? (rotations[seat % rotations.length] as [number, number, number]),
 			cards: props.cards
 		}
 	};
@@ -130,6 +124,87 @@ function groupStackIntoDeck(cardId?: string) {
 }
 
 /**
+ * Cards a single `Shift+G` will spread. A 200-card deck ungrouped would
+ * carpet the felt with cards nobody asked for and no cheap way back, so past
+ * this the ungroup refuses and says so (see `hotkeys/ungroup.ts`).
+ */
+export const UNGROUP_MAX_CARDS = 40;
+
+export type UngroupResult =
+	| { ok: true; deckId: string; cardIds: string[] }
+	| { ok: false; reason: 'no-deck' | 'not-mine' | 'empty' | 'too-many'; count?: number };
+
+/**
+ * Reuse the card's own id when nothing on the table holds it — a deck built
+ * by `G` still carries the ids its loose cards had, so a round trip lands the
+ * same entities — and fall back to a suffixed id when it's taken (the same
+ * pack slot spawned twice, or a copy already drawn out).
+ */
+function allocateCardId(preferred: string, fallback: string, taken: Set<string>) {
+	const base = preferred || fallback;
+	if (!taken.has(base)) return base;
+	let n = 2;
+	while (taken.has(`${base}-${n}`)) n++;
+	return `${base}-${n}`;
+}
+
+/**
+ * Spread a deck back into loose cards (hotkey `Shift+G` on a hovered deck) —
+ * the exact inverse of `groupStackIntoDeck`.
+ *
+ * The cards land at the deck's XZ, one `CARD_THICKNESS` apart in Y with the
+ * deck's top card on top, and the deck is deleted in the SAME patch as the
+ * cards are created, so remote clients never see both at once. Ownership
+ * matches shuffle: only your own decks.
+ */
+function ungroupDeck(deckId?: string): UngroupResult {
+	const id = deckId ?? get(dragStore).isDeckHovered;
+	if (!id) return { ok: false, reason: 'no-deck' };
+
+	const deck = get(gameStore)?.decks?.[id];
+	if (!deck) return { ok: false, reason: 'no-deck' };
+	if (!getMyDecks().some(([key]) => key === id)) return { ok: false, reason: 'not-mine' };
+
+	const deckCards = deck.cards ?? [];
+	if (deckCards.length === 0) return { ok: false, reason: 'empty' };
+	if (deckCards.length > UNGROUP_MAX_CARDS)
+		return { ok: false, reason: 'too-many', count: deckCards.length };
+
+	const isFaceUp = deck.isFaceUp ?? false;
+	// orderForDeck is its own inverse: fed the deck's array it hands back the
+	// bottom→top order the loose stack had before `G` swallowed it
+	const bottomToTop = orderForDeck(deckCards, isFaceUp);
+
+	const [x = 0, , z = 0] = deck.position ?? [];
+	// deck rotation is radians of yaw on the group; card rotation is degrees
+	// with z as the yaw Card.svelte applies as -z. Rounded so repeated
+	// group/ungroup round trips can't drift the tap angle.
+	const yaw = Math.round((-(deck.rotation?.[1] ?? 0) / DEG2RAD) * 1e6) / 1e6;
+
+	const taken = new Set(Object.keys(get(gameStore)?.cards ?? {}));
+	const cards: Record<string, GameDTO['cards'][string]> = {};
+	const cardIds: string[] = [];
+
+	bottomToTop.forEach((card, index) => {
+		const cardId = allocateCardId(card.id, `${id}:card-${index}`, taken);
+		taken.add(cardId);
+		cardIds.push(cardId);
+		cards[cardId] = {
+			faceImageUrl: card.faceImageUrl ?? '',
+			...(card.backImageUrl || deck.deckBackImageUrl
+				? { backImageUrl: card.backImageUrl ?? (deck.deckBackImageUrl as string) }
+				: {}),
+			position: [x, CARD_REST_Y + index * CARD_THICKNESS, z],
+			// a face-up deck spreads to face-up cards; 180 on x is facedown
+			rotation: [isFaceUp ? 0 : 180, 0, yaw]
+		};
+	});
+
+	gameStore.updateState({ decks: { [id]: null }, cards });
+	return { ok: true, deckId: id, cardIds };
+}
+
+/**
  * Draws from the top of the deck
  * Follows LIFO (Last In First Out)
  * When facedown (like a deck of cards), the top card = cards.length - 1
@@ -139,8 +214,7 @@ function groupStackIntoDeck(cardId?: string) {
  * */
 function drawFromTop(id: string) {
 	const { cards, isFaceUp } = get(gameStore)?.decks?.[id] ?? {};
-	if (!cards || cards.length === 0)
-		return console.error('Cannot draw from an empty deck');
+	if (!cards || cards.length === 0) return console.error('Cannot draw from an empty deck');
 
 	const card = isFaceUp ? cards.shift() : cards.pop();
 	gameStore.updateState({
@@ -193,8 +267,7 @@ export function shuffleDeck(deckId: string) {
 	const cards = deck?.cards;
 	if (!cards || cards.length === 0) return console.error('No cards to shuffle');
 	const shuffledCards = shuffleCards(cards);
-	if (!shuffledCards || shuffledCards.length === 0)
-		return console.log('Error shuffling');
+	if (!shuffledCards || shuffledCards.length === 0) return console.log('Error shuffling');
 	return gameStore.updateState({
 		decks: { [deckId]: { cards: shuffledCards } }
 	});
@@ -203,6 +276,7 @@ export function shuffleDeck(deckId: string) {
 export const deckActions = {
 	addDeck,
 	groupStackIntoDeck,
+	ungroupDeck,
 	drawFromTop,
 	getDeckLength,
 	getMyDecks,

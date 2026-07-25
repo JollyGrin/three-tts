@@ -14,15 +14,26 @@ import { resolveDrop } from '$lib/utils/transforms/drop';
  * cleared `isDragging` by the time it fires and it no-ops.
  */
 export function commitActiveDrag() {
-	const { isDragging: id, intersectionPoint, isDeckHovered, isTrayHovered } = get(dragStore);
+	const {
+		isDragging: id,
+		intersectionPoint,
+		isDeckHovered,
+		isTrayHovered,
+		noSnap
+	} = get(dragStore);
 	if (!id) return;
 
 	// resolved by the same pure function the DropIndicator previews with, so
-	// what the player saw while dragging is what gets committed
-	const drop = resolveDrop(get(gameStore), id, intersectionPoint, {
-		deckId: isDeckHovered,
-		tray: isTrayHovered
-	});
+	// what the player saw while dragging is what gets committed — including
+	// whether Alt was down (noSnap), which the release writes into the store
+	// from the pointer event before calling in
+	const drop = resolveDrop(
+		get(gameStore),
+		id,
+		intersectionPoint,
+		{ deckId: isDeckHovered, tray: isTrayHovered },
+		{ noSnap }
+	);
 
 	if (drop?.kind === 'tray') {
 		gameActions.moveCardToTray(id, gameActions?.getMe()?.id as string);

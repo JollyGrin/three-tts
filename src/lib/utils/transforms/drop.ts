@@ -43,6 +43,15 @@ export interface DropHover {
 	tray?: boolean;
 }
 
+export interface DropOptions {
+	/**
+	 * Alt held at release: place the card exactly where the pointer is, with
+	 * no XZ square-up onto a nearby pile and no stack-height merge. The escape
+	 * hatch for laying cards out next to each other on purpose.
+	 */
+	noSnap?: boolean;
+}
+
 /** Keep a drop a margin inside the felt edge. */
 export function clampToTable(x: number, z: number): [number, number] {
 	return [
@@ -67,7 +76,8 @@ export function resolveDrop(
 	state: Partial<GameDTO> | undefined | null,
 	dragId: string | null | undefined,
 	rawPoint: { x: number; z: number } | null | undefined,
-	hover: DropHover = {}
+	hover: DropHover = {},
+	options: DropOptions = {}
 ): DropTarget | null {
 	if (!dragId) return null;
 
@@ -113,6 +123,20 @@ export function resolveDrop(
 			targetId: hover.deckId,
 			position: [dx, CARD_REST_Y, dz],
 			rotation: (deck?.rotation ?? rotation) as [number, number, number],
+			footprint,
+			footprintY: CARD_REST_Y
+		};
+	}
+
+	// Alt beats the pile: commit at the pointer, resting on the felt rather
+	// than merging into whatever the card happens to overlap. Checked after
+	// the deck and tray, which are aimed-at targets rather than a side effect
+	// of proximity.
+	if (options.noSnap) {
+		return {
+			kind: 'table',
+			position: [x, CARD_REST_Y, z],
+			rotation,
 			footprint,
 			footprintY: CARD_REST_Y
 		};

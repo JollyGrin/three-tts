@@ -3,7 +3,8 @@ import {
 	CARD_REST_Y,
 	CARD_THICKNESS,
 	CARD_STACK_RADIUS,
-	CARD_STACK_MAX_Y
+	CARD_STACK_MAX_Y,
+	CARD_FAN_STEP
 } from '$lib/utils/constants-cards';
 
 export interface StackResolution {
@@ -128,7 +129,36 @@ export function collectStackGroup(
  * facedown deck's top card is the LAST element, a face-up pile's is the
  * FIRST. Either way the card that was on top of the loose stack must be the
  * card the deck draws first.
+ *
+ * A reverse is its own inverse, so this maps both ways: feed it a deck's
+ * `cards` and it hands back the bottom→top order to spread them out in
+ * (`ungroupDeck`). Generic on the element so the ungroup can re-order the
+ * `CardInDeck` objects, not just their ids.
  */
-export function orderForDeck(ids: string[], isFaceUp: boolean): string[] {
-	return isFaceUp ? [...ids].reverse() : [...ids];
+export function orderForDeck<T>(items: T[], isFaceUp: boolean): T[] {
+	return isFaceUp ? [...items].reverse() : [...items];
+}
+
+/**
+ * Screen-down offset for the `index`-th member (bottom → top) of a pile of
+ * `count` cards being fanned on hover.
+ *
+ * The cascade is anchored on the visual TOP card: it keeps its resting spot
+ * and everything under it slides up-screen, so each member's top edge — and
+ * with it the title band — peeks out above the card covering it, solitaire
+ * tableau style. Anchoring on the top card (rather than on the hovered one)
+ * also keeps the card under the pointer still, so fanning can't slide the
+ * pile out from under the cursor and thrash the hover.
+ *
+ * `seatYaw` is the local player's seat rotation in radians (`degrees[seat]`):
+ * "down-screen" is +Z for seat 0 and rotates with the seat.
+ */
+export function fanOffset(
+	index: number,
+	count: number,
+	seatYaw: number,
+	step = CARD_FAN_STEP
+): [number, number] {
+	const distance = (index - (count - 1)) * step; // ≤ 0 — the top card holds still
+	return [Math.sin(seatYaw) * distance, Math.cos(seatYaw) * distance];
 }

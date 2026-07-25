@@ -1,11 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { collectStackGroup, orderForDeck, resolveStack, resolveStackHeight } from '../stacking';
+import {
+	collectStackGroup,
+	fanOffset,
+	orderForDeck,
+	resolveStack,
+	resolveStackHeight
+} from '../stacking';
 import {
 	CARD_REST_Y,
 	CARD_THICKNESS,
 	CARD_STACK_RADIUS,
-	CARD_STACK_MAX_Y
+	CARD_STACK_MAX_Y,
+	CARD_FAN_STEP
 } from '$lib/utils/constants-cards';
+import { degrees } from '$lib/utils/constants-rotation';
 
 const card = (x: number, y: number, z: number) => ({
 	position: [x, y, z] as [number, number, number]
@@ -154,5 +162,37 @@ describe('orderForDeck', () => {
 		const ids = ['a', 'b'];
 		orderForDeck(ids, true);
 		expect(ids).toEqual(['a', 'b']);
+	});
+
+	it('is its own inverse, so a deck spreads back into the order it came from', () => {
+		const bottomToTop = ['bottom', 'middle', 'top'];
+		for (const isFaceUp of [true, false])
+			expect(orderForDeck(orderForDeck(bottomToTop, isFaceUp), isFaceUp)).toEqual(bottomToTop);
+	});
+});
+
+// trig leaves float dust (and the odd -0) on the axis-aligned cases
+const round = ([x, z]: [number, number]): [number, number] => [
+	Math.round(x * 1e6) / 1e6 + 0,
+	Math.round(z * 1e6) / 1e6 + 0
+];
+
+describe('fanOffset', () => {
+	it('leaves the visual top card where it rests', () => {
+		expect(round(fanOffset(2, 3, degrees[0]))).toEqual([0, 0]);
+	});
+
+	it('cascades everything under it up-screen, one step per card', () => {
+		expect(round(fanOffset(1, 3, degrees[0]))).toEqual([0, -CARD_FAN_STEP]);
+		expect(round(fanOffset(0, 3, degrees[0]))).toEqual([0, -2 * CARD_FAN_STEP]);
+	});
+
+	it('follows the seat: down-screen is -Z from the far side of the table', () => {
+		expect(round(fanOffset(0, 2, degrees[1]))).toEqual([0, CARD_FAN_STEP]);
+		expect(round(fanOffset(0, 2, degrees[2]))).toEqual([-CARD_FAN_STEP, 0]);
+	});
+
+	it('is a no-op for a lone card', () => {
+		expect(round(fanOffset(0, 1, degrees[0]))).toEqual([0, 0]);
 	});
 });

@@ -12,7 +12,7 @@
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import RemoteCameraAvatar from './RemoteCameraAvatar.svelte';
-	import { dragStore } from '$lib/store/dragStore.svelte';
+	import { dragStore, setNoSnap } from '$lib/store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { remoteCameraActions, remoteCameraStore } from './store/remoteCameraStore.svelte';
@@ -80,18 +80,33 @@
 	//   state. Bubble phase, so an on-table release has already committed and
 	//   this no-ops.
 	// - Esc: return the card to where it was picked up.
+	// - Alt: the no-snap modifier. Tracked from the events rather than a
+	//   keydown latch so the preview follows a press/release mid-drag, and
+	//   read off the pointer event at release so the commit agrees with what
+	//   the indicator was drawing. Blur clears it — alt-tabbing away never
+	//   delivers the keyup.
 	onMount(() => {
-		const onPointerUp = () => commitActiveDrag();
+		const onPointerUp = (event: PointerEvent) => {
+			setNoSnap(event.altKey);
+			commitActiveDrag();
+		};
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') cancelActiveDrag();
+			setNoSnap(event.altKey);
 		};
+		const onKeyUp = (event: KeyboardEvent) => setNoSnap(event.altKey);
+		const onBlur = () => setNoSnap(false);
 		window.addEventListener('pointerup', onPointerUp);
 		window.addEventListener('pointercancel', onPointerUp);
 		window.addEventListener('keydown', onKeyDown);
+		window.addEventListener('keyup', onKeyUp);
+		window.addEventListener('blur', onBlur);
 		return () => {
 			window.removeEventListener('pointerup', onPointerUp);
 			window.removeEventListener('pointercancel', onPointerUp);
 			window.removeEventListener('keydown', onKeyDown);
+			window.removeEventListener('keyup', onKeyUp);
+			window.removeEventListener('blur', onBlur);
 		};
 	});
 

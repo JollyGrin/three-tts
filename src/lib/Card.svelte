@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
 	import * as THREE from 'three';
-	import { dragStart, dragStore } from './store/dragStore.svelte';
+	import { clearHover, dragStart, dragStore, setHover } from './store/dragStore.svelte';
 	import { Spring } from 'svelte/motion';
 	import { ImageMaterial } from '@threlte/extras';
 	import type { IntersectionEvent } from '@threlte/extras';
@@ -18,6 +18,7 @@
 		CARD_DRAG_Y,
 		cardBodyGeometry
 	} from '$lib/utils/constants-cards';
+	import { fanOffset } from '$lib/utils/transforms/stacking';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	type Vec3Array = [number, number, number];
 
@@ -91,10 +92,29 @@
 		{ stiffness: 0.15, damping: 0.8, precision: 0.0001 }
 	);
 
+	// Hover fan: while the pointer is on any member of a multi-card loose pile,
+	// every member cascades up-screen from the top card so its title band
+	// shows — the membership preview for `G`, and what tells a loose pile
+	// apart from a deck. Purely a render offset: the store keeps the squared-up
+	// rest positions, so nothing here touches shared state.
+	const fanIndex = $derived($dragStore.hoveredStack?.indexOf(id) ?? -1);
+	const fanShift = $derived(
+		fanIndex < 0
+			? ([0, 0] as [number, number])
+			: fanOffset(
+					fanIndex,
+					$dragStore.hoveredStack?.length ?? 0,
+					// ?? 0: a yaw of undefined would land the card at NaN and fling it
+					// off the table — a fan is never worth that
+					degrees[gameActions.getMySeat()] ?? 0
+				)
+	);
+
 	$effect(() => {
 		const [x = 0, , z = 0] = cardState?.position ?? [];
+		const [fanX, fanZ] = fanShift;
 		if (isDragging) planar.set({ x, z }, { instant: true });
-		else planar.target = { x, z };
+		else planar.target = { x: x + fanX, z: z + fanZ };
 	});
 
 	// Create derived values for each component
@@ -163,12 +183,14 @@
 	function handlePointerEnter() {
 		if (!!$dragStore.isDragging) return;
 		isHovered = true;
-		$dragStore.isHovered = id;
+		// via the store action, not a direct write: it also collects the loose
+		// stack this card belongs to, which is what fans
+		setHover(id);
 	}
 
 	function handlePointerLeave() {
 		isHovered = false;
-		$dragStore.isHovered = null;
+		clearHover(id);
 	}
 </script>
 
