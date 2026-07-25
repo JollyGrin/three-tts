@@ -8,7 +8,6 @@
 		Text,
 		AutoValue,
 		Folder,
-		Element,
 		FpsGraph,
 		Textarea
 	} from 'svelte-tweakpane-ui';
@@ -77,6 +76,11 @@
 			? Object.fromEntries(scenarioNames.map((n) => [n, n]))
 			: { '(none — build one at /setup)': '' }
 	);
+	// An empty table's most useful control is the one that fills it, so Scenarios
+	// opens itself until there are decks and then gets out of the way. `expanded`
+	// is a plain reactive prop on Folder, so this needs no manual toggling.
+	const isTableEmpty = $derived(Object.keys($gameStore?.decks ?? {}).length === 0);
+
 	// unclaimed placeholder seats present in the synced state
 	const openSeats = $derived(
 		Object.keys($gameStore?.players ?? {})
@@ -131,7 +135,6 @@
 	x={0}
 	localStoreId="table-settings"
 >
-	<FpsGraph />
 	<Folder title="Connection" expanded={false}>
 		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
 		<Text label="Server:" bind:value={$connectionStore.serverUrl} />
@@ -150,7 +153,7 @@
 			value={`Share copies an invite link — whoever opens it is seated at the first open seat and gets its decks.`}
 		/>
 	</Folder>
-	<Folder title="Scenarios" expanded={false}>
+	<Folder title="Scenarios" expanded={isTableEmpty}>
 		<List label="Preset" bind:value={selectedScenario} options={scenarioOptions} />
 		<Button title="Seed lobby with preset" on:click={seedLobby} />
 		<Button
@@ -175,7 +178,7 @@
 		<AutoValue label="Scale" bind:value={scale} />
 		<Wheel label="Rotation" bind:value={rot} format={(v) => `${(Math.abs(v) % 360).toFixed(0)}°`} />
 	</Folder>
-	<Folder title="Keybinds">
+	<Folder title="Keybinds" expanded={false}>
 		<Button
 			on:click={() => gameActions?.setSeat()}
 			label="Seat: {$gameStore?.players?.[gameActions?.getMe()?.id ?? 0]?.seat}"
@@ -191,6 +194,10 @@
 		<Text label="Drop without snapping" value="hold Alt" disabled />
 		<Text label="Cancel drag" value="Esc" disabled />
 		<Text label="Nudge card higher" value="Arrow Up" disabled />
-		<Text label="Nudge card lower" value="Arrow Up" disabled />
+		<Text label="Nudge card lower" value="Arrow Down" disabled />
+	</Folder>
+	<!-- instrumentation, not settings: out of the player's way until asked for -->
+	<Folder title="Debug" expanded={false}>
+		<FpsGraph />
 	</Folder>
 </Pane>

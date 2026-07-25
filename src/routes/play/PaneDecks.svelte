@@ -54,12 +54,10 @@
 	width={300}
 	localStoreId="table-decks-v2"
 >
+	<!-- the "spawn a deck to get started" hint lives on the page, not here: a
+	     tweakpane <Element> mounts its DOM in the pane's *container*, so the
+	     title bar drew straight through it (#113) -->
 	{#if myDecks.length === 0}
-		<Element>
-			<div class="flex w-full justify-center font-sans text-xs text-white uppercase opacity-30">
-				<span class="animate-pulse"> Spawn a deck to get started </span>
-			</div>
-		</Element>
 		<Button title="Spawn {STANDARD_52.name}" on:click={() => spawnPack(STANDARD_52)} />
 	{/if}
 	<!-- bringing your own content onto a LIVE table: spawning goes through the
