@@ -180,12 +180,17 @@ export async function joinLobby(lobbyId: string): Promise<boolean> {
  * @returns True if sent successfully
  */
 export function sendMessage(message: WebSocketMessage): boolean {
+	// A warning, not an error: patches made before the socket opens are dropped
+	// BY DESIGN (there is no send queue) and initWebsocket re-publishes the row
+	// that matters once it is up. Logging it as an error meant a healthy first
+	// load always had a red console, which is exactly the noise that let #102's
+	// real error hide in plain sight.
 	if (!socket) {
-		console.error('Cannot send message: no websocket server instance');
+		console.warn('Dropped a message: the websocket is not open yet');
 		return false;
 	}
 	if (!isConnected) {
-		console.error('Cannot send message: not connected to websocket server');
+		console.warn('Dropped a message: not connected to the websocket server');
 		return false;
 	}
 

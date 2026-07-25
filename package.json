@@ -18,7 +18,8 @@
 		"lint": "prettier --check . && eslint .",
 		"test": "bun vitest run",
 		"test:watch": "bun vitest",
-		"test:coverage": "bun vitest run --coverage"
+		"test:coverage": "bun vitest run --coverage",
+		"test:e2e": "bun e2e/run.ts"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
@@ -43,6 +44,7 @@
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.3",
 		"prettier-plugin-tailwindcss": "^0.6.11",
+		"puppeteer-core": "^25.3.0",
 		"svelte": "^5.56.7",
 		"svelte-check": "^4.7.3",
 		"tailwindcss": "^4.0.0",

@@ -152,7 +152,11 @@
 	}
 </script>
 
+<!-- the store id, mirrored onto the object3D: what makes an entity findable in
+     the scene graph — by devtools, and by the headless harness, which has to
+     know where a thing actually draws in order to click it -->
 <T.Group
+	name={id}
 	position={[planar.current.x, lift.current, planar.current.z]}
 	rotation={[rotation[0], rotation[1] + wiggle.current, rotation[2]]}
 	onpointerdown={handlePointerDown}

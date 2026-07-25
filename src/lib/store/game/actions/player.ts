@@ -35,14 +35,22 @@ function addPlayer(_id?: string) {
 function getPlayer(playerId: string) {
 	return get(gameStore).players?.[playerId];
 }
+/**
+ * Both of these return undefined on a first-ever visit, which is an ordinary
+ * state and not a fault: every caller between page load and `addPlayer()` —
+ * TableCamera, HUDPieces, initWebsocket itself — asks before there is an id and
+ * handles the miss. They used to log an error each time, which put ~8 red lines
+ * in a healthy console and made "the console is clean" untestable (#102). The
+ * callers that genuinely cannot proceed without an id still say so themselves.
+ */
 function getMe() {
 	const cacheId = handleLocalStorage.get();
-	if (!cacheId) return console.error('No player id found in localstorage');
+	if (!cacheId) return undefined;
 	return get(gameStore)?.players?.[cacheId];
 }
 function getMyId() {
 	const cacheId = handleLocalStorage.get();
-	if (!cacheId) return console.error('No player id found in localstorage');
+	if (!cacheId) return undefined;
 	return cacheId;
 }
 
