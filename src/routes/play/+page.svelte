@@ -8,10 +8,12 @@
 	import { initWebsocket } from '$lib/websocket';
 	import { get } from 'svelte/store';
 	import { gameActions } from '$lib/store/game/actions';
+	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 	import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
 	import { cycleHoveredPieceState } from '$lib/hotkeys/piece-state';
+	import { isTyping } from '$lib/hotkeys/is-typing';
 	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import { startAutoClaim } from '$lib/scenario/autoClaim';
 	import Pane from './Pane.svelte';
@@ -25,6 +27,9 @@
 	import toast from 'svelte-french-toast';
 
 	function handleKeyDown(event: KeyboardEvent) {
+		// a key typed into a pane field is text, not a table command — and this
+		// table is synced, so a stray G would group a pile for everyone
+		if (isTyping(event.target)) return;
 		// hover-target routing: a hovered deck takes the key, otherwise it
 		// falls through to the hovered-card behavior
 		const hoveredDeck = get(dragStore).isDeckHovered;
@@ -53,11 +58,17 @@
 	}
 
 	function handleKeyUp(event: KeyboardEvent) {
+		if (isTyping(event.target)) return;
 		if (event.code === 'Space') cameraTransforms.togglePreviewHud(false);
 	}
 
 	initWrappers();
 	let isConnected = $state(false);
+
+	// nothing on the felt yet — point at the Decks pane rather than leaving a
+	// player staring at bare green. Deliberately not gated on `isConnected`: the
+	// hint's job is to be there on the very first paint.
+	const isTableEmpty = $derived(Object.keys($gameStore?.decks ?? {}).length === 0);
 
 	// ?seat=N invite links: keep trying to claim that seat's placeholder until
 	// it succeeds; a give-up is announced, never silent (see autoClaim.ts)
@@ -123,3 +134,13 @@
 		{/if}
 	</Canvas>
 </div>
+
+<!-- centred so it clears every pane (Settings left, Decks top, Players right) at
+     1280x720 and up, and never eats a click meant for the table -->
+{#if isTableEmpty}
+	<div class="pointer-events-none fixed inset-0 flex items-center justify-center">
+		<span class="animate-pulse font-sans text-sm tracking-widest text-white uppercase opacity-40">
+			Spawn a deck to get started
+		</span>
+	</div>
+{/if}

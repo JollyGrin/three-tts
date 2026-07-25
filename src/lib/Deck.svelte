@@ -20,6 +20,7 @@
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	import { DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import DropFootprint from './drop/DropFootprint.svelte';
+	import { selectedDeckId, DECK_SELECT_COLOR } from '$lib/store/deckSelection';
 
 	// No interactivity() here on purpose. It calls setContext, so a per-deck call
 	// would shadow TableScene's context — the handlers below would raycast with
@@ -60,6 +61,9 @@
 	});
 
 	const isHovered = $derived(id === $dragStore.isDeckHovered);
+	// the scenario editor's "you are positioning THIS one" outline — set only by
+	// /setup's pane, so it never draws in /play (see store/deckSelection)
+	const isSelected = $derived(id === $selectedDeckId);
 	// dropping here replaces the table landing entirely, so the deck has to be
 	// the cue — the drop indicator suppresses its table footprint while hovered.
 	// Cards only: a dragged deck or piece just settles on the felt (see
@@ -190,6 +194,24 @@
 				<ImageMaterial url={preloadUrl} side={2} radius={0.1} opacity={0} />
 			</T.Mesh>
 		{/key}
+	{/if}
+
+	<!-- Editing outline: a hair wider than the drop footprint and drawn above
+	     it, so a deck that is both selected and a drop target still reads as
+	     both. depthTest={false} for the same reason the drop cue disables it —
+	     at a low camera angle the deck's own body would swallow it. -->
+	{#if isSelected}
+		<T.Group rotation.x={-Math.PI / 2} position.y={height / 2 + 0.05}>
+			<DropFootprint
+				shape="rect"
+				w={CARD_WIDTH + 0.5}
+				h={CARD_HEIGHT + 0.5}
+				color={DECK_SELECT_COLOR}
+				fill={0.08}
+				border={0.07}
+				depthTest={false}
+			/>
+		</T.Group>
 	{/if}
 
 	{#if isDropTarget}
