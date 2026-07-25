@@ -8,23 +8,8 @@
 	import { disconnect } from '$lib/websocket/connection';
 	import CreatePane from './CreatePane.svelte';
 	import { togglePreviewLayout } from './preview-layout';
+	import { isTyping } from '$lib/hotkeys/is-typing';
 	import toast from 'svelte-french-toast';
-
-	/**
-	 * Authoring is mostly typing — codes, names, image URLs — and the editor's
-	 * gestures are bare letters. A key that lands in a pane field is text, not
-	 * a table command.
-	 */
-	function isTyping(target: EventTarget | null) {
-		const element = target as HTMLElement | null;
-		if (!element) return false;
-		return (
-			element.tagName === 'INPUT' ||
-			element.tagName === 'TEXTAREA' ||
-			element.tagName === 'SELECT' ||
-			element.isContentEditable
-		);
-	}
 
 	// same gestures as /setup, so a card pulled out of a preview pile can be
 	// inspected (flip) and arranged without leaving the editor
