@@ -14,7 +14,7 @@ import CreatePane from '../CreatePane.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 import { previewLayout } from '../preview-layout';
-import { pickCard } from '$lib/store/cardPick';
+import { pickCard, pickedCard } from '$lib/store/cardPick';
 import { SPREAD_MAX_CARDS, SPREAD_PITCH_X } from '$lib/packs/spread';
 import { serializePackFile } from '$lib/packs/file';
 import type { GamePackDef } from '$lib/packs/types';
@@ -45,6 +45,30 @@ const inputs = (container: HTMLElement, label: string) =>
 /** the text input of the (first) row carrying this label */
 const input = (container: HTMLElement, label: string) => inputs(container, label)[0];
 
+/** the list in the row carrying this label (a `List` renders as <select>) */
+const listFor = (container: HTMLElement, label: string) =>
+	[...container.querySelectorAll('.tp-lblv_l')]
+		.filter((el) => el.textContent === label)
+		.map((el) => el.parentElement?.querySelector('select'))[0];
+
+/** every option text of a list, in order */
+const optionTexts = (select: HTMLSelectElement) =>
+	[...select.options].map((o) => o.textContent ?? '');
+
+/**
+ * What a list is actually SHOWING. A tweakpane list whose value matches none
+ * of its options leaves the <select> on selectedIndex -1 and renders blank —
+ * `null` here is that bug.
+ */
+const shownOption = (select: HTMLSelectElement) =>
+	select.selectedIndex < 0 ? null : (select.options[select.selectedIndex].textContent ?? '');
+
+/** the breadcrumb row above the tabs, as its two lines */
+const crumb = (container: HTMLElement) =>
+	[...(container.querySelector('header')?.children ?? [])].map((el) =>
+		(el.textContent ?? '').replace(/\s+/g, ' ').trim()
+	);
+
 /** the (single) list offering this option — lists render as <select> */
 const listWith = (container: HTMLElement, option: string) =>
 	[...container.querySelectorAll('select')].find((s) =>
@@ -62,6 +86,17 @@ const cardList = (container: HTMLElement) =>
 
 const cardCodes = (container: HTMLElement) =>
 	[...(cardList(container)?.options ?? [])].map((o) => (o.textContent ?? '').replace(/^\d+: /, ''));
+
+/**
+ * Every ref thumbnail on screen (#111), in DOM order — for a pack of pure
+ * cards that is [deck back, card face], the same order as the scheme pickers.
+ */
+const thumbs = (container: HTMLElement) => [
+	...container.querySelectorAll<HTMLElement>('[data-testid="ref-thumb"]')
+];
+
+/** what a thumbnail tile actually resolved the ref to, or null while it hasn't */
+const thumbSrc = (tile: HTMLElement) => tile.querySelector('img')?.getAttribute('src') ?? null;
 
 /** every face-scheme picker on screen, in DOM order (deck back, then card face) */
 const schemePickers = (container: HTMLElement) =>
@@ -426,6 +461,240 @@ describe('CreatePane', () => {
 		await settle();
 
 		expect(get(gameStore).cards?.['card:preview:main-card-0'].rotation).toEqual([0, 0, 0]);
+	});
+
+	describe('what is selected', () => {
+		/** two decks of very different sizes — the shape that broke the Card list */
+		const UNEVEN: GamePackDef = {
+			id: 'uneven',
+			name: 'Uneven',
+			scope: 'player',
+			decks: [
+				{
+					slot: 'main',
+					name: 'Draw Pile',
+					back: CARD_BACK_DEFAULT,
+					cards: Array.from({ length: 12 }, (_, i) => ({
+						code: `card-${i}`,
+						face: CARD_BACK_DEFAULT
+					}))
+				},
+				{
+					slot: 'side',
+					name: 'Sideboard',
+					back: CARD_BACK_DEFAULT,
+					cards: [
+						{ code: 'lb', name: 'Lightning Bolt', face: CARD_BACK_DEFAULT },
+						{ code: 'gg', face: CARD_BACK_DEFAULT }
+					]
+				}
+			]
+		};
+
+		async function openUneven() {
+			localStorage.setItem('packs:v1', JSON.stringify({ uneven: { updatedAt: 1, pack: UNEVEN } }));
+			const container = await mount();
+			button(container, 'Open selected')!.click();
+			await settle();
+			return container;
+		}
+
+		it('names the pack, the deck and the card, on every tab', async () => {
+			const container = await openUneven();
+			expect(crumb(container)).toEqual(['Uneven › main (Draw Pile)', 'card 1 of 12 — card-0']);
+
+			choose(listFor(container, 'Card')!, '3: ');
+			await settle();
+			expect(crumb(container)).toEqual(['Uneven › main (Draw Pile)', 'card 4 of 12 — card-3']);
+
+			// the row sits above the TabGroup, so it is on screen from the File tab
+			// too — where there is no dropdown to read the selection off at all
+			choose(listFor(container, 'Deck')!, '1: side');
+			await settle();
+			expect(crumb(container)).toEqual([
+				'Uneven › side (Sideboard)',
+				'card 1 of 2 — Lightning Bolt'
+			]);
+
+			// above the TabGroup, not inside a page of it: the selection is readable
+			// from the File tab too, where no dropdown names it at all
+			const tabbed = (el: Element | null | undefined) => !!el?.closest('.tp-tabv');
+			expect(tabbed(input(container, 'Id'))).toBe(true); // a control that IS in a tab
+			expect(tabbed(container.querySelector('header'))).toBe(false);
+		});
+
+		it('says so when there is nothing under the pack to name', async () => {
+			const container = await startNew();
+			expect(crumb(container)).toEqual(['My Pack › main (Draw Pile)', 'no cards']);
+		});
+
+		it('starts at the first card of the deck you switch to, never a stale index', async () => {
+			const container = await openUneven();
+			choose(listFor(container, 'Card')!, '11: ');
+			await settle();
+			expect(input(container, 'Code')!.value).toBe('card-11');
+
+			// 11 is not a card of a two-card deck: the list used to keep showing it
+			// while the fields below silently edited card 2
+			choose(listFor(container, 'Deck')!, '1: side');
+			await settle();
+			expect(shownOption(listFor(container, 'Card')!)).toBe('0: lb — Lightning Bolt');
+			expect(input(container, 'Code')!.value).toBe('lb');
+		});
+
+		it('never leaves the Card list blank when the new deck has no cards at all', async () => {
+			const container = await openUneven();
+			choose(listFor(container, 'Card')!, '7: ');
+			await settle();
+
+			// the reported repro: cursor 7, then a deck whose only option is value 0
+			button(container, 'Add deck')!.click();
+			await settle();
+			expect(shownOption(listFor(container, 'Card')!)).toBe('(no cards)');
+		});
+
+		it('labels the card options with the name, not just the code', async () => {
+			const container = await openUneven();
+			choose(listFor(container, 'Deck')!, '1: side');
+			await settle();
+			// a 52-entry list of bare codes is not scannable; an unnamed card keeps
+			// its bare code rather than trailing an empty dash
+			expect(optionTexts(listFor(container, 'Card')!)).toEqual(['0: lb — Lightning Bolt', '1: gg']);
+		});
+
+		it('holds the card fields over an empty deck, so nothing below them moves', async () => {
+			const container = await startNew();
+			const folders = (c: HTMLElement) =>
+				[...c.querySelectorAll('.tp-fldv_t')].map((el) => el.textContent);
+
+			// the block that used to unmount, greyed out and refusing writes
+			expect(labels(container)).toContain('Code');
+			expect(folders(container)).toContain('Card face');
+			expect(input(container, 'Code')!.disabled).toBe(true);
+
+			// every labelled row and every folder, in order: what "nothing moves
+			// vertically" actually means
+			const before = [labels(container), folders(container)];
+			button(container, 'Add card')!.click();
+			await settle();
+			expect([labels(container), folders(container)]).toEqual(before);
+			expect(input(container, 'Code')!.disabled).toBe(false);
+			expect(input(container, 'Code')!.value).toBe('card-0');
+
+			button(container, 'Remove card')!.click();
+			await settle();
+			expect([labels(container), folders(container)]).toEqual(before);
+		});
+
+		/**
+		 * #109 and #111 land on the same block of controls: the breadcrumb and the
+		 * table mark say WHICH card, the thumbnail says what that card looks like.
+		 * Neither ticket's own tests cover the two moving together, and the failure
+		 * mode is silent — a thumbnail left on the previous card is a picture of a
+		 * card you are not editing.
+		 *
+		 * URL faces on purpose: they resolve to themselves, so this asserts the
+		 * wiring without depending on a canvas (`gen:`) or the slicer (`sheet:`).
+		 */
+		const FACED: GamePackDef = {
+			id: 'faced',
+			name: 'Faced',
+			scope: 'player',
+			decks: [
+				{
+					slot: 'main',
+					name: 'Draw Pile',
+					back: 'https://example.test/back.png',
+					cards: [
+						{ code: 'lb', name: 'Lightning Bolt', face: 'https://example.test/bolt.png' },
+						{ code: 'gg', name: 'Giant Growth', face: 'https://example.test/growth.png' }
+					]
+				}
+			]
+		};
+
+		it('moves the breadcrumb, the table mark and the thumbnail together (#111)', async () => {
+			localStorage.setItem('packs:v1', JSON.stringify({ faced: { updatedAt: 1, pack: FACED } }));
+			const container = await mount();
+			button(container, 'Open selected')!.click();
+			await settlePreview(); // past the thumbnail's own resolve debounce too
+
+			// the deck back keeps its own thumbnail; the card's is the second
+			expect(thumbs(container)).toHaveLength(2);
+			expect(thumbSrc(thumbs(container)[0])).toBe('https://example.test/back.png');
+
+			expect(crumb(container)).toEqual([
+				'Faced › main (Draw Pile)',
+				'card 1 of 2 — Lightning Bolt'
+			]);
+			expect(get(pickedCard)).toBe('card:preview:main-lb');
+			expect(thumbSrc(thumbs(container)[1])).toBe('https://example.test/bolt.png');
+
+			// one selection change, all three follow it
+			choose(listFor(container, 'Card')!, '1: ');
+			await settlePreview();
+			expect(crumb(container)).toEqual(['Faced › main (Draw Pile)', 'card 2 of 2 — Giant Growth']);
+			expect(get(pickedCard)).toBe('card:preview:main-gg');
+			expect(thumbSrc(thumbs(container)[1])).toBe('https://example.test/growth.png');
+
+			// and so does a click on the table, the other direction
+			choose(listWith(container, 'Spread'), 'Spread');
+			await settlePreview();
+			pickCard('card:preview:main-lb');
+			await settlePreview();
+			expect(crumb(container)).toEqual([
+				'Faced › main (Draw Pile)',
+				'card 1 of 2 — Lightning Bolt'
+			]);
+			expect(thumbSrc(thumbs(container)[1])).toBe('https://example.test/bolt.png');
+		});
+
+		it('dims the held-open thumbnail over a deck with no cards (#111)', async () => {
+			localStorage.setItem('packs:v1', JSON.stringify({ faced: { updatedAt: 1, pack: FACED } }));
+			const container = await mount();
+			button(container, 'Open selected')!.click();
+			await settlePreview();
+
+			button(container, 'Add deck')!.click();
+			await settlePreview();
+
+			// the block holds its rows, so the tile is still there and still shows
+			// what the next card would get — but it is not art on the table, and at
+			// full brightness beside four greyed rows it would read as one
+			const tile = thumbs(container)[1];
+			expect(tile).toBeTruthy();
+			expect(tile.closest('.opacity-40')).toBeTruthy();
+			expect(get(pickedCard)).toBeNull();
+		});
+
+		it('marks the selected card on the table, and follows a click back', async () => {
+			const container = await startWithCard();
+			// the id the preview spawns that card under — `Card.svelte` reads this
+			// store to lift and outline itself
+			expect(get(pickedCard)).toBe('card:preview:main-card-0');
+
+			button(container, 'Add card')!.click();
+			await settle();
+			expect(get(pickedCard)).toBe('card:preview:main-card-1');
+
+			choose(listWith(container, 'Spread'), 'Spread');
+			await settlePreview();
+			// it names a card the spread actually laid out, which is what makes the
+			// mark land on a tile rather than on nothing
+			expect(Object.keys(get(gameStore).cards ?? {})).toContain(get(pickedCard));
+
+			pickCard('card:preview:main-card-0'); // what Card.svelte calls on a click
+			await settle();
+			expect(get(pickedCard)).toBe('card:preview:main-card-0');
+			expect(input(container, 'Code')!.value).toBe('card-0');
+
+			// nothing selected is nothing marked
+			button(container, 'Remove card')!.click();
+			await settle();
+			button(container, 'Remove card')!.click();
+			await settle();
+			expect(get(pickedCard)).toBeNull();
+		});
 	});
 
 	describe('Spread layout', () => {
