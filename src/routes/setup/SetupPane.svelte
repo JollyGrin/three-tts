@@ -6,7 +6,6 @@
 		Folder,
 		List,
 		Text,
-		Textarea,
 		Point,
 		Wheel,
 		AutoValue,
@@ -39,6 +38,7 @@
 	import { snapEditor, setSnapDefaults, setSnapPlacing } from '$lib/store/snapEditor';
 	import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
 	import HUDPieces from '$lib/HUDPieces.svelte';
+	import PaneProse from '$lib/tweakpane/PaneProse.svelte';
 	import FileDropZone from '$lib/files/FileDropZone.svelte';
 	import { openDroppedFile } from '$lib/files/drop';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
@@ -581,11 +581,55 @@
 	{#if armed === 'clear'}
 		<Button title="Leave it alone" on:click={disarm} />
 	{/if}
-	<Textarea
-		disabled
-		rows={6}
-		value={`Everything here is local — no lobby is touched. Open a pack (or drop a .tbpp.json on the table) and it joins your pack library, ready to spawn for any seat without picking the file again. Place the map, arrange, then Save. Pack decks save as a pack reference plus their card order, so a stacked deck reloads exactly; tick "shuffle on load" for a draw pile. Snap points: arm "place on click" and click the felt, drag a ring to move it, right-click it to delete. They ride along in the scenario and pull dropped cards/tokens onto themselves in /play (hold Alt on release to ignore them); the rings only show here. Your library lives in this browser only — share a pack by exporting its .tbpp.json. Seed a lobby from /play → Settings → Scenarios. Note: cards in YOUR hand tray are not saved; keep starting cards on the table.`}
-	/>
+
+	<!--
+		Prose, not a disabled `Textarea` (#115): six rows of dense explanation in a
+		scroll box reads as a broken field, can't wrap to the pane and can't be
+		selected. One always-mounted blade inside a folder that is closed by
+		default — the pane is already the tallest thing on the route, and this is
+		reference you read once. See the swap hazard in `BulkSheet.svelte:135-140`:
+		adding a folder is fine, replacing a blade is not.
+	-->
+	<Folder title="How this works" expanded={false}>
+		<PaneProse>
+			<!--
+				Bounded and scrolled inside itself (`max-h-64`, as `BulkSheet` bounds
+				its grid): this folder is the last thing in the tallest pane on the
+				route and a draggable tweakpane doesn't scroll, so an unbounded block
+				would put its own tail under the bottom of the viewport — the exact
+				failure #115 is about. Prose that scrolls is still prose; it wraps to
+				the pane and can be selected.
+			-->
+			<div
+				class="flex max-h-64 flex-col gap-2 overflow-y-auto p-1 font-sans text-[11px] leading-snug text-white/50"
+			>
+				<p>
+					Everything here is local — no lobby is touched. Open a pack (or drop a
+					<code class="font-mono text-white/65">.tbpp.json</code> on the table) and it joins your pack
+					library, ready to spawn for any seat without picking the file again. Place the map, arrange,
+					then Save.
+				</p>
+				<p>
+					Pack decks save as a pack reference plus their card order, so a stacked deck reloads
+					exactly; tick <em class="text-white/65 not-italic">shuffle on load</em> for a draw pile.
+				</p>
+				<p>
+					<span class="text-white/65">Snap points:</span> arm
+					<em class="text-white/65 not-italic">place on click</em> and click the felt, drag a ring to
+					move it, right-click it to delete. They ride along in the scenario and pull dropped cards/tokens
+					onto themselves in /play (hold Alt on release to ignore them); the rings only show here.
+				</p>
+				<p>
+					Your library lives in this browser only — share a pack by exporting its
+					<code class="font-mono text-white/65">.tbpp.json</code>. Seed a lobby from /play →
+					Settings → Scenarios.
+				</p>
+				<p class="text-white/65">
+					Note: cards in your hand tray are not saved — keep starting cards on the table.
+				</p>
+			</div>
+		</PaneProse>
+	</Folder>
 </Pane>
 
 <FileDropZone onfile={handleDroppedFile} />

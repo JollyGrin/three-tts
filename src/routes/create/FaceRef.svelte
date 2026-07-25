@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { AutoValue, Folder, List, Text } from 'svelte-tweakpane-ui';
+	import { AutoValue, Folder, List, Monitor, Text } from 'svelte-tweakpane-ui';
 	import { buildFaceRef, parseFaceRef, FACE_SCHEME_OPTIONS, type FaceDraft } from './face-ref';
 	import RefThumb from './RefThumb.svelte';
 
@@ -73,9 +73,16 @@
 		<AutoValue label="Rows" bind:value={sheetRows} {disabled} />
 		<AutoValue label="Cell index" bind:value={sheetIndex} {disabled} />
 	{/if}
-	<!-- the ref row stays: it is the string you copy, and the thumbnail is not
-	     something you can paste into another card -->
-	<Text label="Ref" value={built} disabled />
+	<!--
+		The ref row stays: it is the string you copy, and the thumbnail is not
+		something you can paste into another card. A `Monitor` rather than a
+		permanently-disabled `Text` (#115) — it is derived from the fields above
+		and can never be typed into, and a greyed-out input reads as "you are not
+		allowed to edit this" rather than "this is the output". It still takes
+		`disabled`, so it dims with the rest of the block when there is nothing to
+		edit (#109) instead of looking the same either way.
+	-->
+	<Monitor label="Ref" value={built} {disabled} />
 	<!-- dimmed with the rest of the block when there is nothing to edit: the ref
 	     it is previewing is then the seed for the NEXT card, not art on the table -->
 	<RefThumb value={built} label={title.toLowerCase()} dimmed={disabled} />
