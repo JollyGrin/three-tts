@@ -214,7 +214,11 @@
 	}
 </script>
 
+<!-- the store id, mirrored onto the object3D: what makes an entity findable in
+     the scene graph — by devtools, and by the headless harness, which has to
+     know where a thing actually draws in order to click it -->
 <T.Group
+	name={id}
 	{position}
 	rotation.z={rotation.current * DEG2RAD}
 	rotation.y={rotationTap.current * -DEG2RAD}

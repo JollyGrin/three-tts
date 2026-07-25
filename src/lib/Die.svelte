@@ -92,9 +92,18 @@
 		const seq = rollSeq;
 		const result = value;
 
+		// `settled` is a local on purpose. Writing `to = from.clone()` would make
+		// this effect READ a `$state` it also writes, and since every call hands
+		// it a fresh Quaternion the source never settles equal — the effect
+		// reschedules itself forever and Svelte tears the whole runtime down with
+		// `effect_update_depth_exceeded`. That is not a die-shaped failure: it
+		// kills every effect on the page, so nothing else mounts and nothing else
+		// answers the pointer (tableplace-102). Read nothing here that is written
+		// here.
 		const settle = () => {
-			from = dieSettleQuaternion(shape, result);
-			to = from.clone();
+			const settled = dieSettleQuaternion(shape, result);
+			from = settled;
+			to = settled.clone();
 			progress.set(1, { instant: true });
 		};
 

@@ -53,6 +53,7 @@ bun run preview
 bun run test             # bun vitest run — 29 tests, ~1s
 bun run test:watch
 bun run test:coverage
+bun run test:e2e         # headless render harness (see below); [filter] narrows by spec name
 bun run check            # svelte-kit sync && svelte-check
 bun run lint             # prettier --check . && eslint .
 bun run format           # prettier --write .
@@ -90,6 +91,30 @@ go build -o tts-server .
   radii, rotations) rather than inline literals.
 - Commits: lowercase conventional prefixes (`feat:`, `fix:`, `chore:`, `docs:`,
   `revert:`) with a short subject, often followed by an em-dash rationale.
+
+## Headless render harness (`e2e/`)
+
+`bun run test:e2e` drives a real (software-rendered) Chrome through
+`puppeteer-core` against its own `vite dev` and its own Go relay. It exists
+because **jsdom never executes three.js geometry, a raycast or a WebGL draw** —
+tableplace-102 shipped to production past 700 green unit tests, `svelte-check`
+with 0 errors and a clean build, because no test in the repo could see it.
+
+- `e2e/specs.ts` is the whole suite. Every spec has the same spine: put a new
+  primitive on the table, then assert that *everything else* still renders,
+  still gets raycast, and still moves under a real mouse. That is the assertion
+  a new primitive needs, because the scene shares one `interactivity()` context
+  (#86) and one Svelte effect graph — a single bad entity takes both down.
+- Any console `error`, `pageerror` or failed request fails a spec. Keep the app's
+  console clean; `IGNORED` in `e2e/table.ts` is for environment noise only.
+- The page is driven through `window.__tableplace` (`src/lib/dev/`), which exists
+  only under `import.meta.env.DEV`. Spawn through it — the tweakpane `List`
+  controls cannot be driven synthetically.
+- Anything a spec clicks must draw clear of the HUD panes; `dragBy` fails with
+  that diagnosis rather than looking like a frozen table.
+- Needs Chrome (`CHROME_PATH` overrides discovery) and Go for the relay. Reuses
+  a relay already on `:8080`; takes a random high port for the web server so it
+  can never disturb a dev server you are using.
 
 ## Primitive parity rule
 

@@ -13,6 +13,7 @@
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import RemoteCameraAvatar from './RemoteCameraAvatar.svelte';
+	import TestBridge from './dev/TestBridge.svelte';
 	import { dragStore, setNoSnap, setTrayHover } from '$lib/store/dragStore.svelte';
 	import { setTableFeatures, TABLE_FEATURES_DEFAULT } from '$lib/store/tableFeatures';
 	import { gameStore } from './store/game/gameStore.svelte';
@@ -187,6 +188,11 @@
 <Hdr />
 <DropIndicator />
 <Table bind:mesh />
+
+<!-- the headless harness's window handle; a literal `false` in a static build -->
+{#if import.meta.env.DEV}
+	<TestBridge />
+{/if}
 
 {#each Object.entries($gameStore?.decks ?? {}) as [id] (id)}
 	<Deck {id} />

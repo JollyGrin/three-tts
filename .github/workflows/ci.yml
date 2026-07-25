@@ -40,3 +40,35 @@ jobs:
 
       - name: Build
         run: bun run build
+
+  # The headless render harness. Separate job because it needs Go (for the
+  # relay) and a real browser, and because it is the only thing here that
+  # executes three.js: jsdom never runs a raycast or a WebGL draw, which is how
+  # #102 shipped past 700 green unit tests, a clean svelte-check and a clean
+  # build. Anything that only breaks in a real browser breaks here.
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: server/go.sum
+
+      - name: Install dependencies
+        run: bun install
+
+      # Chrome ships on the GitHub-hosted ubuntu images; puppeteer-core
+      # downloads nothing. The harness starts its own vite dev server on a
+      # random high port and its own Go relay, and never talks to the public
+      # api.table.place.
+      - name: Headless render harness
+        run: bun run test:e2e
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
