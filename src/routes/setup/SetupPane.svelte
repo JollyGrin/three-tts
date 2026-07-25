@@ -34,6 +34,7 @@
 		importScenarioFromText,
 		type SeatIndex
 	} from '$lib/scenario/scenario';
+	import { setSelectedDeck } from '$lib/store/deckSelection';
 	import { snapPointIds } from '$lib/store/game/actions/snap';
 	import { snapEditor, setSnapDefaults, setSnapPlacing } from '$lib/store/snapEditor';
 	import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
@@ -41,6 +42,7 @@
 	import FileDropZone from '$lib/files/FileDropZone.svelte';
 	import { openDroppedFile } from '$lib/files/drop';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
+	import { tick } from 'svelte';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import type { GameDTO } from '$lib/store/game/types';
 	import toast from 'svelte-french-toast';
@@ -150,11 +152,62 @@
 		toast(`Seat ${activeSeat}: spawned ${STANDARD_52.name}`);
 	}
 
+	// ── second-click guard for the two irreversible buttons ───────────────────
+	// `Clear table` sits directly under `Delete selected`, and neither could be
+	// undone (#114). A browser `confirm()` is out — it steals focus from a
+	// draggable pane — and so is swapping the button for a confirm pair: an
+	// `{#if}` that REPLACES a blade tears the whole pane down (see the note in
+	// create/BulkSheet.svelte). So the button arms itself instead: the first
+	// click renames it to the question and ADDS a Cancel beside it (adding
+	// blades is safe), and only the second click goes through.
+
+	/** an armed button someone walked away from goes back to being safe */
+	const CONFIRM_TIMEOUT_MS = 5000;
+
+	let armed: 'clear' | 'delete' | null = $state(null);
+	let armedTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function arm(which: 'clear' | 'delete') {
+		clearTimeout(armedTimer);
+		armed = which;
+		armedTimer = setTimeout(() => (armed = null), CONFIRM_TIMEOUT_MS);
+	}
+
+	function disarm() {
+		clearTimeout(armedTimer);
+		armed = null;
+	}
+
+	$effect(() => disarm);
+
+	/**
+	 * Nothing to lose: an empty table clears without asking. Overlays are judged
+	 * by their `imageUrl` rather than their presence — the pane's own effect
+	 * keeps an `overlays.table` record alive for the Position/Scale/Rotation
+	 * controls whether or not a map was ever picked, so a bare one isn't content.
+	 */
+	const tableIsEmpty = $derived.by(() => {
+		const s = $gameStore;
+		for (const collection of ['cards', 'decks', 'pieces', 'snapPoints'] as const) {
+			if (Object.values(s?.[collection] ?? {}).some(Boolean)) return false;
+		}
+		if (Object.values(s?.overlays ?? {}).some((o) => o?.imageUrl)) return false;
+		return !Object.keys(s?.players ?? {}).some(isSeatPlaceholder);
+	});
+
 	function handleDelete() {
 		if (!selectedScenario) return;
+		if (armed !== 'delete') return arm('delete');
+		disarm();
 		deleteScenario(selectedScenario);
 		refreshScenarios();
 		selectedScenario = scenarioNames[0] ?? '';
+	}
+
+	function handleClearTable() {
+		if (!tableIsEmpty && armed !== 'clear') return arm('clear');
+		disarm();
+		clearTable();
 	}
 
 	function handleExport() {
@@ -209,6 +262,99 @@
 	function setDeckField(deckId: string, patch: Record<string, unknown>) {
 		gameStore.updateState({ decks: { [deckId]: patch } });
 	}
+
+	// ── one selection, two controls ───────────────────────────────────────────
+	// `activeSeat` (what every Seats button acts on) and the Decks tab strip used
+	// to be unrelated state 80px apart: the strip could read `seat1 main` while
+	// the buttons all said "for seat 0" (#114). They are tied together here —
+	// click a tab and the seat follows it, change the seat and the strip jumps to
+	// that seat's first deck.
+	//
+	// The strip's own cursor is an INDEX, which shifts whenever a deck is spawned
+	// or deleted, so the deck ID is what's canonical: `deckTabIndex` is only the
+	// transport to and from tweakpane, re-derived from the id whenever `deckIds`
+	// moves. `synced` remembers what this component last agreed to, which is how
+	// the effect below tells WHICH of the three inputs actually changed — two
+	// plain effects would fight, and a seat with no decks would have its own
+	// selection undone by the tab strip.
+
+	/** owner seat of `deck:<owner>:<slot>`; undefined for a real player's deck */
+	function deckSeat(deckId: string | undefined): SeatIndex | undefined {
+		const owner = deckId?.split(':')[1];
+		return owner && isSeatPlaceholder(owner) ? (Number(owner.slice(4)) as SeatIndex) : undefined;
+	}
+
+	function firstDeckForSeat(ids: string[], seat: SeatIndex): string | undefined {
+		return ids.find((id) => deckSeat(id) === seat);
+	}
+
+	let selectedDeck: string | null = $state(null);
+	let deckTabIndex = $state(0);
+	let synced = { seat: 0 as number, index: 0, ids: '' };
+
+	/** Move the strip's cursor, recording it so the effect below knows it's ours. */
+	function setTabIndex(index: number, ids: string[]) {
+		deckTabIndex = index;
+		synced = { seat: activeSeat, index, ids: ids.join('\n') };
+	}
+
+	/** Point both controls at one deck. The single writer for either cursor. */
+	function pointAt(deckId: string | null, ids: string[]) {
+		selectedDeck = deckId;
+		const seat = deckSeat(deckId ?? undefined);
+		if (seat !== undefined) activeSeat = seat;
+		setTabIndex(deckId ? Math.max(0, ids.indexOf(deckId)) : 0, ids);
+	}
+
+	/**
+	 * tweakpane builds a tab page from the child component's `onMount`, one flush
+	 * AFTER `deckIds` grows — so an index written in the same flush addresses a
+	 * page that doesn't exist yet, and `TabGroup` only re-applies `selectedIndex`
+	 * when the NUMBER changes, so it never retries. Park the cursor out of range
+	 * (`pages.at()` misses, which is a no-op rather than a selection) and put it
+	 * back once the pages are there. Without this the outline on the table and
+	 * the tab strip disagree the first time a deck spawns for the far seat.
+	 */
+	function reassertTab(ids: string[]) {
+		const want = deckTabIndex;
+		const parked = ids.length;
+		setTabIndex(parked, ids);
+		tick().then(() => {
+			if (deckTabIndex === parked) setTabIndex(want, ids);
+		});
+	}
+
+	$effect(() => {
+		const ids = deckIds;
+		const idsKey = ids.join('\n');
+		const index = deckTabIndex;
+		const seat = activeSeat;
+
+		if (idsKey !== synced.ids) {
+			// decks spawned or went away. A deck just spawned FOR the seat being
+			// edited is what you want to position next, so it wins; otherwise hold
+			// whatever was selected, and only then fall back to the seat's first.
+			const before = synced.ids ? synced.ids.split('\n') : [];
+			const added = ids.find((id) => !before.includes(id) && deckSeat(id) === seat);
+			const keep = selectedDeck && ids.includes(selectedDeck) ? selectedDeck : null;
+			pointAt(added ?? keep ?? firstDeckForSeat(ids, seat) ?? ids[0] ?? null, ids);
+			if (ids.length) reassertTab(ids);
+		} else if (index !== synced.index) {
+			// a tab was clicked — the seat follows it
+			pointAt(ids[index] ?? null, ids);
+		} else if (seat !== synced.seat) {
+			// the seat was changed — the strip follows it, when that seat has a deck
+			const id = firstDeckForSeat(ids, seat);
+			if (id) pointAt(id, ids);
+			else synced.seat = seat;
+		}
+	});
+
+	// publish to the scene, and stop highlighting when the editor goes away
+	$effect(() => {
+		setSelectedDeck(selectedDeck);
+		return () => setSelectedDeck(null);
+	});
 
 	// Snap points — authored placement guides. The scene has the direct
 	// manipulation (click to place while armed, drag a marker to move,
@@ -291,7 +437,7 @@
 	</Folder>
 	{#if deckIds.length > 0}
 		<Folder title="Decks" expanded={true}>
-			<TabGroup>
+			<TabGroup bind:selectedIndex={deckTabIndex}>
 				{#each deckIds as deckId (deckId)}
 					{@const deck = $gameStore?.decks?.[deckId]}
 					{@const position = deck?.position ?? [0, 0.4, 0]}
@@ -411,7 +557,13 @@
 		<Button title="Load selected" on:click={handleLoad} />
 		<Button title="Export selected (.tbps.json)" on:click={handleExport} />
 		<Button title="Open a scenario (.tbps.json)" on:click={() => scenarioFileInput?.click()} />
-		<Button title="Delete selected" on:click={handleDelete} />
+		<Button
+			title={armed === 'delete' ? `Really delete "${selectedScenario}"?` : 'Delete selected'}
+			on:click={handleDelete}
+		/>
+		{#if armed === 'delete'}
+			<Button title="Keep it" on:click={disarm} />
+		{/if}
 		<Element>
 			<input
 				bind:this={scenarioFileInput}
@@ -422,7 +574,13 @@
 			/>
 		</Element>
 	</Folder>
-	<Button title="Clear table" on:click={clearTable} />
+	<Button
+		title={armed === 'clear' ? 'Really clear the whole table?' : 'Clear table'}
+		on:click={handleClearTable}
+	/>
+	{#if armed === 'clear'}
+		<Button title="Leave it alone" on:click={disarm} />
+	{/if}
 	<Textarea
 		disabled
 		rows={6}

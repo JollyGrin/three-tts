@@ -113,7 +113,12 @@ describe('SetupPane — snap points', () => {
 		await fireEvent.click(button(container, 'Add at table centre')!);
 		await settle();
 
+		// non-empty table: the first click only arms the button (#114)
 		await fireEvent.click(button(container, 'Clear table')!);
+		await settle();
+		expect(snapPoints()).not.toEqual({});
+
+		await fireEvent.click(button(container, 'Really clear the whole table?')!);
 		await settle();
 
 		expect(snapPoints()).toEqual({});
