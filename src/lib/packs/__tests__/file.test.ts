@@ -55,6 +55,53 @@ describe('tbpp round-trip', () => {
 		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
 	});
 
+	it('round-trips a bag with mixed contents', () => {
+		const pack: GamePackDef = {
+			id: 'bags',
+			name: 'Bags',
+			scope: 'table',
+			decks: [],
+			pieces: [
+				{
+					kind: 'bag',
+					name: 'Tile Bag',
+					color: '#7c2d12',
+					radius: 0.9,
+					drawMode: 'lifo',
+					infinite: true,
+					contents: [
+						{ kind: 'token', name: 'Ember', color: '#f97316', imageUrl: 'https://x/e.png' },
+						{ kind: 'pawn', name: 'Runner', radius: 0.3 },
+						{ kind: 'counter', name: 'Dial', maxValue: 5 },
+						{
+							kind: 'card',
+							code: 'omen',
+							name: 'Omen',
+							face: 'https://x/o.png',
+							back: 'gen:std52/back'
+						}
+					],
+					position: [-9, 4]
+				}
+			]
+		};
+		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
+	});
+
+	it('round-trips a bag with no contents and no draw mode', () => {
+		const pack: GamePackDef = {
+			id: 'empty-bag',
+			name: 'Empty Bag',
+			scope: 'table',
+			decks: [],
+			pieces: [{ kind: 'bag', name: 'Bag', contents: [], position: [0, 0] }]
+		};
+		const parsed = parsePackFile(serializePackFile(pack));
+		expect(parsed).toEqual(pack);
+		// absent drawMode is the reader's default, not something we invent on read
+		expect(parsed.pieces?.[0].drawMode).toBeUndefined();
+	});
+
 	it('names files <name>.tbpp.json', () => {
 		expect(packFileName(STANDARD_52)).toBe('Standard Playing Cards.tbpp.json');
 	});
@@ -129,5 +176,43 @@ describe('parsePackFile errors', () => {
 			kind: 'die',
 			sides: 20
 		});
+	});
+
+	const bag = (contents: unknown[], over: Record<string, unknown> = {}) => ({
+		...valid(),
+		pieces: [{ kind: 'bag', name: 'Bag', position: [0, 0], contents, ...over }]
+	});
+
+	it('points at the offending bag item', () => {
+		expect(() => parsePackFile(JSON.stringify(bag([{ kind: 'token' }])))).toThrow(
+			'pieces[0].contents[0].name'
+		);
+		expect(() => parsePackFile(JSON.stringify(bag([{ kind: 'card', code: 'a' }])))).toThrow(
+			'pieces[0].contents[0].face'
+		);
+	});
+
+	it('rejects a bag inside a bag — containers do not nest', () => {
+		expect(() =>
+			parsePackFile(JSON.stringify(bag([{ kind: 'bag', name: 'Inner', contents: [] }])))
+		).toThrow('pieces[0].contents[0].kind');
+	});
+
+	it('rejects a die in a bag — an item has nowhere to keep `sides`', () => {
+		expect(() =>
+			parsePackFile(JSON.stringify(bag([{ kind: 'die', name: 'd6', sides: 6 }])))
+		).toThrow('pieces[0].contents[0].kind');
+	});
+
+	it('rejects an unknown draw mode', () => {
+		expect(() => parsePackFile(JSON.stringify(bag([], { drawMode: 'shuffle' })))).toThrow(
+			'pieces[0].drawMode'
+		);
+	});
+
+	it('rejects contents that are not an array', () => {
+		expect(() => parsePackFile(JSON.stringify(bag('lots' as unknown as [])))).toThrow(
+			'pieces[0].contents'
+		);
 	});
 });

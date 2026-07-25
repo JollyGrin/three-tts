@@ -9,6 +9,7 @@
 		List,
 		Pane,
 		Point,
+		Stepper,
 		Text,
 		Textarea
 	} from 'svelte-tweakpane-ui';
@@ -41,7 +42,12 @@
 	} from '$lib/packs/library';
 	import FileDropZone from '$lib/files/FileDropZone.svelte';
 	import { openDroppedFile } from '$lib/files/drop';
-	import type { GamePackDef, PackPieceKind } from '$lib/packs/types';
+	import type {
+		GamePackDef,
+		PackBagDrawMode,
+		PackBagItemDef,
+		PackPieceKind
+	} from '$lib/packs/types';
 	import { parseSavedObject } from '$lib/tts/parse';
 	import { ttsToPack } from '$lib/tts/to-pack';
 	import {
@@ -54,6 +60,7 @@
 	import {
 		withEditorDefaults,
 		cleanForExport,
+		withBagItemDefaults,
 		PIECE_COLOR_DEFAULT,
 		type EditorPack
 	} from './normalize';
@@ -67,7 +74,8 @@
 	const PREVIEW_OWNER = 'preview';
 
 	const HELP_TEXT =
-		'A pack is a content library: decks (piles of cards), pieces, and board overlays. ' +
+		'A pack is a content library: decks (piles of cards), pieces (including bags — a ' +
+		'hidden pool you draw from at the table), and board overlays. ' +
 		'Everything here is local — no lobby is touched, and your pack library stays in ' +
 		'this browser. The table previews the pack live as you edit. Save to the library ' +
 		'and /setup and /play can spawn it straight onto a table; export writes a .tbpp.json ' +
@@ -118,6 +126,11 @@
 	const piece = $derived(pack.pieces[pieceIndex]);
 	const stateIndex = $derived(Math.min(stateCursor, Math.max(0, (piece?.states.length ?? 0) - 1)));
 	const pieceState = $derived(piece?.states[stateIndex]);
+	let bagItemCursor = $state(0);
+	const bagItemIndex = $derived(
+		Math.min(bagItemCursor, Math.max(0, (piece?.contents.length ?? 0) - 1))
+	);
+	const bagItem = $derived(piece?.kind === 'bag' ? piece.contents[bagItemIndex] : undefined);
 	const overlayIndex = $derived(Math.min(overlayCursor, Math.max(0, pack.overlays.length - 1)));
 	const overlay = $derived(pack.overlays[overlayIndex]);
 
@@ -145,6 +158,16 @@
 		piece?.states.length
 			? Object.fromEntries(piece.states.map((s, i) => [`${i}: ${s.name || `State ${i + 1}`}`, i]))
 			: { '(no states)': 0 }
+	);
+	const bagItemOptions = $derived(
+		piece?.contents.length
+			? Object.fromEntries(
+					piece.contents.map((item, i) => [
+						`${i}: ${item.kind} ${item.kind === 'card' ? item.code : item.name}`,
+						i
+					])
+				)
+			: { '(empty bag)': 0 }
 	);
 
 	// ——— structure edits ———
@@ -213,13 +236,28 @@
 		Token: 'token',
 		Pawn: 'pawn',
 		Counter: 'counter',
-		Dice: 'die'
+		Dice: 'die',
+		Bag: 'bag'
 	};
 
 	const sidesOptions: Record<string, DieSides> = Object.fromEntries(
 		DIE_SIDES.map((n) => [`d${n}`, n])
 	);
 	let newPieceKind: PackPieceKind = $state('token');
+
+	const drawModeOptions: Record<string, PackBagDrawMode> = {
+		'Random — blind draw': 'random',
+		'LIFO — last in, first out': 'lifo',
+		'FIFO — first in, first out': 'fifo'
+	};
+
+	const bagItemKindOptions: Record<string, PackBagItemDef['kind']> = {
+		Token: 'token',
+		Pawn: 'pawn',
+		Counter: 'counter',
+		Card: 'card'
+	};
+	let newBagItemKind: PackBagItemDef['kind'] = $state('token');
 
 	function addPiece() {
 		pack.pieces.push({
@@ -232,6 +270,9 @@
 			states: [],
 			state: 0,
 			sides: DIE_SIDES_DEFAULT,
+			contents: [],
+			drawMode: 'random',
+			infinite: false,
 			position: [0, 0]
 		});
 		pieceCursor = pack.pieces.length - 1;
@@ -267,6 +308,45 @@
 		piece.states.splice(stateIndex, 1);
 		stateCursor = Math.max(0, stateIndex - 1);
 		piece.state = Math.min(piece.state, Math.max(0, piece.states.length - 1));
+	}
+
+	/**
+	 * Codes in play in the selected bag. Same reason decks allocate codes: a
+	 * drawn card's entity id is `card:<owner>:<bag>-<code>`, so a repeat would
+	 * collapse two items into one card on the table.
+	 */
+	const takenBagCodes = $derived(
+		(piece?.contents ?? []).filter((item) => item.kind === 'card').map((item) => item.code)
+	);
+
+	async function addBagItem() {
+		if (!piece || piece.kind !== 'bag') return toast.error('Select a bag first');
+		const base: PackBagItemDef =
+			newBagItemKind === 'card'
+				? {
+						kind: 'card',
+						code: allocateCode(`item-${piece.contents.length}`, new Set(takenBagCodes)),
+						name: '',
+						// the standard back, not '': an empty face ref renders nothing, so a
+						// fresh item would draw as an invisible card
+						face: CARD_BACK_DEFAULT
+					}
+				: { kind: newBagItemKind, name: newBagItemKind };
+		piece.contents.push(withBagItemDefaults(base));
+		const added = piece.contents.length - 1;
+		bagItemCursor = added;
+		// same clamp hazard as addPieceState above: the Item list rebuilds its
+		// options as the item lands and tweakpane clamps the bound index against
+		// the OLD set while it does, so the cursor has to be re-asserted or edits
+		// go to the wrong item
+		await tick();
+		bagItemCursor = added;
+	}
+
+	function removeBagItem() {
+		if (!piece || !bagItem) return;
+		piece.contents.splice(bagItemIndex, 1);
+		bagItemCursor = Math.max(0, bagItemIndex - 1);
 	}
 
 	function addOverlay() {
@@ -664,7 +744,7 @@
 			<List label="Piece" bind:value={pieceCursor} options={pieceOptions} />
 			<Text label="Name" bind:value={piece.name} />
 			<Color label="Color" bind:value={piece.color} />
-			{#if piece.kind === 'token'}
+			{#if piece.kind === 'token' || piece.kind === 'bag'}
 				<Text label="Image URL" bind:value={piece.imageUrl} />
 			{/if}
 			<!--
@@ -702,6 +782,48 @@
 			{/if}
 			{#if piece.kind === 'die'}
 				<List label="Sides" bind:value={piece.sides} options={sidesOptions} />
+			{/if}
+			{#if piece.kind === 'bag'}
+				<List label="Draw order" bind:value={piece.drawMode} options={drawModeOptions} />
+				<Checkbox label="Infinite" bind:value={piece.infinite} />
+				<Folder title="Bag contents ({piece.contents.length})" expanded={true}>
+					<List label="New item" bind:value={newBagItemKind} options={bagItemKindOptions} />
+					<Button title="Add {newBagItemKind} to bag" on:click={addBagItem} />
+					{#if bagItem}
+						<List label="Item" bind:value={bagItemCursor} options={bagItemOptions} />
+						<!-- one {#if} per field rather than a card/piece if-else pair: an
+						     {#if} that REPLACES a tweakpane blade tears the whole pane
+						     down (see BulkSheet.svelte), while adding and removing is safe -->
+						{#if bagItem.kind === 'card'}
+							<Text label="Code" bind:value={bagItem.code} />
+						{/if}
+						<Text label="Item name" bind:value={bagItem.name} />
+						{#if bagItem.kind !== 'card'}
+							<Color label="Item color" bind:value={bagItem.color} />
+						{/if}
+						{#if bagItem.kind !== 'card'}
+							<Text label="Item image" bind:value={bagItem.imageUrl} />
+						{/if}
+						{#if bagItem.kind === 'counter'}
+							<Stepper label="Item max" bind:value={bagItem.maxValue} step={1} />
+						{/if}
+						{#if bagItem.kind === 'card'}
+							<!-- keyed on the cursor, like the deck's card face: a fresh
+							     editor for whichever item is selected -->
+							{#key `${pieceIndex}:${bagItemIndex}`}
+								<FaceRef
+									title="Item face"
+									value={bagItem.face}
+									onchange={(ref) => (bagItem.face = ref)}
+								/>
+							{/key}
+						{/if}
+						{#if bagItem.kind === 'card'}
+							<Text label="Item back" bind:value={bagItem.back} />
+						{/if}
+						<Button title="Remove item" on:click={removeBagItem} />
+					{/if}
+				</Folder>
 			{/if}
 			<Point
 				label="Position"

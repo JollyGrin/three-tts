@@ -3,7 +3,7 @@
 	import { Billboard, Text, ImageMaterial } from '@threlte/extras';
 	import type { IntersectionEvent } from '@threlte/extras';
 	import { Spring } from 'svelte/motion';
-	import { dragStart, dragStore } from './store/dragStore.svelte';
+	import { clearBagHover, dragStart, dragStore, setBagHover } from './store/dragStore.svelte';
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
@@ -11,8 +11,11 @@
 	import { createCounterInput, DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import { setPieceHover, clearPieceHover, openPieceMenu } from '$lib/store/pieceUi';
 	import { createDieInput } from '$lib/utils/die-input';
+	import { createBagInput } from '$lib/utils/bag-input';
 	import Die from './Die.svelte';
+	import DropFootprint from './drop/DropFootprint.svelte';
 	import {
+		BAG_HEIGHT,
 		DIE_SIDES_DEFAULT,
 		PIECE_DEFAULT_RADIUS,
 		PIECE_DRAG_Y,
@@ -45,6 +48,12 @@
 	const imageUrl = $derived(resolveCardImage(faceRef, $sheetRefCache));
 	const isDragging = $derived($dragStore.isDragging === id);
 	let isHovered = $state(false);
+
+	// a bag under the pointer mid-drag swallows the drop, so it has to be the
+	// cue — the DropIndicator suppresses its table footprint while hovered
+	const isBagDropTarget = $derived(
+		kind === 'bag' && $dragStore.isBagHovered === id && !!$dragStore.isDragging && !isDragging
+	);
 
 	const THICKNESS = PIECE_THICKNESS;
 	const REST_Y = PIECE_REST_Y;
@@ -92,13 +101,13 @@
 
 	/**
 	 * Kinds that answer a plain click. They defer the lift until the pointer
-	 * actually travels, so clicking adjusts a counter / rolls a die without
-	 * picking the piece up and dropping it — while still being draggable.
+	 * actually travels, so clicking adjusts a counter / rolls a die / draws from
+	 * a bag without picking the piece up and dropping it — still draggable.
 	 */
-	const clickable = $derived(kind === 'counter' || kind === 'die');
+	const clickable = $derived(kind === 'counter' || kind === 'die' || kind === 'bag');
 
-	// Counters and dice defer the lift until the pointer actually travels, so a
-	// plain click can act without picking the piece up and dropping it.
+	// Counters, dice and bags defer the lift until the pointer actually travels,
+	// so a plain click can act without picking the piece up and dropping it.
 	function onPendingMove(ne: PointerEvent) {
 		if (!pendingDrag) return;
 		if (Math.hypot(ne.clientX - pendingDrag.x, ne.clientY - pendingDrag.y) < DRAG_THRESHOLD_PX)
@@ -120,8 +129,9 @@
 		// claims the pointerdown for the topmost piece in a pile — see
 		// claimPointerDown — so the rest of the stack never sees this event
 		if (!claimPointerDown(e)) return;
-		// left button only: right-click is the state menu (and a counter's heal),
-		// and picking the piece up under the menu would drag it as you choose
+		// left button only: right-click is the state menu (and a counter's heal, and
+		// a bag's draw), and picking the piece up under the menu would drag it as
+		// you choose
 		if (e.nativeEvent.button !== 0) return;
 		if (!clickable) {
 			liftIntoDrag();
@@ -144,9 +154,10 @@
 		increment: gameActions.incrementCounter
 	});
 
-	// click-to-roll, guarded the same way and for the same reason. Each input
-	// owns its own dispatch guard and bails out before claiming when the piece
-	// is not its kind, so exactly one of them ever acts on a given click.
+	// click-to-roll, and click-to-draw, guarded the same way and for the same
+	// reason. Each input owns its own dispatch guard and bails out before
+	// claiming when the piece is not its kind, so exactly one of the three ever
+	// acts on a given click.
 	const dieInput = createDieInput({
 		id: () => id,
 		isDie: () => kind === 'die',
@@ -154,18 +165,29 @@
 		roll: gameActions.rollDie
 	});
 
+	const bagInput = createBagInput({
+		id: () => id,
+		isBag: () => kind === 'bag',
+		wasDrag: () => dragMoved,
+		draw: gameActions.drawFromBag
+	});
+
 	function handleClick(e: IntersectionEvent<MouseEvent>) {
 		counterInput.onclick(e);
 		dieInput.onclick(e);
+		bagInput.onclick(e);
 	}
 
 	/**
-	 * Right-click on a multi-state piece opens the state picker instead of the
-	 * counter's heal — with more than two faces, cycling is not a control. The
-	 * menu itself is DOM (see PieceStateMenu.svelte), so all that happens here
-	 * is handing it the pointer position.
+	 * Right-click, in precedence order: a bag draws (its faces are a pouch, so a
+	 * state picker on one would offer nothing to look at), a multi-state piece
+	 * opens the state picker instead of the counter's heal — with more than two
+	 * faces, cycling is not a control — and everything else falls through to the
+	 * counter. The menu itself is DOM (see PieceStateMenu.svelte), so all that
+	 * happens here is handing it the pointer position.
 	 */
 	function handleContextMenu(e: IntersectionEvent<MouseEvent>) {
+		if (kind === 'bag') return bagInput.oncontextmenu(e);
 		if (states.length < 2) return counterInput.oncontextmenu(e);
 		e.nativeEvent.preventDefault();
 		e.stopPropagation();
@@ -176,16 +198,37 @@
 	function handlePointerEnter() {
 		isHovered = true;
 		setPieceHover(id); // what the X hotkey acts on
+		// a bag under the pointer mid-drag is the drop target (see resolveDrop)
+		if (kind === 'bag') setBagHover(id);
 	}
 
 	function handlePointerLeave() {
 		isHovered = false;
 		clearPieceHover(id);
+		if (kind === 'bag') clearBagHover(id);
 	}
 
-	$effect(() => () => clearPieceHover(id));
+	// a piece removed (or claimed into a new id) while the pointer is over it
+	// would otherwise leave stale hover state behind — for the X hotkey to act
+	// on, or for the next drop to find
+	$effect(() => () => {
+		clearPieceHover(id);
+		clearBagHover(id);
+	});
+
+	/**
+	 * A bag shows how much is LEFT, never what is in it — the count is public
+	 * (you can see the bag is nearly empty), the contents are not. An infinite
+	 * bag never runs down, so it shows ∞ instead of a number.
+	 */
+	const bagLabel = $derived.by(() => {
+		const remaining = piece?.infinite ? '∞' : String((piece?.contents ?? []).length);
+		// hovering names the bag, since its badge is otherwise just a number
+		return isHovered && piece?.name ? `${piece.name} · ${remaining}` : remaining;
+	});
 
 	const label = $derived.by(() => {
+		if (kind === 'bag') return bagLabel;
 		// name the face, not just the piece: with several states that is the only
 		// on-table clue which one is showing
 		if (kind !== 'counter') {
@@ -228,6 +271,43 @@
 				{radius}
 				{color}
 			/>
+		{:else if kind === 'bag'}
+			<!-- procedural pouch: tapered body, tie ring, gathered neck. Sized off
+			     the same `radius` every other piece uses, so a bag drawn at the
+			     default radius reads as bigger than the tokens it holds. -->
+			<T.Mesh castShadow position.y={BAG_HEIGHT * 0.36}>
+				<T.CylinderGeometry args={[radius * 0.66, radius, BAG_HEIGHT * 0.72, 24]} />
+				<T.MeshStandardMaterial {color} roughness={0.85} />
+			</T.Mesh>
+			<T.Mesh castShadow position.y={BAG_HEIGHT * 0.72} rotation.x={Math.PI / 2}>
+				<T.TorusGeometry args={[radius * 0.62, radius * 0.1, 10, 24]} />
+				<T.MeshStandardMaterial color="#5b4a36" roughness={0.7} />
+			</T.Mesh>
+			<T.Mesh castShadow position.y={BAG_HEIGHT * 0.85}>
+				<T.CylinderGeometry args={[radius * 0.7, radius * 0.5, BAG_HEIGHT * 0.28, 20]} />
+				<T.MeshStandardMaterial {color} roughness={0.85} />
+			</T.Mesh>
+			{#if imageUrl}
+				<!-- same decal treatment as a token, laid on the neck opening -->
+				{#key imageUrl}
+					<T.Mesh rotation.x={-Math.PI / 2} position.y={BAG_HEIGHT * 0.99}>
+						<T.CircleGeometry args={[radius * 0.46, 24]} />
+						<ImageMaterial url={imageUrl} side={0} />
+					</T.Mesh>
+				{/key}
+			{/if}
+			{#if isBagDropTarget}
+				<T.Group rotation.x={-Math.PI / 2} position.y={-THICKNESS / 2 + 0.005}>
+					<DropFootprint
+						shape="circle"
+						r={radius + 0.25}
+						color="#5ee7ff"
+						fill={0.15}
+						border={0.08}
+						depthTest={false}
+					/>
+				</T.Group>
+			{/if}
 		{:else if kind === 'pawn'}
 			<!-- procedural pawn: base disc + stem + head -->
 			<T.Mesh castShadow position.y={0.06}>
@@ -258,12 +338,14 @@
 			{/if}
 		{/if}
 
-		{#if label && (kind === 'counter' || isHovered)}
+		<!-- a bag's remaining count is always on, like a counter's value: it's the
+		     only thing about a bag that is legible from across the table -->
+		{#if label && (kind === 'counter' || kind === 'bag' || isHovered)}
 			<Billboard>
 				<Text
 					text={label}
-					fontSize={kind === 'counter' ? 0.55 : 0.35}
-					position={[0, kind === 'pawn' ? 1.5 : 0.75, 0]}
+					fontSize={kind === 'counter' ? 0.55 : kind === 'bag' ? 0.45 : 0.35}
+					position={[0, kind === 'pawn' ? 1.5 : kind === 'bag' ? BAG_HEIGHT + 0.45 : 0.75, 0]}
 					scale={kind === 'counter' ? labelScale.current : 1}
 					anchorX="center"
 					color="#ffffff"

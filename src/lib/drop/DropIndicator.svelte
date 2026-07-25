@@ -31,14 +31,18 @@
 			$gameStore,
 			dragId,
 			$dragStore.intersectionPoint,
-			{ deckId: $dragStore.isDeckHovered, tray: $dragStore.isTrayHovered },
+			{
+				deckId: $dragStore.isDeckHovered,
+				bagId: $dragStore.isBagHovered,
+				tray: $dragStore.isTrayHovered
+			},
 			// live: pressing or releasing Alt mid-drag redraws the preview. Same
 			// options the commit resolves with, so the preview stays honest.
 			{ noSnap: $dragStore.noSnap, hand: $tableFeatures.hand }
 		)
 	);
 
-	// the deck / tray highlights are the cue for those targets — a table
+	// the deck / bag / tray highlights are the cue for those targets — a table
 	// footprint there would promise a landing that isn't going to happen
 	const visible = $derived(
 		drop?.kind === 'table' || drop?.kind === 'stack' || drop?.kind === 'snap'

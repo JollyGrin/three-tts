@@ -16,8 +16,13 @@
  * decide whether it is safe to read.
  */
 
-/** Bump on any change to the pack schema. See docs/packs.md § Spec versioning. */
-export const PACK_SPEC_VERSION = '1.2.0';
+/**
+ * Bump on any change to the pack schema. See docs/packs.md § Spec versioning.
+ *
+ * 1.3.0 — added the `bag` piece kind (`contents`/`drawMode`/`infinite`),
+ * additive: every earlier 1.x pack is still valid.
+ */
+export const PACK_SPEC_VERSION = '1.3.0';
 
 /**
  * The scenario spec is deliberately 0.x: it is unstable and carries no
@@ -30,8 +35,11 @@ export const PACK_SPEC_VERSION = '1.2.0';
  * build then refuses files it could have read perfectly well. (The general
  * "additive → minor" convention in docs/packs.md § Release convention is the
  * 1.x rule; it inverts under 0.x.)
+ *
+ * 0.1.6 — `state.pieces` can carry the bag fields (this schema is generated
+ * from `Partial<GameDTO>`), additive.
  */
-export const SCENARIO_SPEC_VERSION = '0.1.5';
+export const SCENARIO_SPEC_VERSION = '0.1.6';
 
 export type Semver = { major: number; minor: number; patch: number };
 

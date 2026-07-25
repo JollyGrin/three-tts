@@ -151,6 +151,25 @@
 								"minItems": 2,
 								"maxItems": 2,
 								"title": "position"
+							},
+							"contents": {
+								"description": "bags only — what a draw pulls out. Hidden from every player in play.",
+								"type": "array",
+								"items": {
+									"$ref": "#/definitions/PackBagItemDef"
+								},
+								"title": "contents"
+							},
+							"drawMode": {
+								"description": "bags only — draw order; defaults to `'random'`",
+								"enum": ["fifo", "lifo", "random"],
+								"type": "string",
+								"title": "drawMode"
+							},
+							"infinite": {
+								"description": "bags only — a draw clones the item instead of removing it (TTS Infinite_Bag)",
+								"type": "boolean",
+								"title": "infinite"
 							}
 						},
 						"required": ["kind", "name", "position"]
@@ -217,12 +236,82 @@
 	"definitions": {
 		"PackPieceKind": {
 			"title": "PackPieceKind",
-			"enum": ["counter", "die", "pawn", "token"],
+			"enum": ["bag", "counter", "die", "pawn", "token"],
 			"type": "string"
+		},
+		"PackBagItemDef": {
+			"description": "One thing inside a bag, discriminated on `kind` like pieces are.",
+			"title": "PackBagItemDef",
+			"anyOf": [
+				{
+					"description": "A piece inside a bag — a `PackPieceDef` without the table position, because\na draw is what decides where it lands. Nested bags are deliberately absent:\na bag's contents are one level deep.",
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["counter", "pawn", "token"],
+							"type": "string",
+							"title": "kind"
+						},
+						"name": {
+							"type": "string",
+							"title": "name"
+						},
+						"color": {
+							"description": "hex tint; pawns/counters without images render in this color",
+							"type": "string",
+							"title": "color"
+						},
+						"imageUrl": {
+							"type": "string",
+							"title": "imageUrl"
+						},
+						"radius": {
+							"type": "number",
+							"title": "radius"
+						},
+						"maxValue": {
+							"description": "counters draw at this value",
+							"type": "number",
+							"title": "maxValue"
+						}
+					},
+					"required": ["kind", "name"]
+				},
+				{
+					"description": "A card inside a bag: the same face-ref grammar cards use, plus its own back.",
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"const": "card",
+							"title": "kind"
+						},
+						"code": {
+							"description": "stable id within the bag — the drawn card's entity id is built from it",
+							"type": "string",
+							"title": "code"
+						},
+						"name": {
+							"type": "string",
+							"title": "name"
+						},
+						"face": {
+							"description": "Face ref: https url, `sheet:` descriptor, or `gen:` scheme",
+							"type": "string",
+							"title": "face"
+						},
+						"back": {
+							"type": "string",
+							"title": "back"
+						}
+					},
+					"required": ["code", "face", "kind"]
+				}
+			]
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.2.0",
-	"x-generated-at": "2026-07-25T14:07:19.077Z",
-	"x-tableplace-source-sha": "69a1ed0849764471adbec1bd94e4597744178ffd-dirty"
+	"x-tableplace-spec-version": "1.3.0",
+	"x-generated-at": "2026-07-25T14:26:38.507Z",
+	"x-tableplace-source-sha": "d5a1b8460d539d961a93caa6935931fdbb35557c-dirty"
 }

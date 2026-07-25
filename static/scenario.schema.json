@@ -606,7 +606,7 @@
 				},
 				"kind": {
 					"description": "Non-card table objects (tokens, pawns, counters, dice). One generic shape\nwith a kind discriminator — see SPEC.md §4a.",
-					"enum": ["counter", "die", "pawn", "token"],
+					"enum": ["bag", "counter", "die", "pawn", "token"],
 					"type": "string",
 					"title": "kind"
 				},
@@ -675,6 +675,25 @@
 					"type": "number",
 					"title": "rollSeq"
 				},
+				"contents": {
+					"description": "bags only — the hidden pool a draw pulls from, in insertion order (lifo\ntakes the last entry, fifo the first). Lives in synced state so a draw\nresolves once, on the acting client, and every client agrees on the result.\nNo UI ever renders it.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/BagItem"
+					},
+					"title": "contents"
+				},
+				"drawMode": {
+					"description": "bags only — draw order; treated as `'random'` when absent",
+					"enum": ["fifo", "lifo", "random"],
+					"type": "string",
+					"title": "drawMode"
+				},
+				"infinite": {
+					"description": "bags only — draws clone instead of removing (TTS Infinite_Bag)",
+					"type": "boolean",
+					"title": "infinite"
+				},
 				"packOrigin": {
 					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
 					"type": "object",
@@ -699,6 +718,71 @@
 					"title": "packOrigin"
 				}
 			}
+		},
+		"BagItem": {
+			"title": "BagItem",
+			"anyOf": [
+				{
+					"description": "A piece waiting inside a bag — no position: the draw decides where it lands.",
+					"type": "object",
+					"properties": {
+						"kind": {
+							"enum": ["counter", "pawn", "token"],
+							"type": "string",
+							"title": "kind"
+						},
+						"name": {
+							"type": "string",
+							"title": "name"
+						},
+						"color": {
+							"type": "string",
+							"title": "color"
+						},
+						"imageUrl": {
+							"type": "string",
+							"title": "imageUrl"
+						},
+						"radius": {
+							"type": "number",
+							"title": "radius"
+						},
+						"maxValue": {
+							"type": "number",
+							"title": "maxValue"
+						}
+					},
+					"required": ["kind", "name"]
+				},
+				{
+					"description": "A card waiting inside a bag; `code` becomes part of the drawn card's id.",
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"const": "card",
+							"title": "kind"
+						},
+						"code": {
+							"type": "string",
+							"title": "code"
+						},
+						"name": {
+							"type": "string",
+							"title": "name"
+						},
+						"face": {
+							"type": "string",
+							"title": "face"
+						},
+						"back": {
+							"type": "string",
+							"title": "back"
+						}
+					},
+					"required": ["code", "face", "kind"]
+				}
+			]
 		},
 		"Partial<SnapPointDTO>": {
 			"title": "Partial<SnapPointDTO>",
@@ -737,7 +821,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.5",
-	"x-generated-at": "2026-07-25T14:07:19.077Z",
-	"x-tableplace-source-sha": "69a1ed0849764471adbec1bd94e4597744178ffd-dirty"
+	"x-tableplace-spec-version": "0.1.6",
+	"x-generated-at": "2026-07-25T14:26:38.507Z",
+	"x-tableplace-source-sha": "d5a1b8460d539d961a93caa6935931fdbb35557c-dirty"
 }

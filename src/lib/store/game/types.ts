@@ -80,10 +80,34 @@ export type PlayerDTO = SeatState & {
  * Non-card table objects (tokens, pawns, counters, dice). One generic shape
  * with a kind discriminator — see SPEC.md §4a.
  */
-export type PieceKind = 'token' | 'pawn' | 'counter' | 'die';
+export type PieceKind = 'token' | 'pawn' | 'counter' | 'die' | 'bag';
 
 /** Face count of a die piece — the shapes the primitive library can build. */
 export type DieSides = 4 | 6 | 8 | 10 | 12 | 20;
+
+/** Order a bag hands its contents out in (TTS analog: the container's Order). */
+export type BagDrawMode = 'random' | 'lifo' | 'fifo';
+
+/** A piece waiting inside a bag — no position: the draw decides where it lands. */
+export type BagPieceItem = {
+	kind: 'token' | 'pawn' | 'counter';
+	name: string;
+	color?: string;
+	imageUrl?: string;
+	radius?: number;
+	maxValue?: number;
+};
+
+/** A card waiting inside a bag; `code` becomes part of the drawn card's id. */
+export type BagCardItem = {
+	kind: 'card';
+	code: string;
+	name?: string;
+	face: string;
+	back?: string;
+};
+
+export type BagItem = BagPieceItem | BagCardItem;
 
 /** One alternate face of a multi-state piece — see `PackPieceStateDef`. */
 export type PieceStateDTO = {
@@ -125,6 +149,17 @@ export type PieceDTO = {
 	 * first sync, so joining after a roll shows the settled face with no replay.
 	 */
 	rollSeq?: number;
+	/**
+	 * bags only — the hidden pool a draw pulls from, in insertion order (lifo
+	 * takes the last entry, fifo the first). Lives in synced state so a draw
+	 * resolves once, on the acting client, and every client agrees on the result.
+	 * No UI ever renders it.
+	 */
+	contents?: BagItem[];
+	/** bags only — draw order; treated as `'random'` when absent */
+	drawMode?: BagDrawMode;
+	/** bags only — draws clone instead of removing (TTS Infinite_Bag) */
+	infinite?: boolean;
 	packOrigin?: PackOrigin;
 };
 

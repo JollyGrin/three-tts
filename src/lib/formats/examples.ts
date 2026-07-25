@@ -16,8 +16,9 @@ import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from './spec-version';
 export const EXAMPLE_PACK_URL = 'https://example.com/packs/ember-duel.tbpp.json';
 
 /**
- * A hand-authorable player pack: one deck, one counter, one board overlay.
- * Everything a third party needs to see in order to write their own.
+ * A hand-authorable player pack: one deck, one counter, one multi-state token,
+ * one blind-draw bag, one board overlay. Everything a third party needs to see
+ * in order to write their own.
  */
 export const EXAMPLE_PACK: PackFile = {
 	$schema: 'https://table.place/pack.schema.json',
@@ -68,6 +69,19 @@ export const EXAMPLE_PACK: PackFile = {
 			],
 			radius: 0.8,
 			position: [0, 0]
+		},
+		{
+			kind: 'bag',
+			name: 'Ember Bag',
+			color: '#7c2d12',
+			// a blind-draw pool: contents are hidden, only the remaining count shows
+			drawMode: 'random',
+			contents: [
+				{ kind: 'token', name: 'Ember Token', color: '#f97316' },
+				{ kind: 'token', name: 'Ash Token', color: '#57534e' },
+				{ kind: 'card', code: 'omen', name: 'Omen', face: 'https://example.com/img/omen.png' }
+			],
+			position: [-9, 4]
 		}
 	],
 	overlays: [
@@ -122,6 +136,10 @@ export const EXAMPLE_SCENARIO: ScenarioFile = {
 		{ kind: 'piece', pack: 'ember-duel', content: '0', seat: 0, value: 25 },
 		// the brazier starts burnt out: `state` indexes the pack piece's states
 		{ kind: 'piece', pack: 'ember-duel', content: '1', seat: 0, state: 2 },
+		// a bag is a piece placement like any other (`content` is its index in
+		// the pack's pieces); its contents come from the pack, so a scenario
+		// never restates — or leaks — them
+		{ kind: 'piece', pack: 'ember-duel', content: '2', seat: 0, position: [-9, 0.335, 4] },
 		{ kind: 'overlay', pack: 'ember-duel', content: '0', scale: 14 }
 	],
 	// placement guides: a card or token released within `radius` of one of these

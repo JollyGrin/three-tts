@@ -36,6 +36,7 @@ describe('groupStackIntoDeck', () => {
 			isDragging: null,
 			isHovered: null,
 			isDeckHovered: null,
+			isBagHovered: null,
 			isTrayHovered: false
 		});
 		pile();
@@ -107,6 +108,7 @@ describe('ungroupDeck', () => {
 			isDragging: null,
 			isHovered: null,
 			isDeckHovered: null,
+			isBagHovered: null,
 			isTrayHovered: false
 		});
 		pile();

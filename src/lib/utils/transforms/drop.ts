@@ -20,6 +20,8 @@ export type DropKind =
 	| 'snap'
 	/** returns to a deck instead of the table */
 	| 'deck'
+	/** goes into a bag's hidden contents instead of the table */
+	| 'bag'
 	/** goes into the local player's hand tray */
 	| 'tray';
 
@@ -29,7 +31,7 @@ export type DropFootprint =
 
 export interface DropTarget {
 	kind: DropKind;
-	/** deck id when kind === 'deck' */
+	/** deck id when kind === 'deck', bag piece id when kind === 'bag' */
 	targetId?: string;
 	/** where the entity's origin ends up — exactly what the commit writes */
 	position: [number, number, number];
@@ -55,6 +57,8 @@ export interface DropTarget {
 export interface DropHover {
 	/** id of the deck currently under the pointer, if any */
 	deckId?: string | null;
+	/** id of the bag piece currently under the pointer, if any */
+	bagId?: string | null;
 	/** whether the pointer is over the hand tray */
 	tray?: boolean;
 }
@@ -105,13 +109,19 @@ export function clampToTable(x: number, z: number): [number, number] {
  * off the table plane) the entity's own position is used instead so a drag
  * keeps previewing.
  *
- * Pieces and whole decks only ever settle, so they resolve first: felt position,
- * pulled onto an authored snap point if one catches them. For a card the order
- * is, most explicit first: the hand tray, then a hovered deck (both aimed at),
- * then Alt's opt-out, then an authored snap point within radius, then the
- * loose-pile square-up. A snap point beats a pile because it is authored intent
- * rather than a side effect of where cards drifted; Alt opts out of every kind
- * of snapping at once.
+ * The order is aimed-at targets first, proximity effects second, because a
+ * target you pointed at should never lose to one you merely drifted near:
+ *
+ * - a **bag** under the pointer swallows a card or a piece (not a deck, and
+ *   never another bag) — the tray still beats it for a card;
+ * - **pieces** and whole **decks** then only ever settle: felt position, pulled
+ *   onto an authored snap point if one catches them;
+ * - a **card** goes: hand tray, hovered deck, Alt's opt-out, an authored snap
+ *   point within radius, then the loose-pile square-up.
+ *
+ * A snap point beats a pile because it is authored intent rather than a side
+ * effect of where cards drifted; Alt opts out of every kind of snapping at
+ * once, but not out of the aimed-at targets.
  *
  * `options` carries what the release itself asks for (`noSnap`, from Alt) and
  * what the route actually mounted (`hand`): a target that isn't on screen
@@ -144,8 +154,49 @@ export function resolveDrop(
 
 	// An authored snap point pulls the landing onto itself. Alt opts out — it is
 	// already the "put it exactly where I said" modifier — and the aimed-at
-	// targets (deck, tray, checked below for cards) still beat proximity.
+	// targets (bag, deck, tray) still beat proximity.
 	const snap = options.noSnap ? null : resolveSnap(state?.snapPoints, x, z);
+
+	// A bag swallows what is dropped on it — cards and pieces alike — so it is
+	// resolved before the piece branch, and before the snap pull those branches
+	// apply. Pointing at a pouch is an aimed-at gesture, the way a deck and the
+	// tray are; a snap point catching the same spot is proximity. Alt does not
+	// opt out of it either, for the same reason it does not opt out of a deck.
+	//
+	// What a bag never swallows — each of these settles (or snaps) instead, so a
+	// drop the bag would refuse can't leave the entity floating at drag height:
+	// - a bag (containers don't nest — docs/packs.md), or the bag itself;
+	// - a die: `contents` has no die item, so its `sides` and roll state have
+	//   nowhere to live and `returnToBag` refuses it. A die is for rolling on
+	//   the table, not for storing;
+	// - a whole deck: likewise no deck item in `contents`;
+	// - a card while the hand tray is under the pointer too: your hand is the
+	//   most explicit target there is, and the HUD tray draws in front of the
+	//   table, so both can be "under" one pointer. Pieces can't enter the tray
+	//   at all, so for them the bag always wins.
+	const draggedKind = isPiece && 'kind' in entity ? entity.kind : undefined;
+	const trayWins = !isPiece && !isDeck && hover.tray && hasHand;
+	const bagSwallows =
+		hover.bagId &&
+		!isDeck &&
+		!trayWins &&
+		hover.bagId !== dragId &&
+		draggedKind !== 'bag' &&
+		draggedKind !== 'die';
+	if (bagSwallows) {
+		const bag = state?.pieces?.[hover.bagId as string];
+		if (bag?.kind === 'bag') {
+			const [bx = x, , bz = z] = bag.position ?? [];
+			return {
+				kind: 'bag',
+				targetId: hover.bagId as string,
+				position: [bx, PIECE_REST_Y, bz],
+				rotation,
+				footprint: { shape: 'circle', r: bag.radius ?? PIECE_DEFAULT_RADIUS },
+				footprintY: TABLE_TOP_Y
+			};
+		}
+	}
 
 	// pieces don't stack, join decks, or enter the tray — they just settle
 	if (isPiece) {

@@ -87,6 +87,109 @@ describe('pieces on the Clone Troopers export', () => {
 	});
 });
 
+describe('bags (Bag / Infinite_Bag)', () => {
+	const sheet = {
+		FaceURL: 'https://example.com/sheet.png',
+		BackURL: 'https://example.com/back.png',
+		NumWidth: 2,
+		NumHeight: 1
+	};
+
+	/** a container holding one card, one deck of two, a tile, and two rejects */
+	const bagSave = (over: Record<string, unknown> = {}) => ({
+		ObjectStates: [
+			{
+				Name: 'Bag',
+				Nickname: 'Tile Bag',
+				Transform: { posX: 3, posZ: 5, scaleX: 1.4 },
+				ColorDiffuse: { r: 0.4, g: 0.2, b: 0.1 },
+				Bag: { Order: 1 },
+				ContainedObjects: [
+					{ Name: 'Card', Nickname: 'Omen', CardID: 100, CustomDeck: { '1': sheet } },
+					{
+						Name: 'DeckCustom',
+						Nickname: 'Inner Deck',
+						DeckIDs: [100, 101],
+						CustomDeck: { '1': sheet },
+						ContainedObjects: [{ Nickname: 'Inner A' }, { Nickname: 'Inner B' }]
+					},
+					{
+						Name: 'Custom_Tile',
+						Nickname: 'Ember',
+						CustomImage: { ImageURL: 'https://example.com/ember.png' },
+						Transform: { scaleX: 0.8 }
+					},
+					{ Name: 'Bag', Nickname: 'Nested Bag', ContainedObjects: [] },
+					{ Name: 'Custom_Assetbundle', Nickname: 'Fancy Thing' }
+				],
+				...over
+			}
+		]
+	});
+
+	const parsed = parseSavedObject(bagSave());
+	const bag = parsed.pieces[0];
+
+	it('imports the container as a bag piece, positioned and coloured', () => {
+		expect(parsed.pieces).toHaveLength(1);
+		expect(bag).toMatchObject({ kind: 'bag', name: 'Tile Bag', position: [3, -5] });
+		expect(bag.color).toMatch(/^#/);
+		expect(bag.radius).toBeCloseTo(1.4);
+	});
+
+	it('flattens one level: the loose card, the inner deck’s cards, and the tile', () => {
+		expect(bag.contents?.map((item) => `${item.kind}:${item.name}`)).toEqual([
+			'card:Omen',
+			'card:Inner A',
+			'card:Inner B',
+			'token:Ember'
+		]);
+	});
+
+	it('keeps sheet cells on bag cards, for to-pack to turn into refs', () => {
+		const card = bag.contents?.[0];
+		expect(card?.kind).toBe('card');
+		if (card?.kind !== 'card') throw new Error('expected a card item');
+		expect(card.face).toMatchObject({ cols: 2, rows: 1, index: 0 });
+		expect(card.face.url).toBe('https://example.com/sheet.png');
+	});
+
+	it('drops position from bag items — the draw decides where they land', () => {
+		const token = bag.contents?.find((item) => item.kind === 'token');
+		expect(token && 'position' in token).toBe(false);
+	});
+
+	it('skips what it cannot map — a nested bag included — without failing', () => {
+		expect(parsed.skipped).toEqual([
+			'Nested Bag (Bag in bag)',
+			'Fancy Thing (Custom_Assetbundle in bag)'
+		]);
+	});
+
+	it('maps Bag.Order onto a draw mode, defaulting to random', () => {
+		expect(bag.drawMode).toBe('lifo'); // Order 1
+		expect(parseSavedObject(bagSave({ Bag: { Order: 2 } })).pieces[0].drawMode).toBe('fifo');
+		expect(parseSavedObject(bagSave({ Bag: { Order: 0 } })).pieces[0].drawMode).toBe('random');
+		// an encoding this build doesn't know must not fail the import
+		expect(parseSavedObject(bagSave({ Bag: { Order: 99 } })).pieces[0].drawMode).toBe('random');
+		expect(parseSavedObject(bagSave({ Bag: undefined })).pieces[0].drawMode).toBe('random');
+	});
+
+	it('marks an Infinite_Bag infinite, and a plain bag not', () => {
+		const infinite = parseSavedObject({
+			ObjectStates: [{ Name: 'Infinite_Bag', Nickname: 'Supply', ContainedObjects: [] }]
+		}).pieces[0];
+		expect(infinite).toMatchObject({ kind: 'bag', name: 'Supply', infinite: true });
+		expect(bag.infinite).toBeUndefined();
+	});
+
+	it('imports an empty bag rather than dropping the object the author placed', () => {
+		const empty = parseSavedObject({ ObjectStates: [{ Name: 'Bag', Nickname: 'Empty' }] });
+		expect(empty.pieces[0]).toMatchObject({ kind: 'bag', name: 'Empty', contents: [] });
+		expect(empty.skipped).toEqual([]);
+	});
+});
+
 describe('extractCounterMax', () => {
 	it('parses MAX_VALUE from TTS counter Lua', () => {
 		expect(extractCounterMax('CONFIG = {\r\n MIN_VALUE = 0,\r\n MAX_VALUE = 18,')).toBe(18);

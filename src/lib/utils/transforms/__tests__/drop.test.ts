@@ -170,6 +170,206 @@ describe('resolveDrop', () => {
 		expect(resolveDrop(undefined, 'a', { x: 0, z: 0 })).toBeNull();
 	});
 
+	describe('bag hover', () => {
+		const withBag = (over: Partial<GameDTO> = {}) =>
+			state({
+				pieces: {
+					'piece:seat0:bag-0': {
+						kind: 'bag',
+						name: 'Bag',
+						position: [6, PIECE_REST_Y, -3],
+						radius: 0.9
+					},
+					...over.pieces
+				},
+				cards: over.cards,
+				decks: over.decks,
+				snapPoints: over.snapPoints
+			});
+
+		/**
+		 * The precedence the bag and the snap points (tableplace-96) had to be
+		 * composed for. A bag you pointed at is an aimed-at target; a snap point
+		 * that happens to sit at the same spot is proximity — so the bag wins,
+		 * and with no bag under the pointer the snap still catches the drop.
+		 */
+		describe('against an authored snap point', () => {
+			/** the snap point sits exactly where the bag does */
+			const withBagOnSnap = (over: Partial<GameDTO> = {}) =>
+				withBag({
+					...over,
+					snapPoints: { 'snap:0': { id: 'snap:0', position: [6, -3], radius: 1, rotation: 90 } }
+				});
+			const token = {
+				'piece:seat0:token-0': {
+					kind: 'token' as const,
+					position: [0, 1.2, 0] as [number, number, number]
+				}
+			};
+
+			it('the bag swallows a piece dropped on a point it shares', () => {
+				const drop = resolveDrop(
+					withBagOnSnap({ pieces: { ...token } }),
+					'piece:seat0:token-0',
+					{ x: 6, z: -3 },
+					{ bagId: 'piece:seat0:bag-0' }
+				);
+				expect(drop?.kind).toBe('bag');
+				expect(drop?.snap).toBeUndefined(); // not a snap landing at all
+			});
+
+			it('the same drop with no bag under the pointer still snaps', () => {
+				const drop = resolveDrop(withBagOnSnap({ pieces: { ...token } }), 'piece:seat0:token-0', {
+					x: 6.3,
+					z: -2.8
+				});
+				expect(drop).toMatchObject({
+					kind: 'snap',
+					position: [6, PIECE_REST_Y, -3],
+					snap: { id: 'snap:0' }
+				});
+				// a piece takes the authored yaw in DEGREES on rotation[1] (a deck
+				// would take radians) — see applySnapRotation
+				expect(drop?.rotation).toEqual([0, 90, 0]);
+			});
+
+			it('a card is swallowed rather than caught, too', () => {
+				const s = withBagOnSnap({ cards: { a: card(0, 2, 0) } });
+				expect(resolveDrop(s, 'a', { x: 6, z: -3 }, { bagId: 'piece:seat0:bag-0' })?.kind).toBe(
+					'bag'
+				);
+				expect(resolveDrop(s, 'a', { x: 6, z: -3 })?.kind).toBe('snap');
+			});
+
+			it('Alt opts out of snapping but not out of the bag', () => {
+				const s = withBagOnSnap({ pieces: { ...token } });
+				const hover = { bagId: 'piece:seat0:bag-0' };
+				// the bag is aimed at, like a deck or the tray, and Alt has never
+				// opted out of those
+				expect(
+					resolveDrop(s, 'piece:seat0:token-0', { x: 6, z: -3 }, hover, { noSnap: true })?.kind
+				).toBe('bag');
+				expect(
+					resolveDrop(s, 'piece:seat0:token-0', { x: 6, z: -3 }, {}, { noSnap: true })?.kind
+				).toBe('table');
+			});
+
+			/**
+			 * A whole deck has no representation inside a bag (`contents` holds
+			 * pieces and cards only), so `returnToBag` would refuse it — and a
+			 * refused drop that resolved as 'bag' would leave the pile floating at
+			 * drag height. It settles (or snaps) instead.
+			 */
+			it('a dragged deck is never swallowed — it settles or snaps as usual', () => {
+				const s = withBagOnSnap({
+					decks: {
+						'deck:me:main': {
+							id: 'deck:me:main',
+							position: [0, CARD_DRAG_Y, 0],
+							rotation: [0, 0, 0],
+							cards: [{ id: 'c0', faceImageUrl: 'f.png' }]
+						}
+					}
+				});
+				const onto = resolveDrop(
+					s,
+					'deck:me:main',
+					{ x: 6, z: -3 },
+					{ bagId: 'piece:seat0:bag-0' }
+				);
+				expect(onto?.kind).toBe('snap');
+				expect(onto?.snap).toMatchObject({ id: 'snap:0' });
+
+				const elsewhere = resolveDrop(
+					s,
+					'deck:me:main',
+					{ x: 12, z: 4 },
+					{ bagId: 'piece:seat0:bag-0' }
+				);
+				expect(elsewhere?.kind).toBe('table');
+			});
+		});
+
+		it('reports a bag drop for a card, targeting the bag and its own spot', () => {
+			const s = withBag({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 0, z: 0 }, { bagId: 'piece:seat0:bag-0' });
+
+			expect(drop).toMatchObject({
+				kind: 'bag',
+				targetId: 'piece:seat0:bag-0',
+				position: [6, PIECE_REST_Y, -3],
+				footprint: { shape: 'circle', r: 0.9 }
+			});
+			expect(drop?.footprintY).toBe(TABLE_TOP_Y);
+		});
+
+		it('reports a bag drop for a piece too — a bag beats the plain settle', () => {
+			const s = withBag({
+				pieces: { 'piece:seat0:token-0': { kind: 'token', position: [0, 1.2, 0] } }
+			});
+			const drop = resolveDrop(
+				s,
+				'piece:seat0:token-0',
+				{ x: 6, z: -3 },
+				{ bagId: 'piece:seat0:bag-0' }
+			);
+			expect(drop?.kind).toBe('bag');
+		});
+
+		it('never puts a bag inside a bag, or inside itself', () => {
+			const s = withBag({
+				pieces: { 'piece:seat0:other-bag-0': { kind: 'bag', position: [0, 1.2, 0] } }
+			});
+			expect(
+				resolveDrop(s, 'piece:seat0:other-bag-0', { x: 6, z: -3 }, { bagId: 'piece:seat0:bag-0' })
+					?.kind
+			).toBe('table');
+			expect(
+				resolveDrop(s, 'piece:seat0:bag-0', { x: 1, z: 1 }, { bagId: 'piece:seat0:bag-0' })?.kind
+			).toBe('table');
+		});
+
+		it('ignores a hover on a piece that is not a bag', () => {
+			const s = withBag({
+				cards: { a: card(0, 2, 0) },
+				pieces: { 'piece:seat0:token-0': { kind: 'token', position: [0, PIECE_REST_Y, 0] } }
+			});
+			expect(resolveDrop(s, 'a', { x: 0, z: 0 }, { bagId: 'piece:seat0:token-0' })?.kind).toBe(
+				'table'
+			);
+		});
+
+		it('lets the tray win over a bag for a card, but not for a piece', () => {
+			const s = withBag({
+				cards: { a: card(0, 2, 0) },
+				pieces: { 'piece:seat0:token-0': { kind: 'token', position: [0, 1.2, 0] } }
+			});
+			const hover = { bagId: 'piece:seat0:bag-0', tray: true };
+			// the HUD tray sits in front of the table, so both can be "under" the
+			// pointer — the hand is the more explicit target for a card
+			expect(resolveDrop(s, 'a', { x: 0, z: 0 }, hover)?.kind).toBe('tray');
+			// …and a piece can't enter the tray at all
+			expect(resolveDrop(s, 'piece:seat0:token-0', { x: 0, z: 0 }, hover)?.kind).toBe('bag');
+			// no hand on this route: the bag takes the card after all
+			expect(resolveDrop(s, 'a', { x: 0, z: 0 }, hover, { hand: false })?.kind).toBe('bag');
+		});
+
+		it('a bag beats a deck under the same pointer', () => {
+			const s = withBag({ cards: { a: card(0, 2, 0) } });
+			s.decks = { 'deck:1': { position: [8, 0.4, 4], cards: [] } };
+			const drop = resolveDrop(
+				s,
+				'a',
+				{ x: 0, z: 0 },
+				{
+					bagId: 'piece:seat0:bag-0',
+					deckId: 'deck:1'
+				}
+			);
+			expect(drop?.kind).toBe('bag');
+		});
+	});
+
 	describe('noSnap (Alt held at release)', () => {
 		const overlapping = () =>
 			state({ cards: { a: card(0, 2, 0), resting: card(0.2, CARD_REST_Y, 0.2) } });

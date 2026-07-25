@@ -5,8 +5,8 @@ import { PIECE_REST_Y } from '$lib/utils/constants-pieces';
 import { BUILTIN_PACKS, PACK_SOURCE_BUILTIN } from './builtin';
 import { hasLibraryPack, PACK_SOURCE_LOCAL } from './library';
 import type { SpreadTile } from './spread';
-import type { GamePackDef, PackDeckDef } from './types';
-import type { CardDTO, PackOrigin } from '$lib/store/game/types';
+import type { GamePackDef, PackDeckDef, PackPieceDef } from './types';
+import type { BagItem, CardDTO, PackOrigin } from '$lib/store/game/types';
 
 export type SpawnPackOptions = {
 	/** entity owner — defaults to the local player (the scenario editor passes `seat0`…`seat3`) */
@@ -179,6 +179,15 @@ export type SpawnPieceOptions = SpawnPackOptions & {
 	state?: number;
 };
 
+/**
+ * A pack bag item and a live bag item are the same shape by design — the pack
+ * says what is in the bag, the store holds that same list as the bag's state.
+ * Cloned per spawn so two bags from one pack never share an array.
+ */
+function bagContents(def: PackPieceDef): BagItem[] {
+	return (def.contents ?? []).map((item) => ({ ...item }) as BagItem);
+}
+
 /** Spawn one of a pack's pieces (by index into `pack.pieces`). */
 export function spawnPackPiece(pack: GamePackDef, index: number, opts: SpawnPieceOptions = {}) {
 	const def = pack.pieces?.[index];
@@ -202,6 +211,9 @@ export function spawnPackPiece(pack: GamePackDef, index: number, opts: SpawnPiec
 		maxValue: def.maxValue,
 		sides: def.sides,
 		value: opts.value,
+		...(def.kind === 'bag'
+			? { contents: bagContents(def), drawMode: def.drawMode, infinite: def.infinite }
+			: {}),
 		position: opts.position ?? [def.position[0] * m, PIECE_REST_Y, def.position[1] * m],
 		rotation: opts.rotation,
 		packOrigin: origin(pack, String(index), opts.source)

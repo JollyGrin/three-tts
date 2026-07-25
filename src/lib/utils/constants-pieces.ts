@@ -26,7 +26,8 @@ export const PIECE_RADIUS = {
 	token: PIECE_DEFAULT_RADIUS,
 	pawn: 0.3,
 	counter: 0.6,
-	die: 0.55
+	die: 0.55,
+	bag: 0.9
 } as const;
 
 /** Starting max for a hand-spawned health dial */
@@ -40,3 +41,28 @@ export const DIE_SIDES_DEFAULT: DieSides = 6;
 
 /** Peak of the tumble arc, above the die's resting height */
 export const DIE_LIFT_Y = 1.5;
+
+/** Height of the bag pouch, drawn upward from the piece origin */
+export const BAG_HEIGHT = 1.2;
+
+/** Gap between the bag's edge and where a drawn item lands */
+export const BAG_DRAW_GAP = 0.75;
+
+/** Landing spots in the first ring around a bag before draws step outward */
+export const BAG_DRAW_SLOTS = 8;
+
+/**
+ * Where a drawn item lands: stepping round a ring beside the bag so successive
+ * draws sit side by side instead of piling on one spot. `index` is any
+ * monotonically-changing number — the caller uses the table's entity count, so
+ * the ring advances by one per draw. Returns the table-plane [x, z]; the caller
+ * clamps it to the felt and supplies the resting height.
+ */
+export function bagDrawOffset(radius: number, index: number): { x: number; z: number } {
+	const slot = ((index % BAG_DRAW_SLOTS) + BAG_DRAW_SLOTS) % BAG_DRAW_SLOTS;
+	const ring = Math.floor(Math.abs(index) / BAG_DRAW_SLOTS);
+	const distance = radius + BAG_DRAW_GAP + ring * BAG_DRAW_GAP;
+	const theta = (slot / BAG_DRAW_SLOTS) * Math.PI * 2;
+	const round = (v: number) => Math.round(v * 1000) / 1000;
+	return { x: round(Math.cos(theta) * distance), z: round(Math.sin(theta) * distance) };
+}

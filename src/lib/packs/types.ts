@@ -26,7 +26,40 @@ export type PackDeckDef = {
 	cards: PackCardDef[];
 };
 
-export type PackPieceKind = 'token' | 'pawn' | 'counter' | 'die';
+export type PackPieceKind = 'token' | 'pawn' | 'counter' | 'die' | 'bag';
+
+/** Order a bag hands its contents out in. TTS analog: the container's Order. */
+export type PackBagDrawMode = 'random' | 'lifo' | 'fifo';
+
+/**
+ * A piece inside a bag — a `PackPieceDef` without the table position, because
+ * a draw is what decides where it lands. Nested bags are deliberately absent:
+ * a bag's contents are one level deep.
+ */
+export type PackBagPieceItem = {
+	kind: 'token' | 'pawn' | 'counter';
+	name: string;
+	/** hex tint; pawns/counters without images render in this color */
+	color?: string;
+	imageUrl?: string;
+	radius?: number;
+	/** counters draw at this value */
+	maxValue?: number;
+};
+
+/** A card inside a bag: the same face-ref grammar cards use, plus its own back. */
+export type PackBagCardItem = {
+	kind: 'card';
+	/** stable id within the bag — the drawn card's entity id is built from it */
+	code: string;
+	name?: string;
+	/** Face ref: https url, `sheet:` descriptor, or `gen:` scheme */
+	face: string;
+	back?: string;
+};
+
+/** One thing inside a bag, discriminated on `kind` like pieces are. */
+export type PackBagItemDef = PackBagPieceItem | PackBagCardItem;
 
 /**
  * One alternate face of a multi-state piece (the TTS `States` analog: a
@@ -73,6 +106,12 @@ export type PackPieceDef = {
 	sides?: DieSides;
 	/** table-plane position [x, z] in world units */
 	position: [number, number];
+	/** bags only — what a draw pulls out. Hidden from every player in play. */
+	contents?: PackBagItemDef[];
+	/** bags only — draw order; defaults to `'random'` */
+	drawMode?: PackBagDrawMode;
+	/** bags only — a draw clones the item instead of removing it (TTS Infinite_Bag) */
+	infinite?: boolean;
 };
 
 export type PackOverlayDef = {

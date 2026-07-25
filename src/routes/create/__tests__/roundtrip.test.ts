@@ -17,7 +17,13 @@ import { spawnPack, spawnPackDeck } from '$lib/packs/spawn';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { makeSheetRef } from '$lib/packs/resolve.svelte';
 import type { GamePackDef } from '$lib/packs/types';
-import { withEditorDefaults, cleanForExport, type EditorPack } from '../normalize';
+import {
+	withEditorDefaults,
+	withBagItemDefaults,
+	cleanForExport,
+	type EditorPack,
+	type EditorPiece
+} from '../normalize';
 
 const cloneFixture = JSON.parse(
 	readFileSync(join(__dirname, '../../../../tts-clonetroopers.json'), 'utf-8')
@@ -38,49 +44,44 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 	draft.name = 'Clone Troopers (edited)';
 	draft.decks[0].cards[0].name = 'Renamed Card';
 	draft.decks[0].cards.push({ code: 'AS', name: 'Ace of Spades', face: 'gen:std52/AS' });
+	const editorPiece = (over: Partial<EditorPiece>): EditorPiece => ({
+		kind: 'token',
+		name: '',
+		color: '#c8c4b8',
+		imageUrl: '',
+		radius: 0.75,
+		maxValue: 20,
+		states: [],
+		state: 0,
+		contents: [],
+		drawMode: 'random',
+		infinite: false,
+		position: [0, 0],
+		...over
+	});
+
 	draft.pieces.push(
-		{
+		editorPiece({
 			kind: 'token',
 			name: 'Objective',
-			color: '#c8c4b8',
 			imageUrl: 'https://example.com/token.png',
-			radius: 0.75,
-			maxValue: 20,
-			states: [],
-			state: 0,
 			position: [1, 1]
-		},
-		{
-			kind: 'pawn',
-			name: 'Runner',
-			color: '#3366ff',
-			imageUrl: '',
-			radius: 0.3,
-			maxValue: 20,
-			states: [],
-			state: 0,
-			position: [2, -1]
-		},
-		{
+		}),
+		editorPiece({ kind: 'pawn', name: 'Runner', color: '#3366ff', radius: 0.3, position: [2, -1] }),
+		editorPiece({
 			kind: 'counter',
 			name: 'HP',
 			color: '#b3202e',
-			imageUrl: '',
 			radius: 0.6,
 			maxValue: 12,
-			states: [],
-			state: 0,
 			position: [3, 0]
-		},
-		{
-			// a multi-state token: three faces, one per face-ref scheme, spawning
-			// on the last one
+		}),
+		// a multi-state token: three faces, one per face-ref scheme, spawning
+		// on the last one
+		editorPiece({
 			kind: 'token',
 			name: 'Brazier',
-			color: '#c8c4b8',
-			imageUrl: '',
 			radius: 0.8,
-			maxValue: 20,
 			states: [
 				{ face: 'https://example.com/brazier-lit.png', name: 'Lit' },
 				{ face: 'gen:std52/AS', name: 'Embers' },
@@ -93,7 +94,29 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 			],
 			state: 2,
 			position: [4, 2]
-		}
+		}),
+		// a bag with one item of every kind it can hold, the pane's own defaults
+		// filled in by withBagItemDefaults exactly as "Add … to bag" does
+		editorPiece({
+			kind: 'bag',
+			name: 'Tile Bag',
+			color: '#7c2d12',
+			radius: 0.9,
+			drawMode: 'lifo',
+			infinite: true,
+			position: [6, -2],
+			contents: [
+				withBagItemDefaults({ kind: 'token', name: 'Ember', color: '#f97316' }),
+				withBagItemDefaults({ kind: 'pawn', name: 'Scout' }),
+				withBagItemDefaults({ kind: 'counter', name: 'Dial', maxValue: 5 }),
+				withBagItemDefaults({
+					kind: 'card',
+					code: 'omen',
+					name: 'Omen',
+					face: 'https://example.com/omen.png'
+				})
+			]
+		})
 	);
 	draft.overlays.push({ imageUrl: 'https://example.com/map.png', ratio: 1.5, scale: 12 });
 
@@ -118,12 +141,28 @@ describe('/create round-trip (tts-clonetroopers.json)', () => {
 
 		// the schema has teeth: a malformed piece is caught
 		expect(validatePack({ ...file, pieces: [{ kind: 'dice', name: 'd6' }] })).toBe(false);
+		// …including a bag inside a bag, which the format does not allow
+		expect(
+			validatePack({
+				...file,
+				pieces: [
+					{
+						kind: 'bag',
+						name: 'Nested',
+						position: [0, 0],
+						contents: [{ kind: 'bag', name: 'Inner' }]
+					}
+				]
+			})
+		).toBe(false);
 	});
 
 	it('covers every implemented piece kind, overlays, and all three face-ref schemes', () => {
 		const pack = parsePackFile(importEditExport().exported);
 
-		expect(new Set(pack.pieces?.map((p) => p.kind))).toEqual(new Set(['token', 'pawn', 'counter']));
+		expect(new Set(pack.pieces?.map((p) => p.kind))).toEqual(
+			new Set(['token', 'pawn', 'counter', 'bag'])
+		);
 		expect(pack.overlays?.length).toBe(1);
 
 		const faces = pack.decks.flatMap((d) => [d.back, ...d.cards.map((c) => c.face)]);
@@ -161,6 +200,23 @@ describe('/create round-trip (tts-clonetroopers.json)', () => {
 		expect(pawn?.imageUrl).toBeUndefined(); // empty image URL never ships
 		expect(pawn?.maxValue).toBeUndefined(); // maxValue is counters-only
 		expect(pack.pieces?.find((p) => p.name === 'HP')?.maxValue).toBe(12);
+		// bag fields are bags-only, and the flat editor item narrows back down
+		expect(pawn?.contents).toBeUndefined();
+		expect(pawn?.drawMode).toBeUndefined();
+		expect(pawn?.infinite).toBeUndefined();
+	});
+
+	it('exports a bag with its contents, draw mode, and infinite flag', () => {
+		const bag = parsePackFile(importEditExport().exported).pieces?.find((p) => p.kind === 'bag');
+
+		expect(bag).toMatchObject({ name: 'Tile Bag', drawMode: 'lifo', infinite: true });
+		expect(bag?.contents).toEqual([
+			{ kind: 'token', name: 'Ember', color: '#f97316', radius: 0.75 },
+			{ kind: 'pawn', name: 'Scout', color: '#c8c4b8', radius: 0.3 },
+			{ kind: 'counter', name: 'Dial', color: '#c8c4b8', radius: 0.6, maxValue: 5 },
+			// a card item carries the face-ref fields and none of the piece ones
+			{ kind: 'card', code: 'omen', name: 'Omen', face: 'https://example.com/omen.png' }
+		]);
 	});
 
 	it('does not corrupt an untouched import', () => {
@@ -204,6 +260,11 @@ describe('spawnPack — the /setup load path for an exported pack', () => {
 		const brazier = pieces.find((p) => p?.name === 'Brazier');
 		expect(brazier?.states).toHaveLength(3);
 		expect(brazier?.state).toBe(2);
+
+		// a spawned bag arrives loaded, so /play can draw from it immediately
+		const bag = pieces.find((p) => p?.kind === 'bag');
+		expect(bag).toMatchObject({ drawMode: 'lifo', infinite: true });
+		expect(bag?.contents).toHaveLength(4);
 
 		expect(Object.values(s.overlays ?? {}).length).toBe(pack.overlays?.length);
 	});
