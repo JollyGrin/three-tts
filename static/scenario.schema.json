@@ -123,6 +123,11 @@
 								"type": "number",
 								"title": "value"
 							},
+							"state": {
+								"description": "piece placements only — which of the pack piece's `states` it starts on\n(index into `PackPieceDef.states`, default 0). Distinct from the\nscenario's top-level `state` snapshot: this is one piece's face.",
+								"type": "number",
+								"title": "state"
+							},
 							"scale": {
 								"description": "overlays only",
 								"type": "number",
@@ -619,6 +624,32 @@
 					"type": "string",
 					"title": "imageUrl"
 				},
+				"states": {
+					"description": "Faces this piece can be cycled through, `states[0]` being the base face.\nCarried on the entity (not looked up from the pack) so a client that\nnever loaded the pack still renders whatever state the table is in.",
+					"type": "array",
+					"items": {
+						"description": "One alternate face of a multi-state piece — see `PackPieceStateDef`.",
+						"type": "object",
+						"properties": {
+							"face": {
+								"description": "face ref, resolved like a card face",
+								"type": "string",
+								"title": "face"
+							},
+							"name": {
+								"type": "string",
+								"title": "name"
+							}
+						},
+						"required": ["face"]
+					},
+					"title": "states"
+				},
+				"state": {
+					"description": "index into `states`; absent = 0. Synced like every other mutation.",
+					"type": "number",
+					"title": "state"
+				},
 				"radius": {
 					"description": "world radius of the piece footprint",
 					"type": "number",
@@ -695,7 +726,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.3",
-	"x-generated-at": "2026-07-25T13:44:22.562Z",
-	"x-tableplace-source-sha": "7640b7e13e912b433b42631b69e374b983c51a79-dirty"
+	"x-tableplace-spec-version": "0.1.4",
+	"x-generated-at": "2026-07-25T13:54:06.590Z",
+	"x-tableplace-source-sha": "0164a0067fbb0babaee10ab533d02bbe0a10690a-dirty"
 }

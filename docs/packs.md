@@ -71,9 +71,35 @@ Field notes:
 - **`id`** — stable identity for the pack (`standard-52`, `imported:<slug>`…).
 - **`scope`** — `'table'` (the shared game: board, communal decks; loaded once per lobby by the host) or `'player'` (what one player brings, spawned per seat — a deck-builder export is a player pack). See SPEC.md §4d.
 - **`decks[].slot`** — stable id within the pack; **`cards[].code`** — stable id within the deck, and **unique within it**: spawning builds table entity ids as `card:<owner>:<slot>-<code>`, so two cards sharing a code collapse into one entity. /create allocates every code through `allocateCode` (`src/routes/create/bulk-sheet.ts`) — a taken `AS` becomes `AS-2`, then `AS-3`. Both survive re-exports, so external tools can reference cards as `<pack>/<slot>/<code>`.
-- **`pieces`** (optional) — tokens, pawns, and counters: `{ kind: 'token'|'pawn'|'counter', name, color?, imageUrl?, radius?, maxValue?, position: [x, z] }`.
+- **`pieces`** (optional) — tokens, pawns, and counters: `{ kind: 'token'|'pawn'|'counter', name, color?, imageUrl?, states?, state?, radius?, maxValue?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states`.
 - **`overlays`** (optional) — board/map images: `{ imageUrl, ratio, scale }` (`ratio` = width/height).
 - **`source`** (optional) — provenance stamp written by converters (currently only `"tts"`). Native packs omit it.
+
+### Multi-state pieces
+
+A piece can carry several faces and be flipped between them in play — a double-sided tile, an upgrade token, a damaged/undamaged marker. This is the analog of Tabletop Simulator's `States`.
+
+```json
+{
+	"kind": "token",
+	"name": "Brazier",
+	"imageUrl": "https://example.com/img/brazier-lit.png",
+	"states": [
+		{ "face": "https://example.com/img/brazier-lit.png", "name": "Lit" },
+		{ "face": "https://example.com/img/brazier-embers.png", "name": "Embers" },
+		{ "face": "https://example.com/img/brazier-out.png", "name": "Out" }
+	],
+	"position": [0, 0]
+}
+```
+
+**`states[0]` is the base face.** The array is the piece's _complete_ ordered set of faces, not extra ones bolted onto `imageUrl`: a piece with `states` renders `states[n].face`, and starts at `n = 0` unless a scenario placement's `state` says otherwise. `imageUrl` is then a fallback for consumers that ignore states, and every exporter here writes it equal to `states[0].face` — a reader that only knows `imageUrl` still shows the right image.
+
+`face` is a face ref like any other (all three schemes below work, and may be mixed within one piece); `name` is optional and labels the state on hover and in its menu. Only `token` and `counter` pieces render an image today, so states on a `pawn` change its label but not its shape.
+
+A piece may also carry **`state`** — the index it _spawns_ showing, when that isn't the base face (a TTS import puts the state the mod was saved in here). A scenario placement's `state` overrides it.
+
+In play, `X` over a hovered piece shows the next state (`Shift+X` the previous), and right-clicking it opens a menu to pick one directly — cycling is enough for two faces, not for five. The current index lives on the piece in game state (`PieceDTO.state`), so it syncs to every client like any other mutation and survives a scenario save/load. On a _counter_ that also has states, the state menu takes over right-click, so healing it is left to `Shift`+click and the wheel.
 
 ### Face refs
 
@@ -103,6 +129,8 @@ The built-in `STANDARD_52` pack (`src/lib/packs/standard52.ts`) is the canonical
 ### TTS is an import boundary, not part of the spec
 
 `ttsToPack` (`src/lib/tts/to-pack.ts`) converts a parsed Tabletop Simulator Saved Object into a `GamePackDef`: TTS decks become pack decks, sprite-sheet cells become `sheet:` refs (whole images become plain URLs), loose cards group into a face-up `Loose Cards` pile, tiles/pawns/health-dials become pieces, and the result is stamped `source: "tts"`. "Backwards compatible with TTS" means the importer accepts TTS JSON and every TTS concept maps into pack primitives — TTS mechanics (CardID math, `CustomDeck` sheets, Lua scripts) never appear in tbpp itself.
+
+**`States`** map onto the `states` above. A TTS save keeps the _active_ state as the object itself and stores only the others in the `States` dict, keyed by 1-based state number — so the current state is **the number missing from the `1..N` sequence** (there is no `CurrentState` field to read). `statesOrder` in `src/lib/tts/parse.ts` implements exactly that, and the recovered index becomes the piece's starting state. Only image-bearing states (`Custom_Tile`, `Card`/`CardCustom`, anything with a `CustomImage`) become faces; a state of another object class has no image to show, so it degrades to a `skipped[]` note and is left out — never fatal. States nested inside states, and `ContainedObjects` within a state, are not followed.
 
 ## tbps — scenarios
 
@@ -144,6 +172,7 @@ Scenarios are **seat-relative**: entities belong to placeholder players `seat0`�
   - **`seat`** — which placeholder owns the result (`0`–`3`). Omitted for table-scoped overlays.
   - **`order`** (decks) — the authored card sequence as pack card `code`s. **A scenario preserves card order by default**: an encounter deck, a rigged opening, a tutorial setup all reload exactly as saved. It is a list of ids, never card bodies, so referencing the pack stays the point.
   - **`shuffleOnLoad`** (decks, default `false`) — reshuffle on load instead of restoring `order`. It is **per placement**, so one scenario can hold a fixed stacked encounter deck _and_ a shuffled draw deck side by side.
+  - **`state`** (pieces) — which of the pack piece's `states` it starts on (index, default `0`). Not to be confused with the scenario's top-level `state` snapshot: this one is a single piece's face.
   - **`isFaceUp`** (decks), **`value`** (counter pieces), **`scale`** (overlays) — arrangement details that override the pack's defaults.
 - **`state`** — a `Partial<GameDTO>` snapshot (`src/lib/store/game/types.ts`) for everything _not_ pack-derived: ad-hoc pieces, hand-placed cards, TTS-imported decks. It is applied on top of the spawned placements, so it can also override them.
 

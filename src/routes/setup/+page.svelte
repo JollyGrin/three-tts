@@ -9,7 +9,9 @@
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 	import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
+	import { cycleHoveredPieceState } from '$lib/hotkeys/piece-state';
 	import { disconnect } from '$lib/websocket/connection';
+	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import SetupPane from './SetupPane.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -30,6 +32,9 @@
 		// back into loose cards
 		if (event.code === 'KeyG' && event.shiftKey) ungroupHoveredDeck();
 		else if (event.code === 'KeyG') gameActions.groupStackIntoDeck();
+		// same verb as /play: X shows a hovered piece's next state. Here it also
+		// sets what the placement saves as its initial state.
+		if (event.code === 'KeyX') cycleHoveredPieceState(event.shiftKey ? -1 : 1);
 		if (event.code === 'ArrowUp') gameActions.incrementHeight(0.01);
 		if (event.code === 'ArrowDown') gameActions.incrementHeight(-0.01);
 		// number keys 1-9 on a hovered deck: draw that many, fanned toward you
@@ -59,6 +64,7 @@
 <svelte:window on:keydown={handleKeyDown} on:keyup|preventDefault={handleKeyUp} />
 
 <SetupPane />
+<PieceStateMenu />
 
 <div class="h-screen w-screen overflow-clip bg-gray-700">
 	<Canvas toneMapping={ACESFilmicToneMapping}>

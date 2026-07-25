@@ -95,6 +95,33 @@
 								"type": "string",
 								"title": "imageUrl"
 							},
+							"states": {
+								"description": "Alternate faces the piece can be cycled through in play.\n\n**`states[0]` is the base face** — the list is the piece's COMPLETE set of\nfaces, not extra ones added to `imageUrl`. A piece with `states` renders\n`states[n].face` and starts at n = 0 (a scenario placement can start it\nelsewhere); `imageUrl` is then only a fallback for consumers that ignore\nstates, and exporters write it equal to `states[0].face`.",
+								"type": "array",
+								"items": {
+									"description": "One alternate face of a multi-state piece (the TTS `States` analog: a\ndouble-sided tile, an upgrade token, a transformed piece).",
+									"type": "object",
+									"properties": {
+										"face": {
+											"description": "Face ref: https url, `sheet:` descriptor, or `gen:` scheme",
+											"type": "string",
+											"title": "face"
+										},
+										"name": {
+											"description": "shown on hover and in the state menu, e.g. 'Damaged'",
+											"type": "string",
+											"title": "name"
+										}
+									},
+									"required": ["face"]
+								},
+								"title": "states"
+							},
+							"state": {
+								"description": "Index into `states` the piece spawns showing (default 0). This is the\npack's own default — a TTS import puts the state the mod was saved in\nhere; a scenario placement's `state` overrides it.",
+								"type": "number",
+								"title": "state"
+							},
 							"radius": {
 								"description": "world radius of the piece footprint",
 								"type": "number",
@@ -190,7 +217,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.0.0",
-	"x-generated-at": "2026-07-25T13:44:22.562Z",
-	"x-tableplace-source-sha": "7640b7e13e912b433b42631b69e374b983c51a79-dirty"
+	"x-tableplace-spec-version": "1.1.0",
+	"x-generated-at": "2026-07-25T13:54:06.590Z",
+	"x-tableplace-source-sha": "0164a0067fbb0babaee10ab533d02bbe0a10690a-dirty"
 }

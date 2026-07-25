@@ -122,6 +122,8 @@ function toPlacement(
 	if (kind === 'piece') {
 		const piece = entity as unknown as Partial<PieceDTO>;
 		if (piece.value !== undefined) placement.value = piece.value;
+		// the face it was left showing is authoring intent, like a counter's value
+		if (piece.state) placement.state = piece.state;
 	}
 	if (kind === 'overlay') {
 		const overlay = entity as unknown as Partial<OverlayDTO>;
@@ -309,7 +311,8 @@ function applyPlacement(placement: PackPlacement, pack: GamePackDef, source?: st
 			...common,
 			position: placement.position,
 			rotation: placement.rotation,
-			value: placement.value
+			value: placement.value,
+			state: placement.state
 		});
 	} else {
 		spawnPackOverlay(pack, index, {

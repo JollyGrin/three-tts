@@ -11,6 +11,8 @@
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 	import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
+	import { cycleHoveredPieceState } from '$lib/hotkeys/piece-state';
+	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import { startAutoClaim } from '$lib/scenario/autoClaim';
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
@@ -40,6 +42,9 @@
 		// back into loose cards
 		if (event.code === 'KeyG' && event.shiftKey) ungroupHoveredDeck();
 		else if (event.code === 'KeyG') gameActions.groupStackIntoDeck();
+		// X shows a hovered piece's next state (Shift+X the previous one);
+		// right-click picks one directly
+		if (event.code === 'KeyX') cycleHoveredPieceState(event.shiftKey ? -1 : 1);
 		if (event.code === 'ArrowUp') gameActions.incrementHeight(0.01);
 		if (event.code === 'ArrowDown') gameActions.incrementHeight(-0.01);
 		// number keys 1-9 on a hovered deck: draw that many, fanned toward you
@@ -100,6 +105,7 @@
 <Pane />
 <PaneDecks />
 <PlayerHud />
+<PieceStateMenu />
 
 <!-- a pack or scenario dropped mid-game lands on the live table (and, for a
      pack, in this browser's library) — no detour through /setup -->

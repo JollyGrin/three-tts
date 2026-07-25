@@ -148,17 +148,43 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
   - **`cards[]`** — `code` (stable id within the deck), optional `name`, and `face` (a face ref).
-- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"` or `"counter"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`.
+- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"` or `"counter"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`.
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
 
 Decks spawn in declaration order. A facedown deck is shuffled when spawned directly onto a table; a scenario placement controls this explicitly (§7).
 
-### 6.2 JSON Schema
+### 6.2 Multi-state pieces
+
+A piece can carry several faces and be flipped between them in play — a double-sided tile, an upgrade token, a damaged/undamaged marker. This is the analog of Tabletop Simulator's `States`.
+
+```json
+{
+	"kind": "token",
+	"name": "Brazier",
+	"imageUrl": "https://example.com/img/brazier-lit.png",
+	"states": [
+		{ "face": "https://example.com/img/brazier-lit.png", "name": "Lit" },
+		{ "face": "https://example.com/img/brazier-embers.png", "name": "Embers" },
+		{ "face": "https://example.com/img/brazier-out.png", "name": "Out" }
+	],
+	"position": [0, 0]
+}
+```
+
+**`states[0]` is the base face.** The array is the piece's _complete_ ordered set of faces, not extra ones added to `imageUrl`. A piece with `states` renders `states[n].face` and starts at `n = 0` unless a scenario placement's `state` says otherwise (§7.1). Write `imageUrl` equal to `states[0].face`: it is the fallback for anything that ignores states.
+
+`face` is a face ref (§5) — schemes may be mixed inside one piece. `name` is optional and labels the state on hover and in its picker menu. Only `token` and `counter` pieces render an image, so states on a `pawn` change its label, not its shape.
+
+A piece may also carry **`state`**: the index it _spawns_ showing, for when that is not the base face. Omit it unless you mean it; a scenario placement's `state` (§7.1) overrides it.
+
+Players cycle a piece with `X` (`Shift+X` backwards) or pick a state from its right-click menu; the current index is synced game state, so it survives a scenario save/load.
+
+### 6.3 JSON Schema
 
 {{PACK_SCHEMA}}
 
-### 6.3 Worked example
+### 6.4 Worked example
 
 A complete, valid pack. Save as `ember-duel.tbpp.json` and import it from the table.place setup screen.
 
@@ -183,6 +209,7 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
   - **`position`** / **`rotation`** — `[x, y, z]` world coordinates and radians (§4). Omitted means the app's per-seat default.
   - **`order`** _(decks)_ — the card sequence as pack card `code`s, top of the deck first. **Order is preserved by default**, so a rigged opening or a fixed encounter deck reloads exactly as authored. It is a list of ids, never card bodies. Unknown codes are skipped with a warning.
   - **`shuffleOnLoad`** _(decks, default `false`)_ — shuffle on load instead of restoring `order`. Per placement, so one scenario can hold a stacked encounter deck and a shuffled draw deck side by side.
+  - **`state`** _(pieces)_ — which of the pack piece's `states` (§6.2) it starts on, as an index (default `0`). This is one piece's face; the scenario's top-level `state` field below is something else entirely.
   - **`isFaceUp`** _(decks)_, **`value`** _(counter pieces)_, **`scale`** _(overlays)_ — override the pack's defaults.
 - **`snapPoints[]`** _(optional)_ — placement guides on the felt (§7.2 below). Independent of `placements`: they steer what players drop, not what the scenario spawns.
 - **`state`** — a partial snapshot for everything _not_ pack-derived: hand-placed cards, ad-hoc pieces. Applied on top of the placements, so it can also override them. This is the part of the format most likely to change; keep as little in it as you can.
@@ -214,7 +241,7 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 
 ### 7.4 Worked example
 
-Two packs — one builtin, one fetched from `{{EXAMPLE_PACK_URL}}` (the pack in §6.3) — with a stacked deck for seat 0, a shuffled deck for seat 1, a counter, a board overlay, three snap points, and one hand-placed token in `state`.
+Two packs — one builtin, one fetched from `{{EXAMPLE_PACK_URL}}` (the pack in §6.4) — with a stacked deck for seat 0, a shuffled deck for seat 1, a counter, a board overlay, three snap points, and one hand-placed token in `state`.
 
 {{SCENARIO_EXAMPLE}}
 

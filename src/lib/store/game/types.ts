@@ -82,6 +82,13 @@ export type PlayerDTO = SeatState & {
  */
 export type PieceKind = 'token' | 'pawn' | 'counter';
 
+/** One alternate face of a multi-state piece — see `PackPieceStateDef`. */
+export type PieceStateDTO = {
+	/** face ref, resolved like a card face */
+	face: string;
+	name?: string;
+};
+
 export type PieceDTO = {
 	position: [number, number, number];
 	rotation: [number, number, number];
@@ -91,6 +98,14 @@ export type PieceDTO = {
 	color?: string;
 	/** token top-face image ref (resolved like card faces) */
 	imageUrl?: string;
+	/**
+	 * Faces this piece can be cycled through, `states[0]` being the base face.
+	 * Carried on the entity (not looked up from the pack) so a client that
+	 * never loaded the pack still renders whatever state the table is in.
+	 */
+	states?: PieceStateDTO[];
+	/** index into `states`; absent = 0. Synced like every other mutation. */
+	state?: number;
 	/** world radius of the piece footprint */
 	radius?: number;
 	/** counter state */

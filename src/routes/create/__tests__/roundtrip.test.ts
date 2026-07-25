@@ -46,6 +46,8 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 			imageUrl: 'https://example.com/token.png',
 			radius: 0.75,
 			maxValue: 20,
+			states: [],
+			state: 0,
 			position: [1, 1]
 		},
 		{
@@ -55,6 +57,8 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 			imageUrl: '',
 			radius: 0.3,
 			maxValue: 20,
+			states: [],
+			state: 0,
 			position: [2, -1]
 		},
 		{
@@ -64,7 +68,31 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 			imageUrl: '',
 			radius: 0.6,
 			maxValue: 12,
+			states: [],
+			state: 0,
 			position: [3, 0]
+		},
+		{
+			// a multi-state token: three faces, one per face-ref scheme, spawning
+			// on the last one
+			kind: 'token',
+			name: 'Brazier',
+			color: '#c8c4b8',
+			imageUrl: '',
+			radius: 0.8,
+			maxValue: 20,
+			states: [
+				{ face: 'https://example.com/brazier-lit.png', name: 'Lit' },
+				{ face: 'gen:std52/AS', name: 'Embers' },
+				{
+					face: makeSheetRef({ url: 'https://example.com/sheet.png', cols: 3, rows: 2, index: 4 }),
+					name: 'Out'
+				},
+				// an empty row the author never filled in: dropped on export
+				{ face: '', name: '' }
+			],
+			state: 2,
+			position: [4, 2]
 		}
 	);
 	draft.overlays.push({ imageUrl: 'https://example.com/map.png', ratio: 1.5, scale: 12 });
@@ -102,6 +130,28 @@ describe('/create round-trip (tts-clonetroopers.json)', () => {
 		expect(faces.some((f) => f.startsWith('sheet:'))).toBe(true);
 		expect(faces.some((f) => f.startsWith('gen:'))).toBe(true);
 		expect(pack.pieces?.some((p) => p.imageUrl?.startsWith('https:'))).toBe(true);
+	});
+
+	it('authors a multi-state token: faces survive, empty rows do not', () => {
+		const pack = parsePackFile(importEditExport().exported);
+		const brazier = pack.pieces?.find((p) => p.name === 'Brazier');
+
+		expect(brazier?.states).toEqual([
+			{ face: 'https://example.com/brazier-lit.png', name: 'Lit' },
+			{ face: 'gen:std52/AS', name: 'Embers' },
+			{
+				face: makeSheetRef({ url: 'https://example.com/sheet.png', cols: 3, rows: 2, index: 4 }),
+				name: 'Out'
+			}
+		]);
+		// all three face-ref schemes, mixed within one piece
+		expect(brazier?.states?.[0].face.startsWith('https:')).toBe(true);
+		expect(brazier?.states?.[1].face.startsWith('gen:')).toBe(true);
+		expect(brazier?.states?.[2].face.startsWith('sheet:')).toBe(true);
+		// states[0] is the base face, so imageUrl mirrors it even though the
+		// editor's own Image URL field was left empty
+		expect(brazier?.imageUrl).toBe('https://example.com/brazier-lit.png');
+		expect(brazier?.state).toBe(2);
 	});
 
 	it('strips editing defaults instead of shipping them', () => {
@@ -149,6 +199,11 @@ describe('spawnPack — the /setup load path for an exported pack', () => {
 		const pieces = Object.values(s.pieces ?? {});
 		expect(pieces.length).toBe(pack.pieces?.length);
 		expect(pieces.find((p) => p?.name === 'HP')?.value).toBe(12); // counters spawn full
+
+		// a multi-state piece lands with every face and on its authored state
+		const brazier = pieces.find((p) => p?.name === 'Brazier');
+		expect(brazier?.states).toHaveLength(3);
+		expect(brazier?.state).toBe(2);
 
 		expect(Object.values(s.overlays ?? {}).length).toBe(pack.overlays?.length);
 	});
