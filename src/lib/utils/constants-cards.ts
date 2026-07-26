@@ -88,6 +88,26 @@ export function deckHeightForCount(count: number): number {
 export const CARD_REST_Y = 0.26;
 
 /**
+ * The editor's selection mark. `/create`'s cursors say which card is being
+ * edited, but on the table that answer used to exist nowhere at all (#109), so
+ * the selected card floats over a coloured pad the size of its own footprint
+ * plus a border.
+ *
+ * The lift is deliberately small: the spread's camera is close to top-down,
+ * and a tall float would slide the card visibly off the pad it is meant to
+ * mark. It is a RENDER offset only — never written to the store — so stacking
+ * and drop resolution are untouched (both ignore cards above
+ * `CARD_STACK_MAX_Y`, which this stays well clear of).
+ */
+export const CARD_PICK_LIFT = 0.2;
+
+/** Pad border visible around the selected card, per side */
+export const CARD_PICK_HALO = 0.14;
+
+/** Same violet as the snap markers: an editor overlay, not table content. */
+export const CARD_PICK_COLOR = '#a78bfa';
+
+/**
  * Height a card floats at while being dragged. Shared by every drag entry
  * point (table, deck, tray) so the store position matches what is rendered —
  * the drop indicator's connector line is drawn to this height.

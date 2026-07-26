@@ -16,10 +16,13 @@
 		CARD_THICKNESS,
 		CARD_REST_Y,
 		CARD_DRAG_Y,
+		CARD_PICK_COLOR,
+		CARD_PICK_HALO,
+		CARD_PICK_LIFT,
 		cardBodyGeometry
 	} from '$lib/utils/constants-cards';
 	import { fanOffset } from '$lib/utils/transforms/stacking';
-	import { pickCard } from './store/cardPick';
+	import { pickCard, pickedCard } from './store/cardPick';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	type Vec3Array = [number, number, number];
@@ -40,6 +43,13 @@
 	const backImageUrl = $derived(resolveCardImage(cardState?.backImageUrl, $sheetRefCache));
 	let isHovered = $state(false);
 	let emissiveIntensity = $state(0);
+
+	/**
+	 * This card is the one the /create pane is editing. Nothing registers a
+	 * selection anywhere else, so `isPicked` is permanently false at /play and
+	 * /setup and the marker below never mounts there.
+	 */
+	const isPicked = $derived($pickedCard === id);
 
 	// stiffer than the rotation spring so the card is already airborne when the flip starts
 	const height = new Spring((cardState?.position as Vec3Array)?.[1] ?? CARD_REST_Y, {
@@ -67,7 +77,10 @@
 			return () => clearTimeout(handle);
 		}
 		const flipping = Math.abs(rotation.current - rotation.target) > 2;
-		const restY = cardState?.position?.[1] ?? CARD_REST_Y;
+		// the editor's selection lift rides on top of the store's rest height,
+		// and only here: the store keeps the squared-up resting position, same
+		// as the hover fan
+		const restY = (cardState?.position?.[1] ?? CARD_REST_Y) + (isPicked ? CARD_PICK_LIFT : 0);
 		height.target = flipping ? Math.max(1.5, restY) : restY;
 	});
 
@@ -286,3 +299,24 @@
 		</T.Mesh>
 	{/if}
 </T.Group>
+
+{#if isPicked}
+	<!--
+		The selection pad, drawn at the height the card RESTS at with the card
+		floating over it, so it reads as a marked slot rather than as a second
+		card. Its OWN group, outside the one above: a child of that group would
+		inherit the flip rotation and swing over the face the moment the card was
+		turned over. The tap yaw it does follow, so the pad stays square to a
+		tapped card. No pointer handlers, so threlte's dispatch never sees it.
+	-->
+	<T.Group
+		name="pick:{id}"
+		position={[posX, basePosition[1], posZ]}
+		rotation.y={rotationTap.current * -DEG2RAD}
+	>
+		<T.Mesh rotation.x={-Math.PI / 2}>
+			<T.PlaneGeometry args={[CARD_WIDTH + CARD_PICK_HALO * 2, CARD_HEIGHT + CARD_PICK_HALO * 2]} />
+			<T.MeshBasicMaterial color={CARD_PICK_COLOR} transparent opacity={0.85} />
+		</T.Mesh>
+	</T.Group>
+{/if}

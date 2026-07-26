@@ -5,6 +5,7 @@ import {
 	composePackDeck,
 	composePackOverlay,
 	composePackPiece,
+	packCardId,
 	placeholderSeat
 } from '$lib/compose/pack';
 import { BUILTIN_PACKS, PACK_SOURCE_BUILTIN } from './builtin';
@@ -126,7 +127,7 @@ export function spawnPackDeckSpread(deck: PackDeckDef, opts: SpawnDeckSpreadOpti
 	const ids: string[] = [];
 	const cards: Record<string, Partial<CardDTO>> = {};
 	for (const tile of opts.tiles) {
-		const id = `card:${ownerId}:${deck.slot}-${tile.card.code}`;
+		const id = packCardId(ownerId, deck.slot, tile.card.code);
 		ids.push(id);
 		cards[id] = {
 			faceImageUrl: tile.card.face,

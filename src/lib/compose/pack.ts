@@ -31,6 +31,17 @@ export function placeholderSeat(ownerId: string): number | undefined {
 	return match ? Number(match[1]) : undefined;
 }
 
+/**
+ * The id a pack card is instantiated under, wherever it is instantiated: in a
+ * pile (`composePackDeck`) or laid out loose (`spawnPackDeckSpread`). One
+ * function because /create reads the grammar BACKWARDS — it turns the card its
+ * cursors point at into the id to mark on the table (#109) — and a second copy
+ * of the format would silently stop marking anything the day either moved.
+ */
+export function packCardId(ownerId: string, deckSlot: string, code: string): string {
+	return `card:${ownerId}:${deckSlot}-${code}`;
+}
+
 /** Reorder in place, Fisher–Yates. The default for a `shuffleOnLoad` deck. */
 export function shuffleInPlace<T>(cards: T[], random: () => number = Math.random): T[] {
 	for (let i = cards.length - 1; i > 0; i--) {
@@ -120,7 +131,7 @@ export function composePackDeck(
 		: deck.cards;
 
 	let cards: CardInDeck[] = defs.map((card) => ({
-		id: `card:${opts.ownerId}:${deck.slot}-${card.code}`,
+		id: packCardId(opts.ownerId, deck.slot, card.code),
 		faceImageUrl: card.face,
 		backImageUrl: deck.back
 	}));

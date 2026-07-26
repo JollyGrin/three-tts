@@ -19,7 +19,8 @@
 	let {
 		value,
 		label = 'face',
-		aspect = 'card'
+		aspect = 'card',
+		dimmed = false
 	}: {
 		/** the ref as it currently stands — `gen:`, `sheet:`, a URL, or empty */
 		value: string | undefined;
@@ -27,6 +28,13 @@
 		label?: string;
 		/** the tile's shape; the art is letterboxed inside it either way */
 		aspect?: 'card' | 'square' | 'wide';
+		/**
+		 * Held open over nothing to edit — the card fields keep their rows over a
+		 * deck with no cards (#109), and the ref they are seeded with is what the
+		 * NEXT card would get, not art that is on the table. At full brightness
+		 * beside four greyed-out rows it reads as "there is a card here".
+		 */
+		dimmed?: boolean;
 	} = $props();
 
 	const TILE = {
@@ -82,7 +90,7 @@
 </script>
 
 <Element>
-	<div class="flex items-center gap-2 p-1">
+	<div class="flex items-center gap-2 p-1 {dimmed ? 'opacity-40' : ''}">
 		<div
 			class="flex shrink-0 items-center justify-center overflow-hidden rounded bg-white/10 {TILE[
 				aspect
