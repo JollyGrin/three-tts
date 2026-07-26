@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
+	import PaneProse from '$lib/tweakpane/PaneProse.svelte';
 	import {
 		Button,
 		Pane,
@@ -9,7 +10,7 @@
 		AutoValue,
 		Folder,
 		FpsGraph,
-		Textarea
+		Monitor
 	} from 'svelte-tweakpane-ui';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
@@ -124,6 +125,24 @@
 				: `Copied invite — joiner auto-claims seat ${inviteSeat}`
 		);
 	}
+
+	// The reference card, as data rather than as eleven disabled `Text` blades
+	// (#115). Ordered as you meet them: look, then act on one card, then on a
+	// pile, then the drag modifiers.
+	const KEYBINDS: [action: string, key: string][] = [
+		['Reset camera', 'C'],
+		['Preview hovered', 'spacebar'],
+		['Tap card', 'T'],
+		['Reverse Tap card', 'R'],
+		['Flip card', 'F'],
+		['Group stack into deck', 'G'],
+		[`Ungroup deck (max ${UNGROUP_MAX_CARDS} cards)`, 'Shift + G'],
+		['Drop without snapping', 'hold Alt'],
+		['Cancel drag', 'Esc'],
+		['Nudge card higher', 'Arrow Up'],
+		// #113 fixed this label — it is Arrow Down, not the Shift chord it used to claim
+		['Nudge card lower', 'Arrow Down']
+	];
 </script>
 
 <Pane
@@ -136,7 +155,8 @@
 	localStoreId="table-settings"
 >
 	<Folder title="Connection" expanded={false}>
-		<Text label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} disabled />
+		<!-- read-only value, so a `Monitor` rather than an input that refuses you (#115) -->
+		<Monitor label="My ID" value={localStorage.getItem('myPlayerId') ?? ''} />
 		<Text label="Server:" bind:value={$connectionStore.serverUrl} />
 		<Text label="Lobby:" bind:value={lobbyId} />
 		<Button
@@ -148,10 +168,12 @@
 				goto(`/play?${lobbyUrl}`, { invalidateAll: true });
 			}}
 		/>
-		<Textarea
-			disabled
-			value={`Share copies an invite link — whoever opens it is seated at the first open seat and gets its decks.`}
-		/>
+		<PaneProse>
+			<div class="p-1 font-sans text-[11px] leading-snug text-white/50">
+				Share copies an invite link — whoever opens it is seated at the first open seat and gets its
+				decks.
+			</div>
+		</PaneProse>
 	</Folder>
 	<Folder title="Scenarios" expanded={isTableEmpty}>
 		<List label="Preset" bind:value={selectedScenario} options={scenarioOptions} />
@@ -164,11 +186,17 @@
 			<Button title="Claim seat {seat}" on:click={() => handleClaimSeat(seat)} />
 		{/each}
 		<Button title="Copy opponent invite" on:click={copyInvite} />
-		<Textarea
-			disabled
-			rows={3}
-			value={`Build presets at /setup. Seeding replaces the table for the whole lobby; each player then claims a seat to take over its decks.`}
-		/>
+		<!--
+			Always mounted, after the `{#each}` above: a blade computes its index from
+			its own DOM position when it is created, so seats appearing and vanishing
+			insert around this rather than displacing it.
+		-->
+		<PaneProse>
+			<div class="p-1 font-sans text-[11px] leading-snug text-white/50">
+				Build presets at /setup. Seeding replaces the table for the whole lobby; each player then
+				claims a seat to take over its decks.
+			</div>
+		</PaneProse>
 	</Folder>
 	<HUDPieces ownerId={gameActions.getMyId() ?? undefined} />
 	<Folder title="Overlays" expanded={false}>
@@ -184,17 +212,22 @@
 			label="Seat: {$gameStore?.players?.[gameActions?.getMe()?.id ?? 0]?.seat}"
 			title="Next Seat"
 		/>
-		<Text label="Reset camera" value="C" disabled />
-		<Text label="Preview hovered" value="spacebar" disabled />
-		<Text label="Tap card" value="T" disabled />
-		<Text label="Reverse Tap card" value="R" disabled />
-		<Text label="Flip card" value="F" disabled />
-		<Text label="Group stack into deck" value="G" disabled />
-		<Text label="Ungroup deck (max {UNGROUP_MAX_CARDS} cards)" value="Shift + G" disabled />
-		<Text label="Drop without snapping" value="hold Alt" disabled />
-		<Text label="Cancel drag" value="Esc" disabled />
-		<Text label="Nudge card higher" value="Arrow Up" disabled />
-		<Text label="Nudge card lower" value="Arrow Down" disabled />
+		<!--
+			One prose blade where eleven disabled `Text` blades used to be (#115): a
+			keybind is something you read, not a field you were locked out of, and
+			the list now costs one row of the pane's height instead of eleven. The
+			folder stays closed by default — #113.
+		-->
+		<PaneProse>
+			<dl
+				class="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-0.5 p-1 font-sans text-[11px] leading-snug"
+			>
+				{#each KEYBINDS as [action, key] (action)}
+					<dt class="text-white/50">{action}</dt>
+					<dd class="justify-self-end font-mono text-white/80">{key}</dd>
+				{/each}
+			</dl>
+		</PaneProse>
 	</Folder>
 	<!-- instrumentation, not settings: out of the player's way until asked for -->
 	<Folder title="Debug" expanded={false}>
