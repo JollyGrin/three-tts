@@ -34,7 +34,8 @@
 		spreadRefusal,
 		SPREAD_MAX_CARDS
 	} from '$lib/packs/spread';
-	import { onCardPick } from '$lib/store/cardPick';
+	import { packCardId } from '$lib/compose/pack';
+	import { onCardPick, pickedCard } from '$lib/store/cardPick';
 	import { previewLayout, type PreviewLayout } from './preview-layout';
 	import { editorPaneWidth } from './column';
 	import { CARD_BACK_DEFAULT, STANDARD_52 } from '$lib/packs/standard52';
@@ -70,6 +71,7 @@
 		type EditorPack
 	} from './normalize';
 	import FaceRef from './FaceRef.svelte';
+	import RefThumb from './RefThumb.svelte';
 	import BulkSheet from './BulkSheet.svelte';
 	import { allocateCode } from './bulk-sheet';
 	import type { PackCardDef } from '$lib/packs/types';
@@ -122,6 +124,11 @@
 	const exportable = $derived(pack ? cleanForExport($state.snapshot(pack) as EditorPack) : null);
 
 	// ——— cursors (indexes into the draft's arrays, clamped as arrays shrink) ———
+	//
+	// Every `List` below is fed its CLAMPED index rather than the raw cursor,
+	// and reports back through `on:change`. A tweakpane list whose value matches
+	// none of its options renders completely blank — no label, no value — which
+	// is what the Card list did every time the deck changed under it (#109).
 	let deckCursor = $state(0);
 	let cardCursor = $state(0);
 	let pieceCursor = $state(0);
@@ -164,14 +171,42 @@
 		].join(' · ')
 	);
 
+	/**
+	 * The two halves of the breadcrumb row above the tabs. Every other signal in
+	 * the editor is partial — an index in a dropdown, a count in a folder title,
+	 * and nothing at all on the table — and none of them said what the whole
+	 * selection WAS (#109).
+	 *
+	 * Kept apart so the row can weight them: the pack and its deck recede, and
+	 * the card, the thing an edit actually lands on, gets its own line.
+	 */
+	const deckCrumb = $derived(
+		deck ? `${deck.slot}${deck.name ? ` (${deck.name})` : ''}` : 'no decks'
+	);
+	const cardCrumb = $derived(
+		!deck
+			? '—'
+			: !deck.cards.length
+				? 'no cards'
+				: `card ${cardIndex + 1} of ${deck.cards.length} — ${card?.name || card?.code}`
+	);
+
 	const deckOptions = $derived(
 		decks.length
 			? Object.fromEntries(decks.map((d, i) => [`${i}: ${d.slot}`, i]))
 			: { '(no decks)': 0 }
 	);
+	/**
+	 * `3: card-3 — Lightning Bolt`. A 52-entry dropdown of bare codes is not
+	 * scannable, and a code is not what an author named the card. The index
+	 * prefix is load-bearing: `Object.fromEntries` collapses duplicate keys, so
+	 * it is what keeps two cards sharing a code and a name as two rows.
+	 */
 	const cardOptions = $derived(
 		deck?.cards.length
-			? Object.fromEntries(deck.cards.map((c, i) => [`${i}: ${c.code}`, i]))
+			? Object.fromEntries(
+					deck.cards.map((c, i) => [`${i}: ${c.code}${c.name ? ` — ${c.name}` : ''}`, i])
+				)
 			: { '(no cards)': 0 }
 	);
 	const pieceOptions = $derived(
@@ -201,6 +236,50 @@
 	);
 
 	// ——— structure edits ———
+
+	/**
+	 * Move the deck cursor — and the card cursor with it. The two were
+	 * independent state, so switching decks carried "card 40" into a five-card
+	 * deck: at best the Card list showed a stale index while the fields silently
+	 * edited card 5, at worst (a new, empty deck) the list matched no option and
+	 * rendered blank (#109).
+	 *
+	 * Reset to 0 rather than clamped: after picking a deck you are at its first
+	 * card, which is somewhere, instead of at whichever card the arithmetic
+	 * happened to land on.
+	 *
+	 * The one mover that does NOT come through here is click-to-select on the
+	 * table, which knows both cursors and sets them together.
+	 */
+	function selectDeck(next: number) {
+		deckCursor = next;
+		cardCursor = 0;
+	}
+
+	/**
+	 * Move the deck cursor for an edit that also changed the deck list's
+	 * OPTIONS — the same tweakpane hazard `addPieceState` and `addBagItem`
+	 * re-assert against, in its nastier form.
+	 *
+	 * When its options change, the Deck list rebuilds its blade and reports the
+	 * rebuilt value back as a change with origin `internal`, carrying its FIRST
+	 * option — indistinguishable from a person picking deck 0, and dispatched
+	 * synchronously inside the same flush. So "Add deck" adds a deck and then
+	 * selects deck 0, and the empty-deck case this whole pair of functions
+	 * exists for is unreachable by hand.
+	 *
+	 * Re-asserting after a tick is what corrects it, and it has to be done
+	 * HERE and nowhere else: the artifact's own handler re-asserting too was
+	 * the bug (its write landed last and won). Letting the artifact through and
+	 * then moving the cursor back is also what forces the blade to re-render —
+	 * re-assigning a value it already holds pushes nothing.
+	 */
+	async function selectDeckAfterEdit(next: number) {
+		selectDeck(next);
+		await tick();
+		if (deckCursor !== next) selectDeck(next);
+	}
+
 	function addDeck() {
 		if (!pack) return;
 		pack.decks.push({
@@ -210,13 +289,13 @@
 			isFaceUp: false,
 			cards: []
 		});
-		deckCursor = pack.decks.length - 1;
+		selectDeckAfterEdit(pack.decks.length - 1);
 	}
 
 	function removeDeck() {
 		if (!pack || !deck) return;
 		pack.decks.splice(deckIndex, 1);
-		deckCursor = Math.max(0, deckIndex - 1);
+		selectDeckAfterEdit(Math.max(0, deckIndex - 1));
 	}
 
 	/**
@@ -541,10 +620,30 @@
 		onCardPick((id) => {
 			const cursors = spreadCursors[id];
 			if (!cursors) return;
+			// both together, and NOT through selectDeck: this already knows which
+			// card it wants, and selectDeck would reset the cursor to 0 behind it
 			deckCursor = cursors.deck;
 			cardCursor = cursors.card;
 		})
 	);
+
+	/**
+	 * The other half of that: mark the selected card ON the table, so the
+	 * dropdown and the felt agree whichever one you moved. Computed from the
+	 * cursors rather than looked up in `spreadCursors`, so the mark lands the
+	 * moment the cursor moves instead of 300ms later when the debounced respawn
+	 * rebuilds that map — and so it survives the respawn, which throws the map
+	 * away and builds a new one.
+	 *
+	 * Deck mode instantiates the same ids, so a card dragged off a pile marks
+	 * too; a card still inside a pile has nothing on the table to mark, which is
+	 * the reason Spread mode exists.
+	 */
+	$effect(() => {
+		pickedCard.set(deck && card ? packCardId(PREVIEW_OWNER, deck.slot, card.code) : null);
+	});
+	// leaving /create must not leave a card marked on someone's table
+	$effect(() => () => pickedCard.set(null));
 
 	// ——— the pack library (localStorage packs:v1, shared with /setup and /play) ———
 	let selectedPack = $state(listLibraryPacks()[0]?.pack.id ?? '');
@@ -792,14 +891,26 @@
 {:else}
 	<Pane position="inline" title="pack editor" userExpandable={false} width={$editorPaneWidth}>
 		<!--
-			The breadcrumb row: what is selected, above the tabs, always mounted so
-			#109 can fill it in with `pack › deck › card N of M` without touching the
-			blade tree's shape.
+			The breadcrumb row: the whole selection, in one line, above the tabs and
+			outside the TabGroup — so it is on screen on every tab and answers "what
+			am I editing" from anywhere in the editor, not just from the Cards tab
+			where the two dropdowns live.
 		-->
 		<Element>
-			<div class="truncate p-1 font-sans text-[11px] text-white/70">
-				{pack.name || pack.id}
-			</div>
+			<!--
+				Two lines, always two: the column is ~360px, and on one line the card —
+				the thing an edit actually lands on — is what the ellipsis ate. A fixed
+				two rather than a wrap, so the row's height never depends on how long
+				the pack was named.
+			-->
+			<header class="p-1 font-sans text-[11px] leading-snug">
+				<div class="truncate text-white/45">
+					{pack.name || pack.id}
+					<span class="px-0.5 text-white/25">›</span>
+					<span class="text-white/70">{deckCrumb}</span>
+				</div>
+				<div class="truncate text-white/90">{cardCrumb}</div>
+			</header>
 		</Element>
 
 		<TabGroup>
@@ -829,7 +940,19 @@
 				<!-- pick, then create/destroy, THEN the selected deck's fields: the
 				     verbs used to sit between the selector and the fields they were
 				     nothing to do with (#108) -->
-				<List label="Deck" bind:value={deckCursor} options={deckOptions} />
+				<!--
+				     `value`, not `bind:value`: the list is fed the CLAMPED index, which
+				     is always one of its own options. Only an `internal` change is a
+				     person picking a deck — an `external` one is this prop being pushed
+				     back down after a click on the table, and resetting the card cursor
+				     there would throw away the card that click just selected.
+				-->
+				<List
+					label="Deck"
+					value={deckIndex}
+					options={deckOptions}
+					on:change={(e) => e.detail.origin === 'internal' && selectDeck(Number(e.detail.value))}
+				/>
 				<ButtonGrid
 					buttons={['Add deck', 'Remove deck']}
 					on:click={(e) => (e.detail.index === 0 ? addDeck() : removeDeck())}
@@ -844,7 +967,12 @@
 					{/key}
 
 					<Separator />
-					<List label="Card" bind:value={cardCursor} options={cardOptions} />
+					<List
+						label="Card"
+						value={cardIndex}
+						options={cardOptions}
+						on:change={(e) => (cardCursor = Number(e.detail.value))}
+					/>
 					<ButtonGrid
 						columns={3}
 						buttons={['Add card', 'Duplicate card', 'Remove card']}
@@ -855,13 +983,44 @@
 									? duplicateCard()
 									: removeCard()}
 					/>
-					{#if card}
-						<Text label="Code" bind:value={card.code} />
-						<Text label="Name" bind:value={card.name} />
-						{#key `${deckIndex}:${cardIndex}`}
-							<FaceRef title="Card face" value={card.face} onchange={(ref) => (card.face = ref)} />
-						{/key}
-					{/if}
+					<!--
+					     Always mounted, greyed out when the deck has no cards. An {#if}
+					     here tore four rows out the instant a deck went to zero cards —
+					     adding a deck moved "Flip cards on table" 66px up, under whatever
+					     the cursor was over (#109). Disabled rows can't be typed into, and
+					     the handlers refuse anyway, so nothing is written to a card that
+					     isn't there.
+
+					     One-way `value` for the same reason: `bind:` needs a card to bind
+					     TO, and the point is to hold the row when there is none. With no
+					     card the face editor is seeded with exactly what `addCard` would
+					     give the next one, so the block that is holding the space is also
+					     showing what is about to fill it.
+					-->
+					<Text
+						label="Code"
+						value={card?.code ?? ''}
+						disabled={!card}
+						on:change={(e) => card && (card.code = e.detail.value)}
+					/>
+					<Text
+						label="Name"
+						value={card?.name ?? ''}
+						disabled={!card}
+						on:change={(e) => card && (card.name = e.detail.value)}
+					/>
+					<!-- keyed on the cursors AND on whether there is a card at all: FaceRef
+					     seeds its fields once, so the first card added to an empty deck has
+					     to re-seed it or the greyed-out blank it was showing would be
+					     written back over that card's face -->
+					{#key `${deckIndex}:${cardIndex}:${card ? 1 : 0}`}
+						<FaceRef
+							title="Card face"
+							value={card?.face ?? (deck.back || CARD_BACK_DEFAULT)}
+							disabled={!card}
+							onchange={(ref) => card && (card.face = ref)}
+						/>
+					{/key}
 
 					<Separator />
 					<Button
@@ -899,6 +1058,7 @@
 						<Color label="Color" bind:value={piece.color} />
 						{#if piece.kind === 'token' || piece.kind === 'bag'}
 							<Text label="Image URL" bind:value={piece.imageUrl} />
+							<RefThumb value={piece.imageUrl} label="piece image" aspect="square" />
 						{/if}
 						<!--
 							States: the TTS `States` analog — one piece, several faces, cycled in
@@ -999,6 +1159,7 @@
 						<Separator />
 						<List label="Overlay" bind:value={overlayCursor} options={overlayOptions} />
 						<Text label="Image URL" bind:value={overlay.imageUrl} />
+						<RefThumb value={overlay.imageUrl} label="overlay image" aspect="wide" />
 						<AutoValue label="Ratio (w/h)" bind:value={overlay.ratio} />
 						<AutoValue label="Scale" bind:value={overlay.scale} />
 						<Button title="Remove overlay" on:click={removeOverlay} />

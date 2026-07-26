@@ -94,6 +94,18 @@ describe('SetupPane', () => {
 		// save a deck belonging to nobody
 		expect(get(gameStore).players?.seat1?.seat).toBe(1);
 	});
+
+	it('explains itself in prose, not in a disabled Textarea', async () => {
+		const { container } = render(SetupPane);
+		await settle();
+
+		// #115: the six-row disabled scroll box is gone, and its copy survived the
+		// move into real markup behind the "How this works" folder
+		expect(container.querySelector('textarea')).toBeNull();
+		expect([...container.querySelectorAll('input')].filter((i) => i.disabled)).toHaveLength(0);
+		expect(container.textContent).toContain('Everything here is local');
+		expect(container.textContent).toContain('cards in your hand tray are not saved');
+	});
 });
 
 /** two decks on the table, one per seat — the state #114 was reported against */

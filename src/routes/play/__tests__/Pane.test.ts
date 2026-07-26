@@ -96,10 +96,28 @@ describe('/play settings pane on first paint', () => {
 		const { container } = render(Pane);
 		await settle();
 
-		const rows = [...container.querySelectorAll('.tp-lblv')];
-		const row = rows.find((r) =>
-			r.querySelector('.tp-lblv_l')?.textContent?.includes('Nudge card lower')
+		// #115 moved the keybinds out of eleven disabled `Text` blades and into
+		// one `Element` list, so the copy #113 fixed is now a <dt>/<dd> pair
+		const term = [...container.querySelectorAll('dt')].find(
+			(t) => t.textContent?.trim() === 'Nudge card lower'
 		);
-		expect(row?.querySelector('input')?.value).toBe('Arrow Down');
+		expect(term?.nextElementSibling?.textContent?.trim()).toBe('Arrow Down');
+	});
+
+	it('renders help and keybinds as prose, not as disabled form controls', async () => {
+		const { container } = render(Pane);
+		await settle();
+
+		// the whole point of #115: nothing read-only may look like a field you
+		// are locked out of. Every keybind lives in the list...
+		expect(container.querySelectorAll('dt').length).toBe(11);
+		// ...and no blade in the pane is rendered disabled
+		expect(container.querySelectorAll('.tp-lblv-disabled').length).toBe(0);
+		expect([...container.querySelectorAll('input')].filter((i) => i.disabled).length).toBe(0);
+		expect(container.querySelector('textarea')).toBeNull();
+
+		// the share/seed explanations survived the move out of the Textareas
+		expect(container.textContent).toContain('whoever opens it is seated at the first open seat');
+		expect(container.textContent).toContain('Build presets at /setup');
 	});
 });

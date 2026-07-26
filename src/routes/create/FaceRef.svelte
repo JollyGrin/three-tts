@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { AutoValue, Folder, List, Text } from 'svelte-tweakpane-ui';
+	import { AutoValue, Folder, List, Monitor, Text } from 'svelte-tweakpane-ui';
 	import { buildFaceRef, parseFaceRef, FACE_SCHEME_OPTIONS, type FaceDraft } from './face-ref';
+	import RefThumb from './RefThumb.svelte';
 
 	/**
 	 * Inline face authoring for whatever the pane is editing right now — a
@@ -14,12 +15,21 @@
 	 * re-seed it when the cursor moves. Writes are guarded against the value it
 	 * last produced, so a ref changed from outside never gets clobbered by a
 	 * stale field.
+	 *
+	 * `disabled` greys the whole editor without unmounting it, which is how the
+	 * pane holds its height over a deck with no cards to edit (#109).
 	 */
 	let {
 		value,
 		title = 'Face',
+		disabled = false,
 		onchange
-	}: { value: string; title?: string; onchange: (ref: string) => void } = $props();
+	}: {
+		value: string;
+		title?: string;
+		disabled?: boolean;
+		onchange: (ref: string) => void;
+	} = $props();
 
 	// deliberately read once: these fields are seeded from the ref, then own it
 	const initial = untrack(() => parseFaceRef(value));
@@ -52,16 +62,28 @@
 </script>
 
 <Folder {title} expanded={true}>
-	<List label="Scheme" bind:value={scheme} options={FACE_SCHEME_OPTIONS} />
+	<List label="Scheme" bind:value={scheme} options={FACE_SCHEME_OPTIONS} {disabled} />
 	{#if scheme === 'url'}
-		<Text label="Image URL" bind:value={url} />
+		<Text label="Image URL" bind:value={url} {disabled} />
 	{:else if scheme === 'gen'}
-		<Text label="Code (AS…KC, back)" bind:value={genCode} />
+		<Text label="Code (AS…KC, back)" bind:value={genCode} {disabled} />
 	{:else}
-		<Text label="Sheet URL" bind:value={sheetUrl} />
-		<AutoValue label="Columns" bind:value={sheetCols} />
-		<AutoValue label="Rows" bind:value={sheetRows} />
-		<AutoValue label="Cell index" bind:value={sheetIndex} />
+		<Text label="Sheet URL" bind:value={sheetUrl} {disabled} />
+		<AutoValue label="Columns" bind:value={sheetCols} {disabled} />
+		<AutoValue label="Rows" bind:value={sheetRows} {disabled} />
+		<AutoValue label="Cell index" bind:value={sheetIndex} {disabled} />
 	{/if}
-	<Text label="Ref" value={built} disabled />
+	<!--
+		The ref row stays: it is the string you copy, and the thumbnail is not
+		something you can paste into another card. A `Monitor` rather than a
+		permanently-disabled `Text` (#115) — it is derived from the fields above
+		and can never be typed into, and a greyed-out input reads as "you are not
+		allowed to edit this" rather than "this is the output". It still takes
+		`disabled`, so it dims with the rest of the block when there is nothing to
+		edit (#109) instead of looking the same either way.
+	-->
+	<Monitor label="Ref" value={built} {disabled} />
+	<!-- dimmed with the rest of the block when there is nothing to edit: the ref
+	     it is previewing is then the seed for the NEXT card, not art on the table -->
+	<RefThumb value={built} label={title.toLowerCase()} dimmed={disabled} />
 </Folder>
