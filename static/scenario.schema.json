@@ -907,6 +907,6 @@
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"x-tableplace-spec-version": "0.1.8",
-	"x-generated-at": "2026-07-27T09:20:28.352Z",
-	"x-tableplace-source-sha": "0cfcb6c1c13190aed0c94dc3d9f8024fdd32bf40-dirty"
+	"x-generated-at": "2026-07-27T11:18:24.645Z",
+	"x-tableplace-source-sha": "d4c6d84ba0deab38d0bcb2048664f8b113ce3fb6-dirty"
 }
