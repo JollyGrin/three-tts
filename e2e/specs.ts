@@ -389,12 +389,41 @@ export const SPECS: Spec[] = [
 		/**
 		 * Surface rest (tableplace-135 §6): a token dropped onto a raised model
 		 * tile must rest on its top surface — the injected surfaceYAt raycast —
-		 * and settle back to felt height when dragged off again. No physics:
-		 * both heights are computed at the drop and synced as plain positions.
+		 * and settle back EXACTLY to felt rest height when dragged off again
+		 * (elevation must never stick to the next drop). No physics: both
+		 * heights are computed at the drop and synced as plain positions.
+		 *
+		 * Each hop asserts the drag ARRIVED (planar) before judging its height,
+		 * so a synthetic-pointer grab that slips on a slow CI frame reads as
+		 * "the drag never happened", not as a false elevation bug — and slips
+		 * are retried via dragToArrives, with generous settles so the height
+		 * spring has finished before the next grab aims at the token.
 		 */
 		name: 'model surface: a token dropped on a raised tile rests on it',
 		run: (context) =>
 			withTable(context, 'model-surface', async (table) => {
+				const PIECE_FELT_REST = 0.335; // TABLE_TOP_Y + half the disc thickness
+
+				/**
+				 * dragTo, retried while the token demonstrably did not arrive at the
+				 * target XZ. What is being retried is puppeteer's pointer delivery
+				 * under SwiftShader — dispatch liveness has its own single-attempt
+				 * assertions (assertDraggable) elsewhere; the properties under test
+				 * here are the rest HEIGHTS, asserted after arrival.
+				 */
+				const dragToArrives = async (id: string, x: number, z: number, label: string) => {
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await table.dragTo(id, x, z);
+						await table.settle(900); // springs done before the next locate()
+						const position = await table.positionOf(id);
+						if (position && Math.hypot(position[0] - x, position[2] - z) < 1.0) return position;
+					}
+					const stuck = await table.positionOf(id);
+					throw new Error(
+						`${label} (${id}) never arrived at (${x}, ${z}) after 3 drags: ${JSON.stringify(stuck)}`
+					);
+				};
+
 				const deck = await table.seedDeck();
 				const tile = await table.spawn('model', {
 					name: 'raised',
@@ -407,19 +436,27 @@ export const SPECS: Spec[] = [
 				assertClean(table, 'with a raised tile and a token on the table');
 				await assertRenders(table, tile, 'the raised tile');
 
-				await table.dragTo(token, -4, 1);
-				const onTile = await table.positionOf(token);
-				ok(onTile, 'the token has no position after dropping onto the tile');
+				// on: the drop lands on the tile's surface, well above felt rest
+				const onTile = await dragToArrives(token, -4, 1, 'the token (onto the tile)');
 				ok(
-					(onTile![1] ?? 0) > 0.5,
+					(onTile[1] ?? 0) > 0.5,
 					`the token sank to felt height instead of resting on the tile: ${JSON.stringify(onTile)}`
 				);
 
-				await table.dragTo(token, 6, 1);
-				const onFelt = await table.positionOf(token);
+				// off: the next drop has no model under it — the effective floor
+				// falls back to the felt and the rest height is EXACTLY the token's
+				// felt rest, not the carried-over elevation
+				const onFelt = await dragToArrives(token, 6, 1, 'the token (off the tile)');
 				ok(
-					(onFelt![1] ?? 9) < 0.5,
-					`the token kept its elevation after leaving the tile: ${JSON.stringify(onFelt)}`
+					Math.abs((onFelt[1] ?? 9) - PIECE_FELT_REST) < 0.02,
+					`the token did not return to felt rest (${PIECE_FELT_REST}) after leaving the tile: ${JSON.stringify(onFelt)}`
+				);
+
+				// and back on: the surface answer is repeatable, not a spawn artifact
+				const backOn = await dragToArrives(token, -4, 1, 'the token (back onto the tile)');
+				ok(
+					(backOn[1] ?? 0) > 0.5,
+					`the token failed to rest on the tile a second time: ${JSON.stringify(backOn)}`
 				);
 
 				await assertDraggable(table, deck, 'deck (with surface rest in play)');
