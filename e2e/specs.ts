@@ -635,6 +635,175 @@ export const SPECS: Spec[] = [
 			})
 	},
 	{
+		/**
+		 * tableplace-148: the Cataclysm Arcade lobby creator's zone set
+		 * (tableplace-demos/cataclysm-arcade) — a one-card face-up boss pile in
+		 * play, the draw deck, a face-up token pile, a counter rail (boss health
+		 * full at 17, coins started at 1) and an infinite bag of damage counters —
+		 * composed together and interactive. Faces are `gen:` refs so the spec
+		 * fetches nothing; the demo's real `sheet:` faces ride the pipeline other
+		 * specs already exercise.
+		 */
+		name: 'cataclysm arcade: boss pile, counter rail and token bag stay interactive',
+		run: (context) =>
+			withTable(context, 'cataclysm', async (table) => {
+				const deck = await table.page.evaluate(() => {
+					// the 14-card booster deal, at the layout's own deck spot
+					const codes = [
+						'AS',
+						'2S',
+						'3S',
+						'4S',
+						'5S',
+						'6S',
+						'7S',
+						'8S',
+						'9S',
+						'10S',
+						'JS',
+						'QS',
+						'KS',
+						'AH'
+					];
+					const cards = codes.map((code) => ({
+						id: `card:cade:${code}`,
+						faceImageUrl: `gen:std52/${code}`,
+						backImageUrl: 'gen:std52/back'
+					}));
+					return String(window.__tableplace!.actions.addDeck({ cards } as never) ?? '');
+				});
+				const boss = await table.page.evaluate(() => {
+					// the Boss starts in play: a one-card pile dealt face-up
+					const cards = [
+						{ id: 'card:cade:boss', faceImageUrl: 'gen:std52/KD', backImageUrl: 'gen:std52/back' }
+					];
+					return String(
+						window.__tableplace!.actions.addDeck({
+							cards,
+							isFaceUp: true,
+							position: [-2, 0.4, -2]
+						} as never) ?? ''
+					);
+				});
+				const tokens = await table.page.evaluate(() => {
+					// five copies of the pack's token card, face-up
+					const cards = [1, 2, 3, 4, 5].map((n) => ({
+						id: `card:cade:token-${n}`,
+						faceImageUrl: 'gen:std52/JC',
+						backImageUrl: 'gen:std52/back'
+					}));
+					return String(
+						window.__tableplace!.actions.addDeck({
+							cards,
+							isFaceUp: true,
+							position: [-6, 0.4, -2]
+						} as never) ?? ''
+					);
+				});
+				const health = await table.spawn('counter', {
+					name: 'Boss health',
+					maxValue: 17,
+					position: LANE(0)
+				});
+				const coins = await table.spawn('counter', {
+					name: 'Coins',
+					maxValue: 20,
+					value: 1,
+					position: LANE(1)
+				});
+				const bag = await table.spawn('bag', {
+					name: 'Damage counters',
+					infinite: true,
+					position: LANE(2),
+					contents: [{ kind: 'counter', name: 'Damage', color: '#b3372f', maxValue: 99 }]
+				});
+				await table.settle(1500);
+				assertClean(table, 'with the cataclysm arcade zone set on the table');
+
+				for (const [id, label] of [
+					[deck, 'the draw deck'],
+					[boss, 'the boss pile'],
+					[tokens, 'the token pile'],
+					[health, 'the boss-health counter'],
+					[coins, 'the coin counter'],
+					[bag, 'the damage-counter bag']
+				] as const) {
+					await assertRenders(table, id, `${label} (cataclysm table)`);
+				}
+
+				// the counters carry the seeded values: health spawns full, coins at 1
+				const values = await table.page.evaluate(
+					(a, b) => [
+						window.__tableplace!.state()?.pieces?.[a]?.value ?? null,
+						window.__tableplace!.state()?.pieces?.[b]?.value ?? null
+					],
+					health,
+					coins
+				);
+				ok(values[0] === 17, `boss health did not spawn full at 17: ${JSON.stringify(values)}`);
+				ok(values[1] === 1, `coins did not start at 1: ${JSON.stringify(values)}`);
+				await table.page.evaluate(
+					(id) => window.__tableplace!.actions.incrementCounter(id, 1),
+					coins
+				);
+				const bumped = await eventually(
+					() =>
+						table.page.evaluate(
+							(id) => window.__tableplace!.state()?.pieces?.[id]?.value ?? null,
+							coins
+						),
+					(value) => value === 2
+				);
+				ok(
+					bumped === 2,
+					`incrementing the coin counter did not land on 2: ${JSON.stringify(bumped)}`
+				);
+
+				// play the Boss: draw it off its pile and tap it — a portrait card
+				// taps sideways, so the rendered footprint turns wider than deep
+				const bossCard = await table.page.evaluate(
+					(id) => window.__tableplace!.actions.drawFromTop(id, 1)[0]?.id ?? '',
+					boss
+				);
+				ok(!!bossCard, 'nothing came off the boss pile');
+				await table.settle(1500);
+				await table.page.evaluate(
+					(id) => window.__tableplace!.actions.tapCard(false, id),
+					bossCard
+				);
+				const tapped = await eventually(
+					() => table.describe(bossCard),
+					(shape) => !!shape && shape.size[0] > shape.size[2]
+				);
+				ok(
+					tapped!.size[0] > tapped!.size[2],
+					`tapping did not turn the boss card sideways: footprint ${JSON.stringify(tapped!.size)}`
+				);
+
+				// a damage counter comes out of the bag live, and the infinite bag
+				// keeps its contents
+				const draw = await table.page.evaluate(
+					(id) => window.__tableplace!.actions.drawFromBag(id),
+					bag
+				);
+				ok(draw && (draw as { id: string }).id, 'the damage bag drew nothing');
+				await table.settle(1000);
+				await assertRenders(table, (draw as { id: string }).id, 'the drawn damage counter');
+				const left = await table.page.evaluate(
+					(id) =>
+						(window.__tableplace!.state()?.pieces?.[id] as { contents?: unknown[] } | undefined)
+							?.contents?.length ?? 0,
+					bag
+				);
+				ok(left === 1, `the infinite bag lost its contents: ${left} left`);
+
+				await assertDraggable(table, bossCard, 'the boss card (cataclysm table)');
+				await assertDraggable(table, deck, 'the draw deck (cataclysm table)');
+				await assertDraggable(table, bag, 'the damage-counter bag (cataclysm table)');
+				assertClean(table, 'at the end of the cataclysm arcade table');
+			})
+	},
+	{
 		// acceptance criterion 4: one table carrying all four at once
 		name: 'mixed table: deck + die + bag + multi-state piece',
 		run: (context) =>
