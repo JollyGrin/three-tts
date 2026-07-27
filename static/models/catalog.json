@@ -1,0 +1,334 @@
+{
+	"kits": {
+		"kenney-cave": {
+			"name": "Modular Cave Kit",
+			"base": "/models/kenney-cave/",
+			"scale": 0.5,
+			"license": "CC0-1.0",
+			"credit": "Kenney (www.kenney.nl)",
+			"link": "https://kenney.nl/assets/modular-cave-kit",
+			"models": {
+				"corridor-corner": {
+					"file": "corridor-corner.glb",
+					"thumb": "thumbs/corridor-corner.png",
+					"category": "corridors",
+					"cells": [1, 1],
+					"vertices": 1872,
+					"triangles": 624
+				},
+				"corridor-end": {
+					"file": "corridor-end.glb",
+					"thumb": "thumbs/corridor-end.png",
+					"category": "corridors",
+					"cells": [1, 1],
+					"vertices": 3972,
+					"triangles": 1324
+				},
+				"corridor-intersection": {
+					"file": "corridor-intersection.glb",
+					"thumb": "thumbs/corridor-intersection.png",
+					"category": "corridors",
+					"cells": [1, 1],
+					"vertices": 732,
+					"triangles": 244
+				},
+				"corridor-junction": {
+					"file": "corridor-junction.glb",
+					"thumb": "thumbs/corridor-junction.png",
+					"category": "corridors",
+					"cells": [1, 1],
+					"vertices": 1692,
+					"triangles": 564
+				},
+				"corridor-transition": {
+					"file": "corridor-transition.glb",
+					"thumb": "thumbs/corridor-transition.png",
+					"category": "corridors",
+					"cells": [2, 2],
+					"vertices": 6828,
+					"triangles": 2276
+				},
+				"corridor-wide-corner": {
+					"file": "corridor-wide-corner.glb",
+					"thumb": "thumbs/corridor-wide-corner.png",
+					"category": "corridors",
+					"cells": [2, 2],
+					"vertices": 4548,
+					"triangles": 1516
+				},
+				"corridor-wide-end": {
+					"file": "corridor-wide-end.glb",
+					"thumb": "thumbs/corridor-wide-end.png",
+					"category": "corridors",
+					"cells": [2, 2],
+					"vertices": 7284,
+					"triangles": 2428
+				},
+				"corridor-wide-intersection": {
+					"file": "corridor-wide-intersection.glb",
+					"thumb": "thumbs/corridor-wide-intersection.png",
+					"category": "corridors",
+					"cells": [2, 2],
+					"vertices": 768,
+					"triangles": 256
+				},
+				"corridor-wide-junction": {
+					"file": "corridor-wide-junction.glb",
+					"thumb": "thumbs/corridor-wide-junction.png",
+					"category": "corridors",
+					"cells": [2, 2],
+					"vertices": 2820,
+					"triangles": 940
+				},
+				"corridor-wide": {
+					"file": "corridor-wide.glb",
+					"thumb": "thumbs/corridor-wide.png",
+					"category": "corridors",
+					"cells": [2, 2],
+					"vertices": 4872,
+					"triangles": 1624
+				},
+				"corridor": {
+					"file": "corridor.glb",
+					"thumb": "thumbs/corridor.png",
+					"category": "corridors",
+					"cells": [1, 1],
+					"vertices": 2652,
+					"triangles": 884
+				},
+				"gate-metal-bars": {
+					"file": "gate-metal-bars.glb",
+					"thumb": "thumbs/gate-metal-bars.png",
+					"category": "gates",
+					"cells": [1, 1],
+					"vertices": 2160,
+					"triangles": 720
+				},
+				"gate-overhang": {
+					"file": "gate-overhang.glb",
+					"thumb": "thumbs/gate-overhang.png",
+					"category": "gates",
+					"cells": [1, 1],
+					"vertices": 312,
+					"triangles": 104
+				},
+				"gate-rock": {
+					"file": "gate-rock.glb",
+					"thumb": "thumbs/gate-rock.png",
+					"category": "gates",
+					"cells": [1, 1],
+					"vertices": 1080,
+					"triangles": 360
+				},
+				"gate": {
+					"file": "gate.glb",
+					"thumb": "thumbs/gate.png",
+					"category": "gates",
+					"cells": [1, 1],
+					"vertices": 1776,
+					"triangles": 592
+				},
+				"ladder": {
+					"file": "ladder.glb",
+					"thumb": "thumbs/ladder.png",
+					"category": "props",
+					"cells": [1, 1],
+					"vertices": 480,
+					"triangles": 160
+				},
+				"room-corner": {
+					"file": "room-corner.glb",
+					"thumb": "thumbs/room-corner.png",
+					"category": "rooms",
+					"cells": [3, 3],
+					"vertices": 10836,
+					"triangles": 3612
+				},
+				"room-large-variation": {
+					"file": "room-large-variation.glb",
+					"thumb": "thumbs/room-large-variation.png",
+					"category": "rooms",
+					"cells": [5, 5],
+					"vertices": 23868,
+					"triangles": 7956
+				},
+				"room-large": {
+					"file": "room-large.glb",
+					"thumb": "thumbs/room-large.png",
+					"category": "rooms",
+					"cells": [5, 5],
+					"vertices": 24240,
+					"triangles": 8080
+				},
+				"room-small-variation": {
+					"file": "room-small-variation.glb",
+					"thumb": "thumbs/room-small-variation.png",
+					"category": "rooms",
+					"cells": [3, 3],
+					"vertices": 11604,
+					"triangles": 3868
+				},
+				"room-small": {
+					"file": "room-small.glb",
+					"thumb": "thumbs/room-small.png",
+					"category": "rooms",
+					"cells": [3, 3],
+					"vertices": 10068,
+					"triangles": 3356
+				},
+				"room-wide-variation": {
+					"file": "room-wide-variation.glb",
+					"thumb": "thumbs/room-wide-variation.png",
+					"category": "rooms",
+					"cells": [5, 3],
+					"vertices": 20112,
+					"triangles": 6704
+				},
+				"room-wide": {
+					"file": "room-wide.glb",
+					"thumb": "thumbs/room-wide.png",
+					"category": "rooms",
+					"cells": [5, 3],
+					"vertices": 16380,
+					"triangles": 5460
+				},
+				"stairs-wide": {
+					"file": "stairs-wide.glb",
+					"thumb": "thumbs/stairs-wide.png",
+					"category": "props",
+					"cells": [2, 2],
+					"vertices": 7518,
+					"triangles": 2506
+				},
+				"stairs": {
+					"file": "stairs.glb",
+					"thumb": "thumbs/stairs.png",
+					"category": "props",
+					"cells": [1, 2],
+					"vertices": 7158,
+					"triangles": 2386
+				},
+				"template-corner": {
+					"file": "template-corner.glb",
+					"thumb": "thumbs/template-corner.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 1692,
+					"triangles": 564
+				},
+				"template-detail": {
+					"file": "template-detail.glb",
+					"thumb": "thumbs/template-detail.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 960,
+					"triangles": 320
+				},
+				"template-floor-big": {
+					"file": "template-floor-big.glb",
+					"thumb": "thumbs/template-floor-big.png",
+					"category": "templates",
+					"cells": [2, 2],
+					"vertices": 1908,
+					"triangles": 636
+				},
+				"template-floor-detail-a": {
+					"file": "template-floor-detail-a.glb",
+					"thumb": "thumbs/template-floor-detail-a.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 612,
+					"triangles": 204
+				},
+				"template-floor-detail": {
+					"file": "template-floor-detail.glb",
+					"thumb": "thumbs/template-floor-detail.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 612,
+					"triangles": 204
+				},
+				"template-floor-layer-hole": {
+					"file": "template-floor-layer-hole.glb",
+					"thumb": "thumbs/template-floor-layer-hole.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 1152,
+					"triangles": 384
+				},
+				"template-floor-layer-raised": {
+					"file": "template-floor-layer-raised.glb",
+					"thumb": "thumbs/template-floor-layer-raised.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 936,
+					"triangles": 312
+				},
+				"template-floor-layer": {
+					"file": "template-floor-layer.glb",
+					"thumb": "thumbs/template-floor-layer.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 504,
+					"triangles": 168
+				},
+				"template-floor": {
+					"file": "template-floor.glb",
+					"thumb": "thumbs/template-floor.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 12,
+					"triangles": 4
+				},
+				"template-wall-corner": {
+					"file": "template-wall-corner.glb",
+					"thumb": "thumbs/template-wall-corner.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 180,
+					"triangles": 60
+				},
+				"template-wall-detail-a": {
+					"file": "template-wall-detail-a.glb",
+					"thumb": "thumbs/template-wall-detail-a.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 1260,
+					"triangles": 420
+				},
+				"template-wall-half": {
+					"file": "template-wall-half.glb",
+					"thumb": "thumbs/template-wall-half.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 576,
+					"triangles": 192
+				},
+				"template-wall-stairs": {
+					"file": "template-wall-stairs.glb",
+					"thumb": "thumbs/template-wall-stairs.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 312,
+					"triangles": 104
+				},
+				"template-wall-top": {
+					"file": "template-wall-top.glb",
+					"thumb": "thumbs/template-wall-top.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 444,
+					"triangles": 148
+				},
+				"template-wall": {
+					"file": "template-wall.glb",
+					"thumb": "thumbs/template-wall.png",
+					"category": "templates",
+					"cells": [1, 1],
+					"vertices": 1320,
+					"triangles": 440
+				}
+			}
+		}
+	}
+}
