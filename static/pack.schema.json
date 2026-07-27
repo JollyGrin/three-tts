@@ -143,6 +143,11 @@
 								"type": "number",
 								"title": "sides"
 							},
+							"model": {
+								"description": "models only — a `model:<kit>/<name>` catalog ref (the fourth face-ref\nscheme). Resolved through the catalog manifest at render time; the pack\ncarries only the string.",
+								"type": "string",
+								"title": "model"
+							},
 							"position": {
 								"description": "table-plane position [x, z] in world units",
 								"type": "array",
@@ -157,6 +162,11 @@
 								"minItems": 2,
 								"maxItems": 2,
 								"title": "position"
+							},
+							"rotation": {
+								"description": "Table yaw in degrees (the piece DTO's `rotation[1]`). Optional and 0 when\nabsent — added for model sections, honoured for every kind.",
+								"type": "number",
+								"title": "rotation"
 							},
 							"snap": {
 								"description": "Whether snap points (and grids) pull this piece's drops. Default `true`;\n`false` is the per-piece opt-out — a big room section should snap to the\ngrid, a loose prop shouldn't.",
@@ -247,7 +257,7 @@
 	"definitions": {
 		"PackPieceKind": {
 			"title": "PackPieceKind",
-			"enum": ["bag", "counter", "die", "pawn", "token"],
+			"enum": ["bag", "counter", "die", "model", "pawn", "token"],
 			"type": "string"
 		},
 		"PackBagItemDef": {
@@ -328,7 +338,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.5.0",
-	"x-generated-at": "2026-07-27T11:18:24.645Z",
-	"x-tableplace-source-sha": "d4c6d84ba0deab38d0bcb2048664f8b113ce3fb6-dirty"
+	"x-tableplace-spec-version": "1.6.0",
+	"x-generated-at": "2026-07-27T12:05:24.880Z",
+	"x-tableplace-source-sha": "2e793163a839345e214d9fb9c62b3e824008c27f-dirty"
 }

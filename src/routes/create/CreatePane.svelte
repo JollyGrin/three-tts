@@ -350,7 +350,8 @@
 		Pawn: 'pawn',
 		Counter: 'counter',
 		Dice: 'die',
-		Bag: 'bag'
+		Bag: 'bag',
+		'Model (3D catalog)': 'model'
 	};
 
 	const sidesOptions: Record<string, DieSides> = Object.fromEntries(
@@ -379,6 +380,7 @@
 			name: newPieceKind,
 			color: PIECE_COLOR_DEFAULT,
 			imageUrl: '',
+			model: '',
 			radius: PIECE_RADIUS[newPieceKind],
 			maxValue: COUNTER_MAX_DEFAULT,
 			states: [],
@@ -388,7 +390,8 @@
 			drawMode: 'random',
 			infinite: false,
 			snap: true,
-			position: [0, 0]
+			position: [0, 0],
+			rotation: 0
 		});
 		pieceCursor = pack.pieces.length - 1;
 	}
@@ -1072,6 +1075,18 @@
 						{#if piece.kind === 'token' || piece.kind === 'bag'}
 							<Text label="Image URL" bind:value={piece.imageUrl} />
 							<RefThumb value={piece.imageUrl} label="piece image" aspect="square" />
+						{/if}
+						{#if piece.kind === 'model'}
+							<!-- the fourth scheme: a catalog ref, previewed by its manifest
+							     thumbnail — keyed like the card face so cursor moves re-seed -->
+							{#key pieceIndex}
+								<FaceRef
+									title="Model ref"
+									value={piece.model}
+									onchange={(ref) => (piece.model = ref)}
+								/>
+							{/key}
+							<AutoValue label="Rotation (deg)" bind:value={piece.rotation} />
 						{/if}
 						<!--
 							States: the TTS `States` analog — one piece, several faces, cycled in

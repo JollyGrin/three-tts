@@ -213,13 +213,19 @@ export function composePackPiece(
 		radius: def.radius,
 		maxValue: def.maxValue,
 		sides: def.sides,
+		model: def.model,
 		snap: def.snap,
 		value: opts.value,
 		...(def.kind === 'bag'
 			? { contents: bagContents(def), drawMode: def.drawMode, infinite: def.infinite }
 			: {}),
 		position: opts.position ?? [def.position[0] * m, PIECE_REST_Y, def.position[1] * m],
-		rotation: opts.rotation,
+		// the authored yaw is degrees in the piece's rotation[1] slot (see
+		// applySnapRotation's conventions); mirrored seats add a half turn so a
+		// section authored facing seat 0 faces its owner
+		rotation:
+			opts.rotation ??
+			(def.rotation !== undefined ? [0, def.rotation + (m === -1 ? 180 : 0), 0] : undefined),
 		packOrigin: origin(pack, String(index), opts.source)
 	});
 }

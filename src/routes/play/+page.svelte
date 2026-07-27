@@ -13,8 +13,10 @@
 	import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 	import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
 	import { cycleHoveredPieceState } from '$lib/hotkeys/piece-state';
+	import { rotateHoveredModel } from '$lib/hotkeys/model-rotate';
 	import { isTyping } from '$lib/hotkeys/is-typing';
 	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
+	import ModelMenu from '$lib/ModelMenu.svelte';
 	import { startAutoClaim } from '$lib/scenario/autoClaim';
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
@@ -40,8 +42,9 @@
 			else gameActions.flipCard();
 		}
 		if (event.code === 'KeyC') cameraTransforms.resetView();
-		if (event.code === 'KeyT') gameActions.tapCard();
-		if (event.code === 'KeyR') gameActions.tapCard(true);
+		// T/R turn a hovered model by the grid step; otherwise they tap the card
+		if (event.code === 'KeyT' && !rotateHoveredModel(1)) gameActions.tapCard();
+		if (event.code === 'KeyR' && !rotateHoveredModel(-1)) gameActions.tapCard(true);
 		if (event.code === 'KeyS') shuffleHoveredDeck();
 		// G groups the hovered pile into a deck; Shift+G spreads a hovered deck
 		// back into loose cards
@@ -117,6 +120,7 @@
 <PaneDecks />
 <PlayerHud />
 <PieceStateMenu />
+<ModelMenu />
 
 <!-- a pack or scenario dropped mid-game lands on the live table (and, for a
      pack, in this browser's library) — no detour through /setup -->

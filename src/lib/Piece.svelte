@@ -9,10 +9,12 @@
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	import { createCounterInput, DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
-	import { setPieceHover, clearPieceHover, openPieceMenu } from '$lib/store/pieceUi';
+	import { setPieceHover, clearPieceHover, openPieceMenu, openModelMenu } from '$lib/store/pieceUi';
 	import { createDieInput } from '$lib/utils/die-input';
 	import { createBagInput } from '$lib/utils/bag-input';
+	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import Die from './Die.svelte';
+	import Model from './models/Model.svelte';
 	import DropFootprint from './drop/DropFootprint.svelte';
 	import {
 		BAG_HEIGHT,
@@ -90,6 +92,16 @@
 		height.current,
 		planar.current.z
 	]);
+
+	/**
+	 * The piece's table yaw, rendered at last: `rotation[1]` in degrees (the
+	 * convention applySnapRotation documents), drawn with the same sign as a
+	 * card's yaw (`Card.svelte` renders `-rotation[2]`) so a piece and a card
+	 * caught by the same yawed grid cell line up with the drawn cell. This
+	 * binding is what makes snap-written rotations — and R/T on a model —
+	 * visible; it was previously stored and synced but never applied.
+	 */
+	const yaw = $derived(-((piece?.rotation?.[1] ?? 0) * DEG2RAD));
 
 	let pendingDrag: { x: number; y: number } | null = null;
 	let dragMoved = false;
@@ -188,6 +200,15 @@
 	 */
 	function handleContextMenu(e: IntersectionEvent<MouseEvent>) {
 		if (kind === 'bag') return bagInput.oncontextmenu(e);
+		// a model opens its own menu (rotate / snap / remove) — it must not fall
+		// through to the counter branch, whose right-click means "+1"
+		if (kind === 'model') {
+			e.nativeEvent.preventDefault();
+			e.stopPropagation();
+			if (e.delta > DRAG_THRESHOLD_PX) return; // was a drag, not a click
+			openModelMenu(id, e.nativeEvent.clientX, e.nativeEvent.clientY);
+			return;
+		}
 		if (states.length < 2) return counterInput.oncontextmenu(e);
 		e.nativeEvent.preventDefault();
 		e.stopPropagation();
@@ -260,6 +281,7 @@
 	<T.Group
 		name={id}
 		{position}
+		rotation.y={yaw}
 		onpointerdown={handlePointerDown}
 		onclick={handleClick}
 		oncontextmenu={handleContextMenu}
@@ -275,6 +297,10 @@
 				{radius}
 				{color}
 			/>
+		{:else if kind === 'model'}
+			<!-- catalog GLB (or its placeholder box) — geometry only; this group
+			     already owns the drag, the yaw and the store id -->
+			<Model {id} modelRef={piece.model} {radius} />
 		{:else if kind === 'bag'}
 			<!-- procedural pouch: tapered body, tie ring, gathered neck. Sized off
 			     the same `radius` every other piece uses, so a bag drawn at the
@@ -349,7 +375,17 @@
 				<Text
 					text={label}
 					fontSize={kind === 'counter' ? 0.55 : kind === 'bag' ? 0.45 : 0.35}
-					position={[0, kind === 'pawn' ? 1.5 : kind === 'bag' ? BAG_HEIGHT + 0.45 : 0.75, 0]}
+					position={[
+						0,
+						kind === 'pawn'
+							? 1.5
+							: kind === 'bag'
+								? BAG_HEIGHT + 0.45
+								: kind === 'model'
+									? 2.4
+									: 0.75,
+						0
+					]}
 					scale={kind === 'counter' ? labelScale.current : 1}
 					anchorX="center"
 					color="#ffffff"

@@ -94,7 +94,7 @@ Inside a **pack**, a piece's `position` is the two-element `[x, z]` pair (no y �
 
 ## 5. Face refs — the part no schema can express
 
-`face` and `back` on cards, and `imageUrl` on pieces and overlays, are **refs**: short strings resolved to real textures only at render time, so files and network state never carry image bytes. The schema types them as `string`. This section is the normative grammar. Exactly three schemes exist:
+`face` and `back` on cards, and `imageUrl` on pieces and overlays, are **refs**: short strings resolved to real textures only at render time, so files and network state never carry image bytes. The schema types them as `string`. This section is the normative grammar. Exactly four schemes exist:
 
 ### 5.1 `https://…` — a plain image URL
 
@@ -138,6 +138,14 @@ The literal prefix `sheet:` followed **immediately** by a JSON object — a JSON
 
 Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls back to a generated placeholder rather than breaking the table. `sheet:` refs are produced mainly by the Tabletop Simulator importer. **Prefer `https://` refs when authoring by hand** — one URL per card is far easier to get right than sheet arithmetic.
 
+### 5.4 `model:` — a curated 3D model, `kind: "model"` pieces only
+
+```
+model:kenney-cave/room-large
+```
+
+The literal prefix `model:` followed by `<kit>/<name>`, resolved through the first-party catalog manifest at `/models/catalog.json` — a curated, CC0-licensed model library (the first kit is Kenney's Modular Cave Kit). This scheme goes in a piece's **`model`** field, never in `face`/`back`/`imageUrl`. There is no arbitrary-URL form: only refs the manifest lists resolve, and an unknown ref renders as a placeholder box rather than an error. Catalog footprints are measured in cells of **2.0 world units**; sections grid-snap onto a `pitch: 2` snap grid.
+
 ## 6. Pack format (tbpp) — stable
 
 ### 6.1 Fields
@@ -148,7 +156,7 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
   - **`cards[]`** — `code` (stable id within the deck), optional `name`, `face` (a face ref), and optional `orientation` — {{CARD_ORIENTATIONS}}. A landscape card rests turned 90° everywhere it renders (board, hand, preview) while its art stays portrait in the image; use it for cards that are played sideways (the analog of Tabletop Simulator's `SidewaysCard`).
-- **`pieces[]`** _(optional)_ — `kind` ({{PIECE_KINDS}}), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), optional `snap` (default `true`; `false` opts the piece out of snap points and grids — it drops as if Alt were held), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
+- **`pieces[]`** _(optional)_ — `kind` ({{PIECE_KINDS}}), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), optional `snap` (default `true`; `false` opts the piece out of snap points and grids — it drops as if Alt were held), `position` as `[x, z]`, and optional `rotation` (table yaw in **degrees**, default 0). A bag adds the three fields in §6.3; a model carries its catalog ref in **`model`** (§5.4).
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
 

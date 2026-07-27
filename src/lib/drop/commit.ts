@@ -3,6 +3,7 @@ import { dragEnd, dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { tableFeatures } from '$lib/store/tableFeatures';
+import { modelSurfaceYAt } from '$lib/models/surface';
 import { resolveDrop, type DropTarget } from '$lib/utils/transforms/drop';
 
 /**
@@ -35,7 +36,10 @@ export function commitActiveDrag() {
 		id,
 		intersectionPoint,
 		{ deckId: isDeckHovered, bagId: isBagHovered, tray: isTrayHovered },
-		{ noSnap, hand: get(tableFeatures).hand }
+		// surfaceYAt: model meshes redefine the local floor (excluding the piece
+		// being dragged, which floats over its own drop point). The indicator
+		// passes the identical callback, keeping the preview honest.
+		{ noSnap, hand: get(tableFeatures).hand, surfaceYAt: modelSurfaceYAt(id) }
 	);
 
 	if (drop?.kind === 'tray') {
@@ -97,7 +101,7 @@ export function cancelActiveDrag() {
 }
 
 function commitActiveDragAtRest(id: string) {
-	const drop = resolveDrop(get(gameStore), id, null);
+	const drop = resolveDrop(get(gameStore), id, null, {}, { surfaceYAt: modelSurfaceYAt(id) });
 	if (drop && id.startsWith('piece:')) gameStore.updateState({ pieces: { [id]: dropPatch(drop) } });
 	else if (drop && id.startsWith('deck:'))
 		gameStore.updateState({ decks: { [id]: dropPatch(drop) } });

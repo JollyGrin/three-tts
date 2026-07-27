@@ -649,7 +649,7 @@
 				},
 				"kind": {
 					"description": "Non-card table objects (tokens, pawns, counters, dice). One generic shape\nwith a kind discriminator — see SPEC.md §4a.",
-					"enum": ["bag", "counter", "die", "pawn", "token"],
+					"enum": ["bag", "counter", "die", "model", "pawn", "token"],
 					"type": "string",
 					"title": "kind"
 				},
@@ -697,6 +697,11 @@
 					"description": "world radius of the piece footprint",
 					"type": "number",
 					"title": "radius"
+				},
+				"model": {
+					"description": "`kind: 'model'` only — a `model:<kit>/<name>` catalog ref (tableplace-135),\nresolved through the static manifest exactly the way face refs resolve\nthrough their schemes: the tiny ref string is all that syncs, never\ngeometry. An unresolvable ref renders as a placeholder, not an error.",
+					"type": "string",
+					"title": "model"
 				},
 				"value": {
 					"description": "counter state — also the up-face of a die (1…sides)",
@@ -906,7 +911,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.8",
-	"x-generated-at": "2026-07-27T11:18:24.645Z",
-	"x-tableplace-source-sha": "d4c6d84ba0deab38d0bcb2048664f8b113ce3fb6-dirty"
+	"x-tableplace-spec-version": "0.1.9",
+	"x-generated-at": "2026-07-27T12:05:24.880Z",
+	"x-tableplace-source-sha": "2e793163a839345e214d9fb9c62b3e824008c27f-dirty"
 }

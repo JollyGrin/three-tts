@@ -6,6 +6,7 @@
 	import { gameStore } from '$lib/store/game/gameStore.svelte';
 	import { tableFeatures } from '$lib/store/tableFeatures';
 	import { resolveDrop } from '$lib/utils/transforms/drop';
+	import { modelSurfaceYAt } from '$lib/models/surface';
 	import { SNAP_DROP_COLOR } from '$lib/utils/constants-snap';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import DropFootprint from './DropFootprint.svelte';
@@ -37,8 +38,9 @@
 				tray: $dragStore.isTrayHovered
 			},
 			// live: pressing or releasing Alt mid-drag redraws the preview. Same
-			// options the commit resolves with, so the preview stays honest.
-			{ noSnap: $dragStore.noSnap, hand: $tableFeatures.hand }
+			// options the commit resolves with — surfaceYAt included — so the
+			// preview stays honest.
+			{ noSnap: $dragStore.noSnap, hand: $tableFeatures.hand, surfaceYAt: modelSurfaceYAt(dragId) }
 		)
 	);
 

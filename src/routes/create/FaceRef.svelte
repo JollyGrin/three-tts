@@ -40,6 +40,8 @@
 	let sheetCols = $state(initial.sheetCols);
 	let sheetRows = $state(initial.sheetRows);
 	let sheetIndex = $state(initial.sheetIndex);
+	let modelKit = $state(initial.modelKit);
+	let modelName = $state(initial.modelName);
 
 	const draft: FaceDraft = $derived({
 		scheme,
@@ -49,7 +51,9 @@
 		sheetCols,
 		sheetRows,
 		sheetIndex,
-		sheetExtra: initial.sheetExtra
+		sheetExtra: initial.sheetExtra,
+		modelKit,
+		modelName
 	});
 	const built = $derived(buildFaceRef(draft));
 
@@ -67,6 +71,9 @@
 		<Text label="Image URL" bind:value={url} {disabled} />
 	{:else if scheme === 'gen'}
 		<Text label="Code (AS…KC, back)" bind:value={genCode} {disabled} />
+	{:else if scheme === 'model'}
+		<Text label="Kit (kenney-cave)" bind:value={modelKit} {disabled} />
+		<Text label="Model (room-large)" bind:value={modelName} {disabled} />
 	{:else}
 		<Text label="Sheet URL" bind:value={sheetUrl} {disabled} />
 		<AutoValue label="Columns" bind:value={sheetCols} {disabled} />

@@ -220,7 +220,10 @@ export function resolveDrop(
 		!trayWins &&
 		hover.bagId !== dragId &&
 		draggedKind !== 'bag' &&
-		draggedKind !== 'die';
+		draggedKind !== 'die' &&
+		// a model is refused for the die's reason: no bag item can carry its
+		// catalog ref, so returnToBag would quietly turn a room into a token
+		draggedKind !== 'model';
 	if (bagSwallows) {
 		const bag = state?.pieces?.[hover.bagId as string];
 		if (bag?.kind === 'bag') {

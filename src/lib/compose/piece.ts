@@ -31,7 +31,8 @@ const KIND_LABEL: Record<PieceKind, string> = {
 	pawn: 'Pawn',
 	counter: 'Counter',
 	die: 'Die',
-	bag: 'Bag'
+	bag: 'Bag',
+	model: 'Model'
 };
 
 export function slugify(name: string, fallback: string): string {
@@ -84,6 +85,8 @@ export type PieceProps = {
 	value?: number;
 	/** dice only; how many faces (defaults to a d6) */
 	sides?: DieSides;
+	/** models only; the `model:<kit>/<name>` catalog ref the renderer resolves */
+	model?: string;
 	rotation?: Vec3;
 	/** false opts this piece out of snap points/grids (default true) */
 	snap?: boolean;
@@ -134,6 +137,8 @@ export function composePiece(
 	};
 	if (opts.color) piece.color = opts.color;
 	if (opts.imageUrl) piece.imageUrl = opts.imageUrl;
+	// the ref, not the geometry: what a model piece IS travels as one string
+	if (kind === 'model' && opts.model) piece.model = opts.model;
 	// Not on a die or a bag: a die's faces are geometry and a bag's is a pouch,
 	// so states would be dead weight on the wire and would hand either a state
 	// menu it has no use for. Dropped here rather than rejected at parse time so

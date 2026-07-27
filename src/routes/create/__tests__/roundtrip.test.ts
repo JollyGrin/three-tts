@@ -53,6 +53,7 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 		name: '',
 		color: '#c8c4b8',
 		imageUrl: '',
+		model: '',
 		radius: 0.75,
 		maxValue: 20,
 		states: [],
@@ -62,6 +63,7 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 		infinite: false,
 		snap: true,
 		position: [0, 0],
+		rotation: 0,
 		...over
 	});
 
