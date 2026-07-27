@@ -141,6 +141,7 @@ export const SPECS: Spec[] = [
 				await assertRenders(table, deck, 'deck');
 				await assertDraggable(table, deck, 'deck');
 				assertClean(table, 'with a deck alone on the table');
+				await table.snap('deck-alone');
 			})
 	},
 	{
@@ -155,6 +156,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'deck (with a d20 on the table)');
 				await assertDraggable(table, die, 'the d20 itself');
 				assertClean(table, 'after dragging with a d20 on the table');
+				await table.snap('die');
 			})
 	},
 	{
@@ -173,6 +175,7 @@ export const SPECS: Spec[] = [
 					await assertRenders(table, id, `the d${shapes[index]}`);
 				}
 				await assertDraggable(table, deck, 'deck (with d4…d20 on the table)');
+				await table.snap('die-shapes');
 			})
 	},
 	{
@@ -187,6 +190,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'deck (with a bag on the table)');
 				await assertDraggable(table, bag, 'the bag itself');
 				assertClean(table, 'after dragging with a bag on the table');
+				await table.snap('bag');
 			})
 	},
 	{
@@ -215,6 +219,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'a deck spawned after a die');
 				await assertRenders(table, die, 'the d6');
 				assertClean(table, 'with a pack spawned after a die');
+				await table.snap('white-pack');
 			})
 	},
 	{
@@ -285,6 +290,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, cardId, 'the landscape card');
 				await assertDraggable(table, deck, 'deck (with a landscape card out)');
 				assertClean(table, 'with a landscape card on the table');
+				await table.snap('landscape');
 			})
 	},
 	{
@@ -336,6 +342,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'deck (after grid snapping)');
 				await assertDraggable(table, token, 'the token (after grid snapping)');
 				assertClean(table, 'after snapping onto a grid');
+				await table.snap('snap-grid');
 			})
 	},
 	{
@@ -430,6 +437,7 @@ export const SPECS: Spec[] = [
 
 				await assertDraggable(table, deck, 'deck (after an Alt-drop)');
 				assertClean(table, 'after Alt-dropping onto an overlapping card');
+				await table.snap('alt-drop');
 			})
 	},
 	{
@@ -517,6 +525,7 @@ export const SPECS: Spec[] = [
 				} finally {
 					await remote.close();
 				}
+				await table.snap('model');
 			} finally {
 				await table.close();
 			}
@@ -598,6 +607,7 @@ export const SPECS: Spec[] = [
 
 				await assertDraggable(table, deck, 'deck (with surface rest in play)');
 				assertClean(table, 'after resting a token on a model surface');
+				await table.snap('model-surface');
 			})
 	},
 	{
@@ -632,6 +642,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'deck (in the 30-tile cave scene)');
 				await assertDraggable(table, die, 'the d6 (in the 30-tile cave scene)');
 				assertClean(table, 'at the end of the 30-tile cave scene');
+				await table.snap('model-scene');
 			})
 	},
 	{
@@ -801,6 +812,7 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'the draw deck (cataclysm table)');
 				await assertDraggable(table, bag, 'the damage-counter bag (cataclysm table)');
 				assertClean(table, 'at the end of the cataclysm arcade table');
+				await table.snap('cataclysm');
 			})
 	},
 	{
@@ -962,6 +974,7 @@ export const SPECS: Spec[] = [
 				ok((await deckCount()) === moved!.count, `moving the pile changed its card count`);
 
 				assertClean(table, 'after the deck gesture suite');
+				await table.snap('deck-gestures');
 			})
 	},
 	{
@@ -1123,6 +1136,7 @@ export const SPECS: Spec[] = [
 
 				await assertDraggable(table, deck, 'deck (after the composed alt-drops)');
 				assertClean(table, 'after alt-dropping drag-drawn cards');
+				await table.snap('deck-alt');
 			})
 	},
 	{
@@ -1163,6 +1177,7 @@ export const SPECS: Spec[] = [
 				await table.settle();
 				await assertDraggable(table, deck, 'deck (after cycling a piece state)');
 				assertClean(table, 'at the end of the mixed table');
+				await table.snap('mixed');
 			})
 	}
 ];

@@ -72,3 +72,14 @@ jobs:
         run: bun run test:e2e
         env:
           CHROME_PATH: /usr/bin/google-chrome
+
+      # One PNG per spec (e2e/table.ts `snap`): the visual-polish train's
+      # before/after evidence. Uploaded even when the harness fails — the
+      # screenshots that did get written are exactly what a failure needs.
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: e2e/screenshots/
+          if-no-files-found: warn
