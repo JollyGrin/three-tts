@@ -192,6 +192,69 @@ export const SPECS: Spec[] = [
 			})
 	},
 	{
+		/**
+		 * tableplace-132: a landscape card's quarter turn is applied by the
+		 * renderer alone. The store cannot answer "which way does it draw", so
+		 * this reads the rendered bounding box — wider than deep means sideways —
+		 * and checks the synced rotation stayed orientation-relative underneath.
+		 */
+		name: 'landscape card: draws sideways, taps upright, still drags',
+		run: (context) =>
+			withTable(context, 'landscape', async (table) => {
+				// a two-card all-landscape deck, positioned clear of the HUD panes
+				const deck = await table.page.evaluate(() => {
+					const cards = ['AS', 'KH'].map((code) => ({
+						id: `card:std:site-${code}`,
+						faceImageUrl: `gen:std52/${code}`,
+						backImageUrl: 'gen:std52/back',
+						orientation: 'landscape'
+					}));
+					return String(
+						window.__tableplace!.actions.addDeck({ cards, position: [-2, 0.4, -2] } as never) ?? ''
+					);
+				});
+				await table.settle(1000);
+
+				const cardId = await table.page.evaluate(
+					(id) => window.__tableplace!.actions.drawFromTop(id, 1)[0]?.id ?? '',
+					deck
+				);
+				ok(!!cardId, 'nothing came off the top of the deck');
+				await table.settle(1500); // let the draw/flip springs finish
+				await assertRenders(table, cardId, 'the landscape card');
+
+				// sideways on the felt: footprint wider (x) than deep (z)
+				const drawn = await table.describe(cardId);
+				ok(
+					drawn!.size[0] > drawn!.size[2],
+					`the landscape card draws portrait: footprint ${JSON.stringify(drawn!.size)}`
+				);
+				// …and the quarter turn never leaked into the synced rotation
+				const stored = await table.page.evaluate(
+					(id) => window.__tableplace!.state()?.cards?.[id]?.rotation ?? null,
+					cardId
+				);
+				ok(
+					Math.abs(stored?.[2] ?? NaN) % 180 === 0,
+					`the 90° was baked into synced state: rotation ${JSON.stringify(stored)}`
+				);
+
+				// tap stands it upright — orientation-relative, exactly like a
+				// portrait card lies down
+				await table.page.evaluate((id) => window.__tableplace!.actions.tapCard(false, id), cardId);
+				await table.settle(1500);
+				const tapped = await table.describe(cardId);
+				ok(
+					tapped!.size[2] > tapped!.size[0],
+					`tapping did not stand the landscape card upright: footprint ${JSON.stringify(tapped!.size)}`
+				);
+
+				await assertDraggable(table, cardId, 'the landscape card');
+				await assertDraggable(table, deck, 'deck (with a landscape card out)');
+				assertClean(table, 'with a landscape card on the table');
+			})
+	},
+	{
 		// acceptance criterion 4: one table carrying all four at once
 		name: 'mixed table: deck + die + bag + multi-state piece',
 		run: (context) =>

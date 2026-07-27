@@ -44,6 +44,22 @@
 			GameDTO['cards'][string]
 		][]
 	);
+
+	// Per-card slot widths, not a fixed pitch: a landscape card lies on its side
+	// and is wider than the 1.2 units a portrait slot spans, so its neighbors
+	// step round it instead of underneath it. Portrait slots keep the historical
+	// 1.2 pitch exactly.
+	const SLOT_PORTRAIT = 1.2;
+	const SLOT_LANDSCAPE = 1.7;
+	const offsets = $derived.by(() => {
+		let x = 0;
+		return cards.map(([, card]) => {
+			const width = card?.orientation === 'landscape' ? SLOT_LANDSCAPE : SLOT_PORTRAIT;
+			const centre = x + width / 2;
+			x += width;
+			return centre;
+		});
+	});
 </script>
 
 <T.OrthographicCamera makeDefault zoom={80} position={[0, 0, 10]} />
@@ -81,6 +97,6 @@
 	{/if}
 
 	{#each cards as [id], index (id)}
-		<TrayCard {id} {index} {trayWidth} />
+		<TrayCard {id} offsetX={offsets[index]} {trayWidth} />
 	{/each}
 </T.Group>

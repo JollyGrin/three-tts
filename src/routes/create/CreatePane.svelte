@@ -313,7 +313,8 @@
 		deck.cards.push({
 			code: allocateCode(`card-${deck.cards.length}`, new Set(takenCodes)),
 			name: '',
-			face: deck.back || CARD_BACK_DEFAULT
+			face: deck.back || CARD_BACK_DEFAULT,
+			orientation: 'portrait'
 		});
 		cardCursor = deck.cards.length - 1;
 	}
@@ -331,7 +332,9 @@
 	/** Append a bulk-sheet batch to the selected deck (codes already allocated). */
 	function addBulkCards(cards: PackCardDef[]) {
 		if (!deck) return toast.error('Add a deck first');
-		deck.cards.push(...cards.map((c) => ({ ...c, name: c.name ?? '' })));
+		deck.cards.push(
+			...cards.map((c) => ({ ...c, name: c.name ?? '', orientation: c.orientation ?? 'portrait' }))
+		);
 		cardCursor = deck.cards.length - 1;
 		toast(`Added ${cards.length} card${cards.length === 1 ? '' : 's'} to ${deck.slot}`);
 	}
@@ -1008,6 +1011,15 @@
 						value={card?.name ?? ''}
 						disabled={!card}
 						on:change={(e) => card && (card.name = e.detail.value)}
+					/>
+					<!-- per-card default orientation (tableplace-132): landscape cards —
+					     Sorcery sites and the like — rest sideways everywhere they render -->
+					<Checkbox
+						label="Landscape (sideways)"
+						value={card?.orientation === 'landscape'}
+						disabled={!card}
+						on:change={(e) =>
+							card && (card.orientation = e.detail.value ? 'landscape' : 'portrait')}
 					/>
 					<!-- keyed on the cursors AND on whether there is a card at all: FaceRef
 					     seeds its fields once, so the first card added to an empty deck has

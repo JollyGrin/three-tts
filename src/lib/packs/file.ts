@@ -8,6 +8,7 @@
  */
 
 import type {
+	CardOrientation,
 	GamePackDef,
 	PackBagCardItem,
 	PackBagDrawMode,
@@ -78,6 +79,16 @@ function arr(v: unknown, path: string): unknown[] {
 	return v;
 }
 
+const CARD_ORIENTATIONS = ['portrait', 'landscape'] as const;
+
+function orientation(v: unknown, path: string): CardOrientation {
+	const value = v as CardOrientation;
+	if (!CARD_ORIENTATIONS.includes(value)) {
+		fail(path, `must be one of ${CARD_ORIENTATIONS.join(', ')}`);
+	}
+	return value;
+}
+
 function parseCard(v: unknown, path: string): PackCardDef {
 	if (!isRecord(v)) fail(path, 'must be an object');
 	const card: PackCardDef = {
@@ -85,6 +96,9 @@ function parseCard(v: unknown, path: string): PackCardDef {
 		face: str(v.face, `${path}.face`)
 	};
 	if (v.name !== undefined) card.name = str(v.name, `${path}.name`);
+	if (v.orientation !== undefined) {
+		card.orientation = orientation(v.orientation, `${path}.orientation`);
+	}
 	return card;
 }
 
@@ -129,6 +143,9 @@ function parseBagItem(v: unknown, path: string): PackBagItemDef {
 		};
 		if (v.name !== undefined) card.name = str(v.name, `${path}.name`);
 		if (v.back !== undefined) card.back = str(v.back, `${path}.back`);
+		if (v.orientation !== undefined) {
+			card.orientation = orientation(v.orientation, `${path}.orientation`);
+		}
 		return card;
 	}
 	const item: PackBagPieceItem = { kind, name: str(v.name, `${path}.name`) };

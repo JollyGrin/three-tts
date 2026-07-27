@@ -102,6 +102,36 @@ describe('tbpp round-trip', () => {
 		expect(parsed.pieces?.[0].drawMode).toBeUndefined();
 	});
 
+	it('round-trips a per-card orientation', () => {
+		const pack: GamePackDef = {
+			id: 'sites',
+			name: 'Sites',
+			scope: 'player',
+			decks: [
+				{
+					slot: 'atlas',
+					name: 'Atlas',
+					back: 'https://x/back.png',
+					cards: [
+						{ code: 'site', face: 'https://x/site.png', orientation: 'landscape' },
+						{ code: 'spell', face: 'https://x/spell.png' }
+					]
+				}
+			],
+			pieces: [
+				{
+					kind: 'bag',
+					name: 'Pouch',
+					position: [0, 0],
+					contents: [
+						{ kind: 'card', code: 'site-2', face: 'https://x/site2.png', orientation: 'landscape' }
+					]
+				}
+			]
+		};
+		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
+	});
+
 	it('names files <name>.tbpp.json', () => {
 		expect(packFileName(STANDARD_52)).toBe('Standard Playing Cards.tbpp.json');
 	});
@@ -129,6 +159,14 @@ describe('parsePackFile errors', () => {
 		const file = valid();
 		delete file.decks[0].cards[3].face;
 		expect(() => parsePackFile(JSON.stringify(file))).toThrow('decks[0].cards[3].face');
+	});
+
+	it('rejects an unknown orientation', () => {
+		const pack = JSON.parse(serializePackFile(STANDARD_52));
+		pack.decks[0].cards[0].orientation = 'diagonal';
+		expect(() => parsePackFile(JSON.stringify(pack))).toThrow(
+			/decks\[0\]\.cards\[0\]\.orientation must be one of portrait, landscape/
+		);
 	});
 
 	it('rejects bad scope', () => {

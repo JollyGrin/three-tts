@@ -113,6 +113,7 @@ function drawFromBag(bagId: string): BagDraw | null {
 			[id]: {
 				faceImageUrl: item.face,
 				...(item.back ? { backImageUrl: item.back } : {}),
+				...(item.orientation ? { orientation: item.orientation } : {}),
 				position: drawPosition(state, bag, CARD_REST_Y),
 				// facedown (180 on x, matching Card.svelte): the bag's contents were
 				// hidden, so the draw doesn't reveal them — F turns it over
@@ -183,7 +184,8 @@ function returnToBag(bagId: string, entityId: string): boolean {
 			// has to a code, and it is what a re-draw will build its id from again
 			code: entityId.split(':').slice(2).join(':') || 'card',
 			face: card.faceImageUrl,
-			...(card.backImageUrl ? { back: card.backImageUrl } : {})
+			...(card.backImageUrl ? { back: card.backImageUrl } : {}),
+			...(card.orientation ? { orientation: card.orientation } : {})
 		};
 		update.cards = { [entityId]: null };
 	}

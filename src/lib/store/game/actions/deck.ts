@@ -105,7 +105,8 @@ function groupStackIntoDeck(cardId?: string) {
 		return {
 			id: memberId,
 			faceImageUrl: card?.faceImageUrl ?? '',
-			backImageUrl: card?.backImageUrl
+			backImageUrl: card?.backImageUrl,
+			...(card?.orientation ? { orientation: card.orientation } : {})
 		};
 	});
 
@@ -202,6 +203,7 @@ function ungroupDeck(deckId?: string): UngroupResult {
 			...(card.backImageUrl || deck.deckBackImageUrl
 				? { backImageUrl: card.backImageUrl ?? (deck.deckBackImageUrl as string) }
 				: {}),
+			...(card.orientation ? { orientation: card.orientation } : {}),
 			position: [x, CARD_REST_Y + index * CARD_THICKNESS, z],
 			// a face-up deck spreads to face-up cards; 180 on x is facedown
 			rotation: [isFaceUp ? 0 : 180, 0, yaw]
@@ -271,6 +273,7 @@ function drawFromTop(id: string, count = 1): CardInDeck[] {
 			...(card.backImageUrl || deck.deckBackImageUrl
 				? { backImageUrl: card.backImageUrl ?? (deck.deckBackImageUrl as string) }
 				: {}),
+			...(card.orientation ? { orientation: card.orientation } : {}),
 			position: [x, CARD_REST_Y + index * CARD_THICKNESS, z],
 			// a face-up deck deals face-up cards; 180 on x is facedown
 			rotation: [isFaceUp ? 0 : 180, 0, rotZ]

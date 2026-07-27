@@ -101,6 +101,12 @@
 	const basePosition = $derived(cardState?.position ?? [0, 0, 0]);
 	const baseRotation = $derived(cardState?.rotation ?? [0, 0, 0]);
 
+	// Landscape cards rest a quarter turn round: a render-only yaw on top of the
+	// tap spring, never written into rotation[2] — tapCard is additive there and
+	// the snap/group logic reads a squared-up yaw as z % 180 == 0, so the store
+	// stays orientation-relative and tapping a landscape card stands it upright.
+	const orientationYaw = $derived(cardState?.orientation === 'landscape' ? 90 : 0);
+
 	// 180 on x = facedown (flipCard convention). The face plane stays mounted so
 	// its texture never unloads, but is not rendered — no peeking under the card.
 	// Asymmetric on purpose: flipping DOWN keeps the face until the spring passes
@@ -234,7 +240,7 @@
 	name={id}
 	{position}
 	rotation.z={rotation.current * DEG2RAD}
-	rotation.y={rotationTap.current * -DEG2RAD}
+	rotation.y={(rotationTap.current + orientationYaw) * -DEG2RAD}
 	onpointerdown={handleDragStart}
 	onpointerleave={handlePointerLeave}
 	onpointerenter={handlePointerEnter}
@@ -312,7 +318,7 @@
 	<T.Group
 		name="pick:{id}"
 		position={[posX, basePosition[1], posZ]}
-		rotation.y={rotationTap.current * -DEG2RAD}
+		rotation.y={(rotationTap.current + orientationYaw) * -DEG2RAD}
 	>
 		<T.Mesh rotation.x={-Math.PI / 2}>
 			<T.PlaneGeometry args={[CARD_WIDTH + CARD_PICK_HALO * 2, CARD_HEIGHT + CARD_PICK_HALO * 2]} />

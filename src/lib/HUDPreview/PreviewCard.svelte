@@ -10,6 +10,9 @@
 	let { id }: { id: string } = $props();
 	const card = $derived($gameStore?.cards?.[id] as NonNullable<GameDTO['cards'][string]>);
 	const isFlipped = $derived((card?.rotation ?? [0])[0] === 180);
+	// landscape cards preview turned on their side — the art stays portrait in
+	// the texture, so the mesh rotates rather than the size tuple swapping
+	const isLandscape = $derived(card?.orientation === 'landscape');
 
 	const cardSize = [1.4 * 1.4, 2 * 1.4];
 </script>
@@ -20,7 +23,7 @@
 		$sheetRefCache
 	)}
 	{#key previewUrl}
-		<T.Mesh scale={2.75} position.y={1}>
+		<T.Mesh scale={2.75} position.y={1} rotation.z={isLandscape ? -Math.PI / 2 : 0}>
 			<T.PlaneGeometry args={cardSize} />
 			<ImageMaterial url={previewUrl} side={0} radius={0.3} opacity={1} />
 		</T.Mesh>

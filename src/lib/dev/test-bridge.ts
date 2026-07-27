@@ -53,6 +53,12 @@ export type EntityShape = {
 	meshes: number;
 	/** one entry per material, in traversal order */
 	materials: { type: string; color: string; hasMap: boolean }[];
+	/**
+	 * World-space bounding-box dimensions [x, y, z] of the rendered object.
+	 * What tells a landscape card (footprint wider than deep) from a portrait
+	 * one — the store cannot: orientation is render-only by design.
+	 */
+	size: [number, number, number];
 };
 
 declare global {
@@ -152,7 +158,11 @@ export function installTestBridge(handles: SceneHandles): void {
 		describe: (id) => {
 			const object = handles.scene()?.getObjectByName(id);
 			if (!object) return null;
-			const shape: EntityShape = { meshes: 0, materials: [] };
+			const box = new THREE.Box3().setFromObject(object);
+			const size = box.isEmpty()
+				? ([0, 0, 0] as [number, number, number])
+				: (box.getSize(new THREE.Vector3()).toArray() as [number, number, number]);
+			const shape: EntityShape = { meshes: 0, materials: [], size };
 			object.traverse((node) => {
 				const mesh = node as THREE.Mesh;
 				if (!mesh.isMesh) return;

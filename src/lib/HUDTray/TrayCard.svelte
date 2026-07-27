@@ -26,13 +26,16 @@
 	// orthographic camera.
 	let {
 		id,
-		index = 0,
+		offsetX = 0,
 		trayWidth = 0
-	}: { id: string; index: number; trayWidth?: number } = $props();
+	}: { id: string; offsetX: number; trayWidth?: number } = $props();
 
 	const myPlayerId = $derived(gameActions?.getMe()?.id ?? '');
 	const card = $derived($gameStore?.players?.[myPlayerId]?.tray?.[id] ?? {});
 	const trayUrl = $derived(resolveCardImage(card.faceImageUrl, $sheetRefCache));
+	// landscape cards lie on their side in the hand; the geometry stays portrait
+	// (the art is portrait in the texture) and the mesh rotates
+	const isLandscape = $derived(card.orientation === 'landscape');
 
 	const isCardHovered = $derived($hoveredTrayCard === id);
 	let emissiveIntensity = $state(0);
@@ -100,7 +103,8 @@
 		scale={cardScale.current}
 		position.z={cardZ}
 		position.y={cardY.current}
-		position.x={-trayWidth / 2 + 1.25 + index * 1.2}
+		position.x={-trayWidth / 2 + 0.65 + offsetX}
+		rotation.z={isLandscape ? -Math.PI / 2 : 0}
 		onpointerenter={handlePointerEnter}
 		onpointerleave={handlePointerLeave}
 		onpointerdown={handleDragStart}

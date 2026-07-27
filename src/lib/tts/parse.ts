@@ -32,6 +32,8 @@ type TtsObject = {
 	LuaScript?: string;
 	/** container settings; `Order` is the LIFO/FIFO/Random draw order */
 	Bag?: { Order?: number };
+	/** cards/decks: the card rests turned 90° (our `orientation: 'landscape'`) */
+	SidewaysCard?: boolean;
 };
 
 export type SheetCell = { url: string; cols: number; rows: number; index: number };
@@ -41,6 +43,8 @@ export type ParsedCard = {
 	face: SheetCell;
 	/** whole image when cols/rows = 1, or a cell of a unique-back sheet */
 	back: SheetCell;
+	/** TTS `SidewaysCard` — the card rests turned 90° */
+	sideways?: boolean;
 };
 
 export type ParsedDeck = { name: string; cards: ParsedCard[] };
@@ -68,7 +72,7 @@ export type ParsedBagItem =
 			radius?: number;
 			maxValue?: number;
 	  }
-	| { kind: 'card'; name: string; face: SheetCell; back: SheetCell };
+	| { kind: 'card'; name: string; face: SheetCell; back: SheetCell; sideways?: boolean };
 
 export type ParsedPiece = {
 	kind: 'token' | 'pawn' | 'counter' | 'bag';
@@ -114,7 +118,8 @@ export function decodeCardId(cardId: number): { sheetKey: string; index: number 
 function cardFromId(
 	cardId: number,
 	customDeck: Record<string, TtsSheet> | undefined,
-	name: string
+	name: string,
+	sideways?: boolean
 ): ParsedCard | null {
 	const { sheetKey, index } = decodeCardId(cardId);
 	const sheet = customDeck?.[sheetKey];
@@ -128,7 +133,7 @@ function cardFromId(
 	const back: SheetCell = sheet.UniqueBack
 		? { url: normalizeAssetUrl(sheet.BackURL), cols: sheet.NumWidth, rows: sheet.NumHeight, index }
 		: { url: normalizeAssetUrl(sheet.BackURL), cols: 1, rows: 1, index: 0 };
-	return { name, face, back };
+	return { name, face, back, ...(sideways ? { sideways: true } : {}) };
 }
 
 function colorToHex(color?: { r?: number; g?: number; b?: number }): string | undefined {
@@ -301,18 +306,44 @@ function bagItemsFrom(bag: TtsObject, skipped: string[]): ParsedBagItem[] {
 		const name = child.Nickname || type;
 
 		if ((type === 'Card' || type === 'CardCustom') && child.CardID !== undefined) {
-			const card = cardFromId(child.CardID, child.CustomDeck, child.Nickname ?? '');
-			if (card) items.push({ kind: 'card', name: card.name, face: card.face, back: card.back });
+			const card = cardFromId(
+				child.CardID,
+				child.CustomDeck,
+				child.Nickname ?? '',
+				child.SidewaysCard
+			);
+			if (card)
+				items.push({
+					kind: 'card',
+					name: card.name,
+					face: card.face,
+					back: card.back,
+					...(card.sideways ? { sideways: true } : {})
+				});
 			else skipped.push(`${name} (${type} in bag, unknown sheet)`);
 			continue;
 		}
 		if (type === 'Deck' || type === 'DeckCustom') {
 			const contained = child.ContainedObjects ?? [];
 			const cards = (child.DeckIDs ?? [])
-				.map((cardId, i) => cardFromId(cardId, child.CustomDeck, contained[i]?.Nickname ?? ''))
+				.map((cardId, i) =>
+					cardFromId(
+						cardId,
+						child.CustomDeck,
+						contained[i]?.Nickname ?? '',
+						// per-card flag first; the deck-level flag is TTS's whole-pile default
+						contained[i]?.SidewaysCard ?? child.SidewaysCard
+					)
+				)
 				.filter((card): card is ParsedCard => card !== null);
 			for (const card of cards) {
-				items.push({ kind: 'card', name: card.name, face: card.face, back: card.back });
+				items.push({
+					kind: 'card',
+					name: card.name,
+					face: card.face,
+					back: card.back,
+					...(card.sideways ? { sideways: true } : {})
+				});
 			}
 			if (cards.length === 0) skipped.push(`${name} (${type} in bag, no readable cards)`);
 			continue;
@@ -373,11 +404,19 @@ export function parseSavedObject(json: unknown): ParsedSavedObject {
 			const ids = obj.DeckIDs ?? [];
 			const contained = obj.ContainedObjects ?? [];
 			const cards = ids
-				.map((id, i) => cardFromId(id, obj.CustomDeck, contained[i]?.Nickname ?? ''))
+				.map((id, i) =>
+					cardFromId(
+						id,
+						obj.CustomDeck,
+						contained[i]?.Nickname ?? '',
+						// per-card flag first; the deck-level flag is TTS's whole-pile default
+						contained[i]?.SidewaysCard ?? obj.SidewaysCard
+					)
+				)
 				.filter((c): c is ParsedCard => c !== null);
 			decks.push({ name: obj.Nickname || `Deck ${decks.length + 1}`, cards });
 		} else if ((type === 'Card' || type === 'CardCustom') && obj.CardID !== undefined) {
-			const card = cardFromId(obj.CardID, obj.CustomDeck, obj.Nickname ?? '');
+			const card = cardFromId(obj.CardID, obj.CustomDeck, obj.Nickname ?? '', obj.SidewaysCard);
 			if (card) looseCards.push(card);
 		} else if (BAG_TYPES.has(type)) {
 			// a bag always imports, even if every child is unsupported: the empty

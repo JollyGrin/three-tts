@@ -6,6 +6,7 @@
  */
 
 import type {
+	CardOrientation,
 	GamePackDef,
 	PackBagDrawMode,
 	PackBagItemDef,
@@ -20,7 +21,7 @@ import { CARD_BACK_DEFAULT } from '$lib/packs/standard52';
 export const PIECE_COLOR_DEFAULT = '#c8c4b8';
 
 /** A `GamePackDef` with every pane-bound optional field made concrete */
-export type EditorCard = PackCardDef & { name: string };
+export type EditorCard = PackCardDef & { name: string; orientation: CardOrientation };
 export type EditorDeck = Omit<PackDeckDef, 'cards' | 'isFaceUp'> & {
 	isFaceUp: boolean;
 	cards: EditorCard[];
@@ -45,6 +46,7 @@ export type EditorBagItem = {
 	code: string;
 	face: string;
 	back: string;
+	orientation: CardOrientation;
 };
 
 export type EditorPiece = Omit<PackPieceDef, 'states' | 'contents' | 'drawMode' | 'infinite'> & {
@@ -71,7 +73,8 @@ export function withBagItemDefaults(item: PackBagItemDef): EditorBagItem {
 		name: item.name ?? '',
 		code: '',
 		face: CARD_BACK_DEFAULT,
-		back: ''
+		back: '',
+		orientation: 'portrait' as CardOrientation
 	};
 	if (item.kind === 'card') {
 		return {
@@ -82,7 +85,8 @@ export function withBagItemDefaults(item: PackBagItemDef): EditorBagItem {
 			maxValue: COUNTER_MAX_DEFAULT,
 			code: item.code,
 			face: item.face,
-			back: item.back ?? ''
+			back: item.back ?? '',
+			orientation: item.orientation ?? 'portrait'
 		};
 	}
 	return {
@@ -101,7 +105,11 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 		decks: pack.decks.map((deck) => ({
 			...deck,
 			isFaceUp: deck.isFaceUp ?? false,
-			cards: deck.cards.map((card) => ({ ...card, name: card.name ?? '' }))
+			cards: deck.cards.map((card) => ({
+				...card,
+				name: card.name ?? '',
+				orientation: card.orientation ?? 'portrait'
+			}))
 		})),
 		pieces: (pack.pieces ?? []).map((piece) => ({
 			...piece,
@@ -134,7 +142,9 @@ function cleanBagItem(item: PackBagItemDef | EditorBagItem): PackBagItemDef {
 			code: editor.code,
 			...(editor.name ? { name: editor.name } : {}),
 			face: editor.face,
-			...(editor.back ? { back: editor.back } : {})
+			...(editor.back ? { back: editor.back } : {}),
+			// 'portrait' is the default, so it stays out of the file
+			...(editor.orientation === 'landscape' ? { orientation: 'landscape' } : {})
 		};
 	}
 	return {
@@ -210,7 +220,9 @@ export function cleanForExport(draft: GamePackDef): GamePackDef {
 			cards: deck.cards.map((card) => ({
 				code: card.code,
 				...(card.name ? { name: card.name } : {}),
-				face: card.face
+				face: card.face,
+				// 'portrait' is the default, so it stays out of the file
+				...(card.orientation === 'landscape' ? { orientation: 'landscape' as const } : {})
 			}))
 		})),
 		...(pieces.length > 0 ? { pieces } : {}),

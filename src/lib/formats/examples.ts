@@ -44,7 +44,16 @@ export const EXAMPLE_PACK: PackFile = {
 			name: 'Wound Pile',
 			back: 'https://example.com/img/ember-back.png',
 			isFaceUp: true,
-			cards: [{ code: 'wound', name: 'Wound', face: 'https://example.com/img/wound.png' }]
+			cards: [
+				{ code: 'wound', name: 'Wound', face: 'https://example.com/img/wound.png' },
+				{
+					code: 'rampart',
+					name: 'Rampart',
+					face: 'https://example.com/img/rampart.png',
+					// a card that rests sideways (a site/board card); default is 'portrait'
+					orientation: 'landscape'
+				}
+			]
 		}
 	],
 	pieces: [

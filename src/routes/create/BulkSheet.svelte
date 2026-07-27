@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Element, Folder, Stepper, Text, Textarea } from 'svelte-tweakpane-ui';
+	import { Button, Checkbox, Element, Folder, Stepper, Text, Textarea } from 'svelte-tweakpane-ui';
 	import toast from 'svelte-french-toast';
 	import { sliceCell } from '$lib/tts/slice';
 	import type { PackCardDef } from '$lib/packs/types';
@@ -47,6 +47,8 @@
 	let rows = $state(SHEET_DEFAULTS.rows);
 	let codePrefix = $state(BULK_CODE_PREFIX);
 	let namesText = $state('');
+	/** whole-batch orientation: a sheet of sideways cards is all-or-nothing */
+	let landscape = $state(false);
 	let rangeFrom = $state(0);
 	let rangeTo = $state(0);
 
@@ -119,7 +121,8 @@
 			...loaded,
 			cells: resolved,
 			prefix: codePrefix,
-			taken: takenCodes
+			taken: takenCodes,
+			landscape
 		});
 		if (!cards.length) return toast.error('No cells are included');
 		onadd(cards);
@@ -211,6 +214,7 @@
 		<Folder title="Names & codes" expanded={true}>
 			<Textarea bind:value={namesText} rows={5} placeholder={NAMES_PLACEHOLDER} />
 			<Text label="Code prefix" bind:value={codePrefix} />
+			<Checkbox label="Landscape (sideways)" bind:value={landscape} />
 		</Folder>
 
 		<Button

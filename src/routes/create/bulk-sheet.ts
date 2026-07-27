@@ -149,6 +149,8 @@ export type BulkAddOptions = CodePlanOptions & {
 	cells: BulkCell[];
 	/** name-per-line list; omit when the cells already carry resolved names */
 	namesText?: string;
+	/** every card in the batch rests sideways (`orientation: 'landscape'`) */
+	landscape?: boolean;
 };
 
 /**
@@ -183,7 +185,9 @@ export function buildBulkCards(options: BulkAddOptions): PackCardDef[] {
 				face: cellToRef(
 					{ url, cols: size.cols, rows: size.rows, index: cell.index },
 					name ? { name } : {}
-				)
+				),
+				// batch-level: a sheet of sideways cards (sites, boards) is all-or-nothing
+				...(options.landscape ? { orientation: 'landscape' as const } : {})
 			};
 		});
 }

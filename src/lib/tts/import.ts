@@ -41,6 +41,7 @@ async function resolveCard(card: ParsedCard): Promise<{
 	faceImageUrl: string;
 	backImageUrl: string;
 	missingArt: boolean;
+	sideways: boolean;
 }> {
 	const faceRef = makeSheetRef({ ...card.face, name: card.name });
 	const backRef = makeSheetRef({ ...card.back, name: card.name, back: true });
@@ -53,7 +54,8 @@ async function resolveCard(card: ParsedCard): Promise<{
 		name: card.name,
 		faceImageUrl: faceRef,
 		backImageUrl: backRef,
-		missingArt: faceProbe === null
+		missingArt: faceProbe === null,
+		sideways: card.sideways ?? false
 	};
 }
 
@@ -65,10 +67,7 @@ export type ImportOptions = {
 };
 
 /** Import a TTS Saved Object JSON string; spawns onto the current table. */
-export async function importTtsFile(
-	text: string,
-	opts: ImportOptions = {}
-): Promise<ImportReport> {
+export async function importTtsFile(text: string, opts: ImportOptions = {}): Promise<ImportReport> {
 	const parsed = parseSavedObject(JSON.parse(text));
 	const playerId = opts.ownerId ?? gameActions.getMyId();
 	if (!playerId) throw new Error('No player id — join a lobby first');
@@ -94,14 +93,13 @@ export async function importTtsFile(
 			.map((c, i) => ({
 				id: `card:${playerId}:${slot}-${i}`,
 				faceImageUrl: c.faceImageUrl,
-				backImageUrl: c.backImageUrl
+				backImageUrl: c.backImageUrl,
+				...(c.sideways ? { orientation: 'landscape' as const } : {})
 			}))
 			.reverse();
 
 		const firstBack = deck.cards[0]?.back;
-		const deckBackRef = firstBack
-			? makeSheetRef({ ...firstBack, back: true })
-			: CARD_BACK_DEFAULT;
+		const deckBackRef = firstBack ? makeSheetRef({ ...firstBack, back: true }) : CARD_BACK_DEFAULT;
 		if (firstBack) await prewarmSheetRef(deckBackRef);
 		gameActions.addDeck({
 			id: `deck:${playerId}:${slot}`,
@@ -127,7 +125,8 @@ export async function importTtsFile(
 					// card rotation is in degrees (tap convention); z=180 reads upright from the far seat
 					rotation: [0, 0, opts.mirror ? 180 : 0],
 					faceImageUrl: c.faceImageUrl,
-					backImageUrl: c.backImageUrl
+					backImageUrl: c.backImageUrl,
+					...(c.sideways ? { orientation: 'landscape' as const } : {})
 				}
 			}
 		});

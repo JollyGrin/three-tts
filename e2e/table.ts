@@ -30,7 +30,9 @@ export type Table = {
 	/** the DOM element on top at a screen point — the table canvas, or a HUD pane covering it */
 	elementAt: (point: ScreenPoint) => Promise<string>;
 	/** how an entity is rendered right now; null if it never mounted */
-	describe: (id: string) => Promise<{ meshes: number; materials: unknown[] } | null>;
+	describe: (
+		id: string
+	) => Promise<{ meshes: number; materials: unknown[]; size: [number, number, number] } | null>;
 	dragBy: (id: string, dx: number, dy: number) => Promise<void>;
 	positionOf: (id: string) => Promise<number[] | null>;
 	settle: (ms?: number) => Promise<void>;
