@@ -34,8 +34,18 @@ export type Table = {
 		id: string
 	) => Promise<{ meshes: number; materials: unknown[]; size: [number, number, number] } | null>;
 	dragBy: (id: string, dx: number, dy: number) => Promise<void>;
-	/** drag an entity and release it over a table-plane world position */
-	dragTo: (id: string, worldX: number, worldZ: number) => Promise<void>;
+	/**
+	 * drag an entity and release it over a table-plane world position;
+	 * `alt` holds the Alt key through the whole gesture — the release's
+	 * pointerup then carries `altKey`, which is what the app reads for the
+	 * no-snap drop (see TableScene's onPointerUp)
+	 */
+	dragTo: (
+		id: string,
+		worldX: number,
+		worldZ: number,
+		options?: { alt?: boolean }
+	) => Promise<void>;
 	positionOf: (id: string) => Promise<number[] | null>;
 	settle: (ms?: number) => Promise<void>;
 	close: () => Promise<void>;
@@ -155,7 +165,12 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 	 * interactivity context's raycast on the last move.
 	 */
 	/** press on the entity, walk the pointer to a screen point, release there */
-	const dragFromTo = async (id: string, from: ScreenPoint, to: ScreenPoint) => {
+	const dragFromTo = async (
+		id: string,
+		from: ScreenPoint,
+		to: ScreenPoint,
+		options: { alt?: boolean } = {}
+	) => {
 		// A HUD pane over the entity swallows the press, and the failure looks
 		// exactly like a dead table — which cost an hour of chasing a bag that was
 		// never broken. Fail on the real reason instead: put the entity somewhere
@@ -166,19 +181,27 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 				`${id} draws at (${Math.round(from.x)}, ${Math.round(from.y)}), where the HUD covers the table (${cover}) — move it clear of the panes`
 			);
 		}
-		await page.mouse.move(from.x, from.y);
-		await sleep(80);
-		await page.mouse.down();
-		await sleep(80);
-		for (let step = 1; step <= 12; step++) {
-			await page.mouse.move(
-				from.x + ((to.x - from.x) * step) / 12,
-				from.y + ((to.y - from.y) * step) / 12
-			);
-			await sleep(20);
+		// held for the whole gesture: puppeteer stamps keyboard modifiers onto
+		// every mouse event it dispatches, so the release's pointerup carries
+		// altKey exactly like a user holding Alt
+		if (options.alt) await page.keyboard.down('Alt');
+		try {
+			await page.mouse.move(from.x, from.y);
+			await sleep(80);
+			await page.mouse.down();
+			await sleep(80);
+			for (let step = 1; step <= 12; step++) {
+				await page.mouse.move(
+					from.x + ((to.x - from.x) * step) / 12,
+					from.y + ((to.y - from.y) * step) / 12
+				);
+				await sleep(20);
+			}
+			await sleep(150);
+			await page.mouse.up();
+		} finally {
+			if (options.alt) await page.keyboard.up('Alt');
 		}
-		await sleep(150);
-		await page.mouse.up();
 		await sleep(400);
 	};
 
@@ -193,7 +216,12 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 	 * pointer's raycast hits the table, so the target pixel is the projection
 	 * of that spot on the felt — where a snap grid can then pull it from.
 	 */
-	const dragTo = async (id: string, worldX: number, worldZ: number) => {
+	const dragTo = async (
+		id: string,
+		worldX: number,
+		worldZ: number,
+		options: { alt?: boolean } = {}
+	) => {
 		const from = await locate(id);
 		if (!from) throw new Error(`cannot locate ${id} on screen`);
 		const to = await page.evaluate(
@@ -202,7 +230,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 			worldZ
 		);
 		if (!to) throw new Error(`world (${worldX}, ${worldZ}) projects off-screen`);
-		await dragFromTo(id, from, to);
+		await dragFromTo(id, from, to, options);
 	};
 
 	return {

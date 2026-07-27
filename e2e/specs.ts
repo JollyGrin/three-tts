@@ -340,6 +340,100 @@ export const SPECS: Spec[] = [
 	},
 	{
 		/**
+		 * tableplace-145: Alt opts out of the XZ square-up, not of resting on
+		 * top. An Alt-drop overlapping a resting card must land at the pointer's
+		 * XZ (no pull onto the pile) but one card thickness ABOVE the card under
+		 * it — two coplanar cards z-fight no matter how good the depth buffer is,
+		 * which is exactly what the broken build rendered.
+		 */
+		name: 'alt drop: overlapping a resting card rests on top, at the pointer',
+		run: (context) =>
+			withTable(context, 'alt-drop', async (table) => {
+				const CARD_REST = 0.26; // felt rest height for a card
+				const CARD_THICKNESS = 0.03;
+
+				// same retry-on-slip shape as the model-surface spec: what's being
+				// retried is puppeteer's pointer delivery under SwiftShader, and each
+				// hop proves the drag ARRIVED before its landing is judged
+				const dragToArrives = async (
+					id: string,
+					x: number,
+					z: number,
+					label: string,
+					options: { alt?: boolean } = {}
+				) => {
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await table.dragTo(id, x, z, options);
+						await table.settle(900);
+						const position = await table.positionOf(id);
+						if (position && Math.hypot(position[0] - x, position[2] - z) < 1.0) return position;
+					}
+					const stuck = await table.positionOf(id);
+					throw new Error(
+						`${label} (${id}) never arrived at (${x}, ${z}) after 3 drags: ${JSON.stringify(stuck)}`
+					);
+				};
+
+				// a two-card deck clear of the HUD panes. The cards come out ONE AT A
+				// TIME, each parked before the next is drawn — two cards drawn
+				// together land fanned only 0.42 apart, and a press at the lower
+				// one's centre grabs the top one instead
+				const deck = await table.page.evaluate(() => {
+					const cards = ['AS', 'KH'].map((code) => ({
+						id: `card:std:alt-${code}`,
+						faceImageUrl: `gen:std52/${code}`,
+						backImageUrl: 'gen:std52/back'
+					}));
+					return String(
+						window.__tableplace!.actions.addDeck({ cards, position: [-2, 0.4, -2] } as never) ?? ''
+					);
+				});
+				await table.settle(1000);
+				const draw = async () => {
+					const id = await table.page.evaluate(
+						(deckId) => window.__tableplace!.actions.drawFromTop(deckId, 1)[0]?.id ?? '',
+						deck
+					);
+					ok(!!id, 'nothing came off the top of the deck');
+					await table.settle(1500); // draw springs done before the grab
+					return id;
+				};
+
+				// the resting card, parked on bare felt in the clear lane
+				const under = await dragToArrives(await draw(), -4, 1, 'the resting card');
+				ok(
+					Math.abs((under[1] ?? 9) - CARD_REST) < 0.02,
+					`the resting card is not at felt rest (${CARD_REST}): ${JSON.stringify(under)}`
+				);
+
+				// Alt-drop the second card overlapping it, released off its centre
+				const dropped = await dragToArrives(await draw(), -3.4, 1.4, 'the Alt-dropped card', {
+					alt: true
+				});
+
+				// Alt held: no square-up — the landing stays at the pointer, planar
+				// distance from the card under it well clear of zero (a squared-up
+				// drop would sit at EXACTLY its XZ) yet still overlapping
+				const apart = planarDistance(under, dropped);
+				ok(
+					apart > 0.2 && apart < 1.6,
+					`the Alt-drop did not stay at the pointer: ${JSON.stringify(dropped)} vs ${JSON.stringify(under)} (planar ${apart.toFixed(3)})`
+				);
+
+				// …and the height merged anyway: one thickness above the resting
+				// card, never coplanar with it (tableplace-145's z-fight)
+				ok(
+					Math.abs((dropped[1] ?? 9) - ((under[1] ?? 0) + CARD_THICKNESS)) < 0.005,
+					`the Alt-drop did not rest one thickness above the card under it: ` +
+						`${JSON.stringify(dropped)} over ${JSON.stringify(under)}`
+				);
+
+				await assertDraggable(table, deck, 'deck (after an Alt-drop)');
+				assertClean(table, 'after Alt-dropping onto an overlapping card');
+			})
+	},
+	{
+		/**
 		 * tableplace-135: a catalog model (GLB over HTTP) renders, drags, and
 		 * rotates VISIBLY — the piece-rotation binding this ticket fixed — while
 		 * the deck and a die stay interactive beside it. `requestfailed` is part

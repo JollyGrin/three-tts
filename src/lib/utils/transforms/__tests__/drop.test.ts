@@ -376,16 +376,37 @@ describe('resolveDrop', () => {
 
 		it('commits at the raw point instead of squaring up to the pile', () => {
 			const drop = resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: true });
-			expect(drop).toMatchObject({ kind: 'table', position: [0.5, CARD_REST_Y, 0.4] });
+			expect(drop?.position[0]).toBe(0.5);
+			expect(drop?.position[2]).toBe(0.4);
 		});
 
-		it('rests on the felt rather than on top of the card it overlaps', () => {
-			const snapped = resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 });
-			expect(snapped?.kind).toBe('stack');
-			expect(snapped?.position[1]).toBe(CARD_REST_Y + CARD_THICKNESS);
-			expect(
-				resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: true })?.position[1]
-			).toBe(CARD_REST_Y);
+		it('still rests on top of the card it overlaps — coplanar cards z-fight', () => {
+			const drop = resolveDrop(overlapping(), 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: true });
+			expect(drop).toMatchObject({
+				kind: 'stack',
+				position: [0.5, CARD_REST_Y + CARD_THICKNESS, 0.4],
+				footprintY: CARD_REST_Y + CARD_THICKNESS
+			});
+		});
+
+		it('keeps climbing on repeated Alt-drops onto the same overlap', () => {
+			const s = state({
+				cards: {
+					a: card(0, 2, 0),
+					resting: card(0.2, CARD_REST_Y, 0.2),
+					previous: card(0.5, CARD_REST_Y + CARD_THICKNESS, 0.4)
+				}
+			});
+			const drop = resolveDrop(s, 'a', { x: 0.7, z: 0.5 }, {}, { noSnap: true });
+			expect(drop?.position[0]).toBe(0.7);
+			expect(drop?.position[2]).toBe(0.5);
+			expect(drop?.position[1]).toBeCloseTo(CARD_REST_Y + 2 * CARD_THICKNESS);
+		});
+
+		it('rests on the felt when nothing is under the pointer', () => {
+			const s = state({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 0.5, z: 0.4 }, {}, { noSnap: true });
+			expect(drop).toMatchObject({ kind: 'table', position: [0.5, CARD_REST_Y, 0.4] });
 		});
 
 		it('still clamps to the felt', () => {
