@@ -21,6 +21,8 @@
 
 import { resolveCardImage } from '$lib/packs/resolve.svelte';
 import { sliceCell } from '$lib/tts/slice';
+import { resolveModelRef } from '$lib/models/catalog';
+import { ensureModelCatalog } from '$lib/models/catalog-store';
 
 export type RefPreview =
 	/** nothing typed yet — not a failure, just no art to show */
@@ -80,6 +82,14 @@ export async function resolveRefPreview(ref: string | undefined | null): Promise
 		if (!cell) return { kind: 'unresolvable' };
 		const src = await sliceCell(cell);
 		return src ? { kind: 'image', src } : { kind: 'unresolvable' };
+	}
+
+	// a model ref's preview is its pre-rendered catalog thumbnail — the GLB is
+	// never loaded for a thumb. Unknown kit/model (or no manifest) is exactly
+	// the "cannot produce an image" answer.
+	if (value.startsWith('model:')) {
+		const resolved = resolveModelRef(await ensureModelCatalog(), value);
+		return resolved ? { kind: 'image', src: resolved.thumbUrl } : { kind: 'unresolvable' };
 	}
 
 	// every other ref is a URL the table loads as-is, so the preview loads it

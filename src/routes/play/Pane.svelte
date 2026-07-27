@@ -134,6 +134,7 @@
 		['Preview hovered', 'spacebar'],
 		['Tap card', 'T'],
 		['Reverse Tap card', 'R'],
+		['Rotate hovered model ±90°', 'T / R'],
 		['Flip card', 'F'],
 		['Group stack into deck', 'G'],
 		[`Ungroup deck (max ${UNGROUP_MAX_CARDS} cards)`, 'Shift + G'],

@@ -15,6 +15,7 @@
  */
 
 import type { Browser } from 'puppeteer-core';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { ok, planarDistance } from './assert';
 import type { Servers } from './servers';
 import { openTable, type Table } from './table';
@@ -36,6 +37,31 @@ let lobbySeq = 0;
 /** a fresh lobby per spec, so nothing leaks between them through the relay */
 function nextLobby(name: string): string {
 	return `e2e-${name.replace(/[^a-z0-9]+/gi, '-')}-${process.pid}-${lobbySeq++}`;
+}
+
+/**
+ * Poll a probe until its answer satisfies `holds`, then return that answer —
+ * or return the last answer when time runs out, so the caller's own `ok(...)`
+ * still reports the real observed state.
+ *
+ * For spring-animated state the harness can only watch (a tap turning a card,
+ * a rotate turning a model): a fixed settle races the CI runner's frame rate,
+ * and a shared runner under load has lost that race in two different specs.
+ * The assertion is about the FINAL state, so waiting for it — bounded — is
+ * what the spec actually means.
+ */
+async function eventually<T>(
+	probe: () => Promise<T>,
+	holds: (value: T) => boolean,
+	timeoutMs = 8000
+): Promise<T> {
+	const deadline = Date.now() + timeoutMs;
+	let last = await probe();
+	while (!holds(last) && Date.now() < deadline) {
+		await sleep(300);
+		last = await probe();
+	}
+	return last;
 }
 
 /**
@@ -223,8 +249,12 @@ export const SPECS: Spec[] = [
 				await table.settle(1500); // let the draw/flip springs finish
 				await assertRenders(table, cardId, 'the landscape card');
 
-				// sideways on the felt: footprint wider (x) than deep (z)
-				const drawn = await table.describe(cardId);
+				// sideways on the felt: footprint wider (x) than deep (z), once the
+				// draw/flip springs finish — polled, not raced (see eventually)
+				const drawn = await eventually(
+					() => table.describe(cardId),
+					(shape) => !!shape && shape.size[0] > shape.size[2]
+				);
 				ok(
 					drawn!.size[0] > drawn!.size[2],
 					`the landscape card draws portrait: footprint ${JSON.stringify(drawn!.size)}`
@@ -240,10 +270,13 @@ export const SPECS: Spec[] = [
 				);
 
 				// tap stands it upright — orientation-relative, exactly like a
-				// portrait card lies down
+				// portrait card lies down. Polled: a loaded CI runner has caught this
+				// mid-turn (a near-square footprint) with a fixed settle.
 				await table.page.evaluate((id) => window.__tableplace!.actions.tapCard(false, id), cardId);
-				await table.settle(1500);
-				const tapped = await table.describe(cardId);
+				const tapped = await eventually(
+					() => table.describe(cardId),
+					(shape) => !!shape && shape.size[2] > shape.size[0]
+				);
 				ok(
 					tapped!.size[2] > tapped!.size[0],
 					`tapping did not stand the landscape card upright: footprint ${JSON.stringify(tapped!.size)}`
@@ -303,6 +336,208 @@ export const SPECS: Spec[] = [
 				await assertDraggable(table, deck, 'deck (after grid snapping)');
 				await assertDraggable(table, token, 'the token (after grid snapping)');
 				assertClean(table, 'after snapping onto a grid');
+			})
+	},
+	{
+		/**
+		 * tableplace-135: a catalog model (GLB over HTTP) renders, drags, and
+		 * rotates VISIBLY — the piece-rotation binding this ticket fixed — while
+		 * the deck and a die stay interactive beside it. `requestfailed` is part
+		 * of assertClean, so a 404ing manifest or GLB fails here by name. A
+		 * second browser then joins the same lobby and must see the same cave:
+		 * the ref syncs, the geometry re-resolves.
+		 */
+		name: 'model: a cave section renders, rotates and syncs beside deck + die',
+		run: async (context) => {
+			const lobby = nextLobby('model');
+			const table = await openTable(context.browser, context.servers, lobby);
+			try {
+				const deck = await table.seedDeck();
+				// room-wide: 5×3 cells → a 10×6.1 world footprint, asymmetric on
+				// purpose so a quarter turn is measurable in the rendered bbox
+				const model = await table.spawn('model', {
+					name: 'room-wide',
+					model: 'model:kenney-cave/room-wide',
+					radius: 5.86,
+					position: [0, 0.16, 0]
+				});
+				const die = await table.spawn('die', { sides: 20, position: [8, 0.16, 1] });
+				await table.settle(3000); // manifest fetch + GLB fetch + parse
+				assertClean(table, 'after spawning a cave section from the catalog');
+				await assertRenders(table, model, 'the cave section');
+
+				// polled: a slow CI runner can still be showing the placeholder box
+				// (untextured) while the GLB fetch+parse finishes
+				const flat = await eventually(
+					() => table.describe(model),
+					(shape) =>
+						!!shape &&
+						shape.size[0] > shape.size[2] + 2 &&
+						shape.materials.some((material) => (material as { hasMap: boolean }).hasMap)
+				);
+				ok(
+					flat!.size[0] > flat!.size[2] + 2,
+					`room-wide should be wider (x) than deep (z): ${JSON.stringify(flat!.size)}`
+				);
+				ok(
+					flat!.materials.some((material) => (material as { hasMap: boolean }).hasMap),
+					`the section mounted untextured — the atlas did not load: ${JSON.stringify(flat!.materials)}`
+				);
+
+				// rotate by the grid step: the synced yaw must become visible geometry
+				await table.page.evaluate((id) => window.__tableplace!.actions.rotatePiece(id, 90), model);
+				const turned = await eventually(
+					() => table.describe(model),
+					(shape) => !!shape && shape.size[2] > shape.size[0] + 2
+				);
+				ok(
+					turned!.size[2] > turned!.size[0] + 2,
+					`rotating 90° did not turn the rendered section: ${JSON.stringify(turned!.size)}`
+				);
+				const storedYaw = await table.page.evaluate(
+					(id) => window.__tableplace!.state()?.pieces?.[id]?.rotation ?? null,
+					model
+				);
+				ok(storedYaw?.[1] === 90, `the yaw did not sync as degrees: ${JSON.stringify(storedYaw)}`);
+
+				await assertDraggable(table, model, 'the cave section');
+				await assertDraggable(table, deck, 'deck (with a cave section on the table)');
+				await assertDraggable(table, die, 'the d20 (with a cave section on the table)');
+				assertClean(table, 'after dragging with a cave section on the table');
+
+				// the second browser: same lobby, same cave
+				const remote = await openTable(context.browser, context.servers, lobby);
+				try {
+					await remote.settle(3000);
+					await assertRenders(remote, model, 'the cave section (remote client)');
+					const localPos = await table.positionOf(model);
+					const remotePos = await remote.positionOf(model);
+					ok(
+						!!localPos &&
+							!!remotePos &&
+							planarDistance(localPos, remotePos) < 0.01 &&
+							Math.abs((localPos[1] ?? 0) - (remotePos[1] ?? 0)) < 0.01,
+						`the two clients disagree where the section is: ${JSON.stringify(localPos)} vs ${JSON.stringify(remotePos)}`
+					);
+					assertClean(remote, 'on the second client with the synced cave');
+				} finally {
+					await remote.close();
+				}
+			} finally {
+				await table.close();
+			}
+		}
+	},
+	{
+		/**
+		 * Surface rest (tableplace-135 §6): a token dropped onto a raised model
+		 * tile must rest on its top surface — the injected surfaceYAt raycast —
+		 * and settle back EXACTLY to felt rest height when dragged off again
+		 * (elevation must never stick to the next drop). No physics: both
+		 * heights are computed at the drop and synced as plain positions.
+		 *
+		 * Each hop asserts the drag ARRIVED (planar) before judging its height,
+		 * so a synthetic-pointer grab that slips on a slow CI frame reads as
+		 * "the drag never happened", not as a false elevation bug — and slips
+		 * are retried via dragToArrives, with generous settles so the height
+		 * spring has finished before the next grab aims at the token.
+		 */
+		name: 'model surface: a token dropped on a raised tile rests on it',
+		run: (context) =>
+			withTable(context, 'model-surface', async (table) => {
+				const PIECE_FELT_REST = 0.335; // TABLE_TOP_Y + half the disc thickness
+
+				/**
+				 * dragTo, retried while the token demonstrably did not arrive at the
+				 * target XZ. What is being retried is puppeteer's pointer delivery
+				 * under SwiftShader — dispatch liveness has its own single-attempt
+				 * assertions (assertDraggable) elsewhere; the properties under test
+				 * here are the rest HEIGHTS, asserted after arrival.
+				 */
+				const dragToArrives = async (id: string, x: number, z: number, label: string) => {
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await table.dragTo(id, x, z);
+						await table.settle(900); // springs done before the next locate()
+						const position = await table.positionOf(id);
+						if (position && Math.hypot(position[0] - x, position[2] - z) < 1.0) return position;
+					}
+					const stuck = await table.positionOf(id);
+					throw new Error(
+						`${label} (${id}) never arrived at (${x}, ${z}) after 3 drags: ${JSON.stringify(stuck)}`
+					);
+				};
+
+				const deck = await table.seedDeck();
+				const tile = await table.spawn('model', {
+					name: 'raised',
+					model: 'model:kenney-cave/template-floor-layer-raised',
+					radius: 2.83,
+					position: [-4, 0.16, 1]
+				});
+				const token = await table.spawn('token', { position: [4, 0.16, 1] });
+				await table.settle(2500);
+				assertClean(table, 'with a raised tile and a token on the table');
+				await assertRenders(table, tile, 'the raised tile');
+
+				// on: the drop lands on the tile's surface, well above felt rest
+				const onTile = await dragToArrives(token, -4, 1, 'the token (onto the tile)');
+				ok(
+					(onTile[1] ?? 0) > 0.5,
+					`the token sank to felt height instead of resting on the tile: ${JSON.stringify(onTile)}`
+				);
+
+				// off: the next drop has no model under it — the effective floor
+				// falls back to the felt and the rest height is EXACTLY the token's
+				// felt rest, not the carried-over elevation
+				const onFelt = await dragToArrives(token, 6, 1, 'the token (off the tile)');
+				ok(
+					Math.abs((onFelt[1] ?? 9) - PIECE_FELT_REST) < 0.02,
+					`the token did not return to felt rest (${PIECE_FELT_REST}) after leaving the tile: ${JSON.stringify(onFelt)}`
+				);
+
+				// and back on: the surface answer is repeatable, not a spawn artifact
+				const backOn = await dragToArrives(token, -4, 1, 'the token (back onto the tile)');
+				ok(
+					(backOn[1] ?? 0) > 0.5,
+					`the token failed to rest on the tile a second time: ${JSON.stringify(backOn)}`
+				);
+
+				await assertDraggable(table, deck, 'deck (with surface rest in play)');
+				assertClean(table, 'after resting a token on a model surface');
+			})
+	},
+	{
+		/**
+		 * Scene sanity (tableplace-135 acceptance): a template-built ~30-tile
+		 * cave plus decks and dice stays interactive — thirty clones of one GLB,
+		 * one texture, and the shared raycast still answers for everything.
+		 */
+		name: 'model scene: a 30-tile cave + decks + dice stays interactive',
+		run: (context) =>
+			withTable(context, 'model-scene', async (table) => {
+				const deck = await table.seedDeck();
+				const tiles: string[] = [];
+				for (let column = 0; column < 6; column++) {
+					for (let row = 0; row < 5; row++) {
+						tiles.push(
+							await table.spawn('model', {
+								name: `corridor-${column}-${row}`,
+								model: 'model:kenney-cave/corridor',
+								radius: 1.42,
+								position: [-14 + column * 2, 0.16, -5 + row * 2]
+							})
+						);
+					}
+				}
+				const die = await table.spawn('die', { sides: 6, position: [4, 0.16, 2] });
+				await table.settle(4000);
+				assertClean(table, 'with a 30-tile cave, a deck and a die on the table');
+
+				await assertRenders(table, tiles[0], 'the first cave tile');
+				await assertRenders(table, tiles[tiles.length - 1], 'the last cave tile');
+				await assertDraggable(table, deck, 'deck (in the 30-tile cave scene)');
+				await assertDraggable(table, die, 'the d6 (in the 30-tile cave scene)');
+				assertClean(table, 'at the end of the 30-tile cave scene');
 			})
 	},
 	{

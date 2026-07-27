@@ -165,7 +165,10 @@ function returnToBag(bagId: string, entityId: string): boolean {
 
 	if (entityId.startsWith('piece:')) {
 		const piece = state?.pieces?.[entityId];
-		if (!piece || piece.kind === 'bag' || piece.kind === 'die') return false;
+		// a model is refused like a die: `contents` has no item that could carry
+		// its catalog ref, so swallowing a cave section would turn it into a token
+		if (!piece || piece.kind === 'bag' || piece.kind === 'die' || piece.kind === 'model')
+			return false;
 		item = {
 			kind: piece.kind ?? 'token',
 			name: piece.name ?? 'Token',

@@ -63,9 +63,12 @@ describe('llms.txt is self-contained', () => {
 		expect(llms).toContain(JSON.stringify(EXAMPLE_SCENARIO, null, '\t'));
 	});
 
-	it('documents all three face-ref schemes, which no schema can express', () => {
+	it('documents all four face-ref schemes, which no schema can express', () => {
 		expect(llms).toContain('gen:std52/');
 		expect(llms).toContain('sheet:');
+		// the model scheme: catalog-resolved, and scoped to the piece `model` field
+		expect(llms).toContain('model:kenney-cave/room-large');
+		expect(llms).toContain('/models/catalog.json');
 		// the sheet payload field list, matching resolve.svelte.ts's SheetRefPayload
 		for (const field of ['`url`', '`cols`', '`rows`', '`index`', '`name`', '`back`']) {
 			expect(llms).toContain(field);

@@ -29,6 +29,21 @@ function movePiece(pieceId: string, position: [number, number, number]) {
 	return gameStore.updateState({ pieces: { [pieceId]: { position } } });
 }
 
+/**
+ * Turn a piece on the table by `delta` degrees of yaw — the piece analog of
+ * `tapCard`, added for model sections (R/T on a hovered model, and the model
+ * menu's Rotate entries) but valid for any piece: yaw is `rotation[1]` in
+ * degrees (see applySnapRotation), normalized into [0, 360) so the synced
+ * number never grows without bound.
+ */
+function rotatePiece(pieceId: string, delta: number) {
+	const piece = getPieceState(pieceId);
+	if (!piece) return;
+	const [x = 0, yaw = 0, z = 0] = piece.rotation ?? [];
+	const next = (((yaw + delta) % 360) + 360) % 360;
+	return gameStore.updateState({ pieces: { [pieceId]: { rotation: [x, next, z] } } });
+}
+
 /** Adjust a counter piece's value, clamped to [0, maxValue] */
 function incrementCounter(pieceId: string, delta: number) {
 	const piece = getPieceState(pieceId);
@@ -198,6 +213,7 @@ export const pieceActions = {
 	addPiece,
 	removePiece,
 	movePiece,
+	rotatePiece,
 	incrementCounter,
 	currentPieceState,
 	setPieceState,

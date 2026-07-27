@@ -110,7 +110,7 @@ describe('/play settings pane on first paint', () => {
 
 		// the whole point of #115: nothing read-only may look like a field you
 		// are locked out of. Every keybind lives in the list...
-		expect(container.querySelectorAll('dt').length).toBe(11);
+		expect(container.querySelectorAll('dt').length).toBe(12);
 		// ...and no blade in the pane is rendered disabled
 		expect(container.querySelectorAll('.tp-lblv-disabled').length).toBe(0);
 		expect([...container.querySelectorAll('input')].filter((i) => i.disabled).length).toBe(0);

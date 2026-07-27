@@ -10,13 +10,15 @@
  */
 
 import { makeSheetRef } from '$lib/packs/resolve.svelte';
+import { makeModelRef, parseModelRef } from '$lib/models/catalog';
 
-export type FaceScheme = 'url' | 'gen' | 'sheet';
+export type FaceScheme = 'url' | 'gen' | 'sheet' | 'model';
 
 export const FACE_SCHEME_OPTIONS: Record<string, FaceScheme> = {
 	'Image URL (https:)': 'url',
 	'Generated (gen:std52)': 'gen',
-	'Sprite sheet (sheet:)': 'sheet'
+	'Sprite sheet (sheet:)': 'sheet',
+	'Catalog model (model:)': 'model'
 };
 
 /** `sheet:` payload — mirrors resolve.svelte's private shape */
@@ -44,6 +46,10 @@ export interface FaceDraft {
 	 * one cell index doesn't throw away a TTS import's dead-art fallback.
 	 */
 	sheetExtra: Partial<SheetPayload>;
+	/** kit id for the `model:<kit>/<name>` scheme, e.g. 'kenney-cave' */
+	modelKit: string;
+	/** model name within the kit, e.g. 'room-large' */
+	modelName: string;
 }
 
 export const SHEET_DEFAULTS = { cols: 10, rows: 7, index: 0 } as const;
@@ -57,7 +63,9 @@ function emptyDraft(scheme: FaceScheme): FaceDraft {
 		sheetCols: SHEET_DEFAULTS.cols,
 		sheetRows: SHEET_DEFAULTS.rows,
 		sheetIndex: SHEET_DEFAULTS.index,
-		sheetExtra: {}
+		sheetExtra: {},
+		modelKit: 'kenney-cave',
+		modelName: ''
 	};
 }
 
@@ -68,6 +76,13 @@ export function parseFaceRef(ref: string | undefined | null): FaceDraft {
 
 	if (value.startsWith('gen:std52/')) {
 		return { ...emptyDraft('gen'), genCode: value.slice('gen:std52/'.length) };
+	}
+
+	if (value.startsWith('model:')) {
+		const parsed = parseModelRef(value);
+		// a malformed model ref is still a string worth keeping — surface it raw
+		if (!parsed) return { ...emptyDraft('url'), url: value };
+		return { ...emptyDraft('model'), modelKit: parsed.kit, modelName: parsed.name };
 	}
 
 	if (value.startsWith('sheet:')) {
@@ -99,6 +114,11 @@ export function buildFaceRef(draft: FaceDraft): string {
 	if (draft.scheme === 'gen') {
 		const code = draft.genCode.trim();
 		return code ? `gen:std52/${code}` : '';
+	}
+	if (draft.scheme === 'model') {
+		const kit = draft.modelKit.trim();
+		const name = draft.modelName.trim();
+		return kit && name ? makeModelRef(kit, name) : '';
 	}
 	if (!draft.sheetUrl.trim()) return '';
 	// the spread is last on purpose: `sheetExtra` never holds the four fields

@@ -37,7 +37,7 @@ export type PackDeckDef = {
 	cards: PackCardDef[];
 };
 
-export type PackPieceKind = 'token' | 'pawn' | 'counter' | 'die' | 'bag';
+export type PackPieceKind = 'token' | 'pawn' | 'counter' | 'die' | 'bag' | 'model';
 
 /** Order a bag hands its contents out in. TTS analog: the container's Order. */
 export type PackBagDrawMode = 'random' | 'lifo' | 'fifo';
@@ -117,8 +117,19 @@ export type PackPieceDef = {
 	maxValue?: number;
 	/** dice only: how many faces the die has (defaults to 6) */
 	sides?: DieSides;
+	/**
+	 * models only — a `model:<kit>/<name>` catalog ref (the fourth face-ref
+	 * scheme). Resolved through the catalog manifest at render time; the pack
+	 * carries only the string.
+	 */
+	model?: string;
 	/** table-plane position [x, z] in world units */
 	position: [number, number];
+	/**
+	 * Table yaw in degrees (the piece DTO's `rotation[1]`). Optional and 0 when
+	 * absent — added for model sections, honoured for every kind.
+	 */
+	rotation?: number;
 	/**
 	 * Whether snap points (and grids) pull this piece's drops. Default `true`;
 	 * `false` is the per-piece opt-out — a big room section should snap to the

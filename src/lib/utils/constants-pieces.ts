@@ -27,7 +27,10 @@ export const PIECE_RADIUS = {
 	pawn: 0.3,
 	counter: 0.6,
 	die: 0.55,
-	bag: 0.9
+	bag: 0.9,
+	// footprint circumradius of a 1×1-cell catalog tile (cell = 2.0 world);
+	// the catalog browser overrides this per model from the manifest footprint
+	model: 1.42
 } as const;
 
 /** Starting max for a hand-spawned health dial */

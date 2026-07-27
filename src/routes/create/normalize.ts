@@ -51,10 +51,12 @@ export type EditorBagItem = {
 
 export type EditorPiece = Omit<
 	PackPieceDef,
-	'states' | 'contents' | 'drawMode' | 'infinite' | 'snap'
+	'states' | 'contents' | 'drawMode' | 'infinite' | 'snap' | 'model' | 'rotation'
 > & {
 	color: string;
 	imageUrl: string;
+	/** models only — the `model:<kit>/<name>` catalog ref */
+	model: string;
 	radius: number;
 	maxValue: number;
 	states: EditorPieceState[];
@@ -63,6 +65,8 @@ export type EditorPiece = Omit<
 	drawMode: PackBagDrawMode;
 	infinite: boolean;
 	snap: boolean;
+	/** table yaw in degrees; 0 is the default and stays out of the file */
+	rotation: number;
 };
 export type EditorPack = Omit<GamePackDef, 'decks' | 'pieces' | 'overlays'> & {
 	decks: EditorDeck[];
@@ -119,6 +123,8 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 			...piece,
 			color: piece.color ?? PIECE_COLOR_DEFAULT,
 			imageUrl: piece.imageUrl ?? '',
+			model: piece.model ?? '',
+			rotation: piece.rotation ?? 0,
 			radius: piece.radius ?? PIECE_RADIUS[piece.kind],
 			maxValue: piece.maxValue ?? COUNTER_MAX_DEFAULT,
 			states: (piece.states ?? []).map((state) => ({ face: state.face, name: state.name ?? '' })),
@@ -208,9 +214,14 @@ export function cleanForExport(draft: GamePackDef): GamePackDef {
 						...(piece.infinite ? { infinite: true } : {})
 					}
 				: {}),
+			// the catalog ref ships on models only — a token that was briefly
+			// switched to a model and back must not export a stray ref
+			...(piece.kind === 'model' && piece.model ? { model: piece.model } : {}),
 			// true is the default, so only the opt-out ships
 			...(piece.snap === false ? { snap: false } : {}),
-			position: [...piece.position] as [number, number]
+			position: [...piece.position] as [number, number],
+			// 0 is the default, so only a real yaw ships
+			...(piece.rotation ? { rotation: piece.rotation } : {})
 		};
 	});
 	const overlays = (draft.overlays ?? []).map((overlay) => ({ ...overlay }));

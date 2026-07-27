@@ -116,7 +116,7 @@ function parseDeck(v: unknown, path: string): PackDeckDef {
 }
 
 /** Exported so llms-txt.ts can render this list in prose instead of hand-writing it. */
-export const PIECE_KINDS = ['token', 'pawn', 'counter', 'die', 'bag'] as const;
+export const PIECE_KINDS = ['token', 'pawn', 'counter', 'die', 'bag', 'model'] as const;
 const DIE_SIDES = [4, 6, 8, 10, 12, 20] as const;
 /**
  * What a bag may contain: the piece kinds that are just an image and a name,
@@ -181,6 +181,10 @@ function parsePiece(v: unknown, path: string): PackPieceDef {
 	};
 	if (v.color !== undefined) piece.color = str(v.color, `${path}.color`);
 	if (v.imageUrl !== undefined) piece.imageUrl = str(v.imageUrl, `${path}.imageUrl`);
+	// like every face ref, a model ref is only checked for being a non-empty
+	// string — the catalog manifest is where an unknown ref becomes visible
+	if (v.model !== undefined) piece.model = str(v.model, `${path}.model`);
+	if (v.rotation !== undefined) piece.rotation = num(v.rotation, `${path}.rotation`);
 	if (v.states !== undefined) {
 		piece.states = arr(v.states, `${path}.states`).map((s, i) =>
 			parsePieceState(s, `${path}.states[${i}]`)

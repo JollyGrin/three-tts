@@ -667,6 +667,26 @@ describe('resolveDrop', () => {
 				resolveDrop(s, 'a', { x: 3, z: 1 })
 			);
 		});
+
+		it('does not let elevation stick: a piece leaving the surface returns to felt rest', () => {
+			// the CI regression shape (tableplace-135): a token rests on a model
+			// surface, then is dropped somewhere with no model under it — the new
+			// drop must recompute from TABLE_TOP_Y, never carry the old y along
+			const surface = (x: number) => (x < 0 ? 1.55 : undefined); // model only on the left
+			const options = { surfaceYAt: (x: number) => surface(x) };
+
+			const onModel = state({ pieces: { 'piece:1': { position: [-4, PIECE_REST_Y, 1] } } });
+			const raised = resolveDrop(onModel, 'piece:1', { x: -4, z: 1 }, {}, options);
+			expect(raised?.position[1]).toBeCloseTo(1.55 + (PIECE_REST_Y - TABLE_TOP_Y));
+
+			// same piece, now carrying the elevated y in its stored position
+			const offModel = state({
+				pieces: { 'piece:1': { position: raised!.position } }
+			});
+			const settled = resolveDrop(offModel, 'piece:1', { x: 6, z: 1 }, {}, options);
+			expect(settled?.position[1]).toBeCloseTo(PIECE_REST_Y);
+			expect(settled?.footprintY).toBeCloseTo(TABLE_TOP_Y);
+		});
 	});
 
 	describe('snap grids', () => {

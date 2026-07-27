@@ -90,7 +90,7 @@ export type PlayerDTO = SeatState & {
  * Non-card table objects (tokens, pawns, counters, dice). One generic shape
  * with a kind discriminator — see SPEC.md §4a.
  */
-export type PieceKind = 'token' | 'pawn' | 'counter' | 'die' | 'bag';
+export type PieceKind = 'token' | 'pawn' | 'counter' | 'die' | 'bag' | 'model';
 
 /** Face count of a die piece — the shapes the primitive library can build. */
 export type DieSides = 4 | 6 | 8 | 10 | 12 | 20;
@@ -147,6 +147,13 @@ export type PieceDTO = {
 	state?: number;
 	/** world radius of the piece footprint */
 	radius?: number;
+	/**
+	 * `kind: 'model'` only — a `model:<kit>/<name>` catalog ref (tableplace-135),
+	 * resolved through the static manifest exactly the way face refs resolve
+	 * through their schemes: the tiny ref string is all that syncs, never
+	 * geometry. An unresolvable ref renders as a placeholder, not an error.
+	 */
+	model?: string;
 	/** counter state — also the up-face of a die (1…sides) */
 	value?: number;
 	maxValue?: number;

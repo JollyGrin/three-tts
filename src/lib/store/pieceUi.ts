@@ -34,3 +34,18 @@ export function openPieceMenu(id: string, x: number, y: number) {
 export function closePieceMenu() {
 	pieceMenu.set(null);
 }
+
+/**
+ * The model piece's context menu (rotate / snap / remove) — a separate store
+ * from `pieceMenu` because the two menus answer different right-clicks and a
+ * model must never inherit the state picker (or the counter's "+1").
+ */
+export const modelMenu = writable<PieceMenuState | null>(null);
+
+export function openModelMenu(id: string, x: number, y: number) {
+	modelMenu.set({ id, x, y });
+}
+
+export function closeModelMenu() {
+	modelMenu.set(null);
+}
