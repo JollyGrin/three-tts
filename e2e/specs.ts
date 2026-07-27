@@ -306,6 +306,161 @@ export const SPECS: Spec[] = [
 			})
 	},
 	{
+		/**
+		 * tableplace-135: a catalog model (GLB over HTTP) renders, drags, and
+		 * rotates VISIBLY — the piece-rotation binding this ticket fixed — while
+		 * the deck and a die stay interactive beside it. `requestfailed` is part
+		 * of assertClean, so a 404ing manifest or GLB fails here by name. A
+		 * second browser then joins the same lobby and must see the same cave:
+		 * the ref syncs, the geometry re-resolves.
+		 */
+		name: 'model: a cave section renders, rotates and syncs beside deck + die',
+		run: async (context) => {
+			const lobby = nextLobby('model');
+			const table = await openTable(context.browser, context.servers, lobby);
+			try {
+				const deck = await table.seedDeck();
+				// room-wide: 5×3 cells → a 10×6.1 world footprint, asymmetric on
+				// purpose so a quarter turn is measurable in the rendered bbox
+				const model = await table.spawn('model', {
+					name: 'room-wide',
+					model: 'model:kenney-cave/room-wide',
+					radius: 5.86,
+					position: [0, 0.16, 0]
+				});
+				const die = await table.spawn('die', { sides: 20, position: [8, 0.16, 1] });
+				await table.settle(3000); // manifest fetch + GLB fetch + parse
+				assertClean(table, 'after spawning a cave section from the catalog');
+				await assertRenders(table, model, 'the cave section');
+
+				const flat = await table.describe(model);
+				ok(
+					flat!.size[0] > flat!.size[2] + 2,
+					`room-wide should be wider (x) than deep (z): ${JSON.stringify(flat!.size)}`
+				);
+				ok(
+					flat!.materials.some((material) => (material as { hasMap: boolean }).hasMap),
+					`the section mounted untextured — the atlas did not load: ${JSON.stringify(flat!.materials)}`
+				);
+
+				// rotate by the grid step: the synced yaw must become visible geometry
+				await table.page.evaluate((id) => window.__tableplace!.actions.rotatePiece(id, 90), model);
+				await table.settle(600);
+				const turned = await table.describe(model);
+				ok(
+					turned!.size[2] > turned!.size[0] + 2,
+					`rotating 90° did not turn the rendered section: ${JSON.stringify(turned!.size)}`
+				);
+				const storedYaw = await table.page.evaluate(
+					(id) => window.__tableplace!.state()?.pieces?.[id]?.rotation ?? null,
+					model
+				);
+				ok(storedYaw?.[1] === 90, `the yaw did not sync as degrees: ${JSON.stringify(storedYaw)}`);
+
+				await assertDraggable(table, model, 'the cave section');
+				await assertDraggable(table, deck, 'deck (with a cave section on the table)');
+				await assertDraggable(table, die, 'the d20 (with a cave section on the table)');
+				assertClean(table, 'after dragging with a cave section on the table');
+
+				// the second browser: same lobby, same cave
+				const remote = await openTable(context.browser, context.servers, lobby);
+				try {
+					await remote.settle(3000);
+					await assertRenders(remote, model, 'the cave section (remote client)');
+					const localPos = await table.positionOf(model);
+					const remotePos = await remote.positionOf(model);
+					ok(
+						!!localPos &&
+							!!remotePos &&
+							planarDistance(localPos, remotePos) < 0.01 &&
+							Math.abs((localPos[1] ?? 0) - (remotePos[1] ?? 0)) < 0.01,
+						`the two clients disagree where the section is: ${JSON.stringify(localPos)} vs ${JSON.stringify(remotePos)}`
+					);
+					assertClean(remote, 'on the second client with the synced cave');
+				} finally {
+					await remote.close();
+				}
+			} finally {
+				await table.close();
+			}
+		}
+	},
+	{
+		/**
+		 * Surface rest (tableplace-135 §6): a token dropped onto a raised model
+		 * tile must rest on its top surface — the injected surfaceYAt raycast —
+		 * and settle back to felt height when dragged off again. No physics:
+		 * both heights are computed at the drop and synced as plain positions.
+		 */
+		name: 'model surface: a token dropped on a raised tile rests on it',
+		run: (context) =>
+			withTable(context, 'model-surface', async (table) => {
+				const deck = await table.seedDeck();
+				const tile = await table.spawn('model', {
+					name: 'raised',
+					model: 'model:kenney-cave/template-floor-layer-raised',
+					radius: 2.83,
+					position: [-4, 0.16, 1]
+				});
+				const token = await table.spawn('token', { position: [4, 0.16, 1] });
+				await table.settle(2500);
+				assertClean(table, 'with a raised tile and a token on the table');
+				await assertRenders(table, tile, 'the raised tile');
+
+				await table.dragTo(token, -4, 1);
+				const onTile = await table.positionOf(token);
+				ok(onTile, 'the token has no position after dropping onto the tile');
+				ok(
+					(onTile![1] ?? 0) > 0.5,
+					`the token sank to felt height instead of resting on the tile: ${JSON.stringify(onTile)}`
+				);
+
+				await table.dragTo(token, 6, 1);
+				const onFelt = await table.positionOf(token);
+				ok(
+					(onFelt![1] ?? 9) < 0.5,
+					`the token kept its elevation after leaving the tile: ${JSON.stringify(onFelt)}`
+				);
+
+				await assertDraggable(table, deck, 'deck (with surface rest in play)');
+				assertClean(table, 'after resting a token on a model surface');
+			})
+	},
+	{
+		/**
+		 * Scene sanity (tableplace-135 acceptance): a template-built ~30-tile
+		 * cave plus decks and dice stays interactive — thirty clones of one GLB,
+		 * one texture, and the shared raycast still answers for everything.
+		 */
+		name: 'model scene: a 30-tile cave + decks + dice stays interactive',
+		run: (context) =>
+			withTable(context, 'model-scene', async (table) => {
+				const deck = await table.seedDeck();
+				const tiles: string[] = [];
+				for (let column = 0; column < 6; column++) {
+					for (let row = 0; row < 5; row++) {
+						tiles.push(
+							await table.spawn('model', {
+								name: `corridor-${column}-${row}`,
+								model: 'model:kenney-cave/corridor',
+								radius: 1.42,
+								position: [-14 + column * 2, 0.16, -5 + row * 2]
+							})
+						);
+					}
+				}
+				const die = await table.spawn('die', { sides: 6, position: [4, 0.16, 2] });
+				await table.settle(4000);
+				assertClean(table, 'with a 30-tile cave, a deck and a die on the table');
+
+				await assertRenders(table, tiles[0], 'the first cave tile');
+				await assertRenders(table, tiles[tiles.length - 1], 'the last cave tile');
+				await assertDraggable(table, deck, 'deck (in the 30-tile cave scene)');
+				await assertDraggable(table, die, 'the d6 (in the 30-tile cave scene)');
+				assertClean(table, 'at the end of the 30-tile cave scene');
+			})
+	},
+	{
 		// acceptance criterion 4: one table carrying all four at once
 		name: 'mixed table: deck + die + bag + multi-state piece',
 		run: (context) =>
