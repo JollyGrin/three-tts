@@ -15,6 +15,7 @@
  */
 
 import type { Browser } from 'puppeteer-core';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { ok, planarDistance } from './assert';
 import type { Servers } from './servers';
 import { openTable, type Table } from './table';
@@ -36,6 +37,31 @@ let lobbySeq = 0;
 /** a fresh lobby per spec, so nothing leaks between them through the relay */
 function nextLobby(name: string): string {
 	return `e2e-${name.replace(/[^a-z0-9]+/gi, '-')}-${process.pid}-${lobbySeq++}`;
+}
+
+/**
+ * Poll a probe until its answer satisfies `holds`, then return that answer —
+ * or return the last answer when time runs out, so the caller's own `ok(...)`
+ * still reports the real observed state.
+ *
+ * For spring-animated state the harness can only watch (a tap turning a card,
+ * a rotate turning a model): a fixed settle races the CI runner's frame rate,
+ * and a shared runner under load has lost that race in two different specs.
+ * The assertion is about the FINAL state, so waiting for it — bounded — is
+ * what the spec actually means.
+ */
+async function eventually<T>(
+	probe: () => Promise<T>,
+	holds: (value: T) => boolean,
+	timeoutMs = 8000
+): Promise<T> {
+	const deadline = Date.now() + timeoutMs;
+	let last = await probe();
+	while (!holds(last) && Date.now() < deadline) {
+		await sleep(300);
+		last = await probe();
+	}
+	return last;
 }
 
 /**
@@ -223,8 +249,12 @@ export const SPECS: Spec[] = [
 				await table.settle(1500); // let the draw/flip springs finish
 				await assertRenders(table, cardId, 'the landscape card');
 
-				// sideways on the felt: footprint wider (x) than deep (z)
-				const drawn = await table.describe(cardId);
+				// sideways on the felt: footprint wider (x) than deep (z), once the
+				// draw/flip springs finish — polled, not raced (see eventually)
+				const drawn = await eventually(
+					() => table.describe(cardId),
+					(shape) => !!shape && shape.size[0] > shape.size[2]
+				);
 				ok(
 					drawn!.size[0] > drawn!.size[2],
 					`the landscape card draws portrait: footprint ${JSON.stringify(drawn!.size)}`
@@ -240,10 +270,13 @@ export const SPECS: Spec[] = [
 				);
 
 				// tap stands it upright — orientation-relative, exactly like a
-				// portrait card lies down
+				// portrait card lies down. Polled: a loaded CI runner has caught this
+				// mid-turn (a near-square footprint) with a fixed settle.
 				await table.page.evaluate((id) => window.__tableplace!.actions.tapCard(false, id), cardId);
-				await table.settle(1500);
-				const tapped = await table.describe(cardId);
+				const tapped = await eventually(
+					() => table.describe(cardId),
+					(shape) => !!shape && shape.size[2] > shape.size[0]
+				);
 				ok(
 					tapped!.size[2] > tapped!.size[0],
 					`tapping did not stand the landscape card upright: footprint ${JSON.stringify(tapped!.size)}`
@@ -333,7 +366,15 @@ export const SPECS: Spec[] = [
 				assertClean(table, 'after spawning a cave section from the catalog');
 				await assertRenders(table, model, 'the cave section');
 
-				const flat = await table.describe(model);
+				// polled: a slow CI runner can still be showing the placeholder box
+				// (untextured) while the GLB fetch+parse finishes
+				const flat = await eventually(
+					() => table.describe(model),
+					(shape) =>
+						!!shape &&
+						shape.size[0] > shape.size[2] + 2 &&
+						shape.materials.some((material) => (material as { hasMap: boolean }).hasMap)
+				);
 				ok(
 					flat!.size[0] > flat!.size[2] + 2,
 					`room-wide should be wider (x) than deep (z): ${JSON.stringify(flat!.size)}`
@@ -345,8 +386,10 @@ export const SPECS: Spec[] = [
 
 				// rotate by the grid step: the synced yaw must become visible geometry
 				await table.page.evaluate((id) => window.__tableplace!.actions.rotatePiece(id, 90), model);
-				await table.settle(600);
-				const turned = await table.describe(model);
+				const turned = await eventually(
+					() => table.describe(model),
+					(shape) => !!shape && shape.size[2] > shape.size[0] + 2
+				);
 				ok(
 					turned!.size[2] > turned!.size[0] + 2,
 					`rotating 90° did not turn the rendered section: ${JSON.stringify(turned!.size)}`
