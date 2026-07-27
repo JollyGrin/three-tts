@@ -79,7 +79,8 @@ function arr(v: unknown, path: string): unknown[] {
 	return v;
 }
 
-const CARD_ORIENTATIONS = ['portrait', 'landscape'] as const;
+/** Exported so llms-txt.ts can render this list in prose instead of hand-writing it. */
+export const CARD_ORIENTATIONS = ['portrait', 'landscape'] as const;
 
 function orientation(v: unknown, path: string): CardOrientation {
 	const value = v as CardOrientation;
@@ -114,15 +115,19 @@ function parseDeck(v: unknown, path: string): PackDeckDef {
 	return deck;
 }
 
-const PIECE_KINDS = ['token', 'pawn', 'counter', 'die', 'bag'] as const;
+/** Exported so llms-txt.ts can render this list in prose instead of hand-writing it. */
+export const PIECE_KINDS = ['token', 'pawn', 'counter', 'die', 'bag'] as const;
 const DIE_SIDES = [4, 6, 8, 10, 12, 20] as const;
 /**
  * What a bag may contain: the piece kinds that are just an image and a name,
  * plus cards. No `bag` (containers don't nest) and no `die` — a die's shape and
  * roll state have nowhere to live in an item, so a bag is not where one goes.
+ *
+ * Exported so llms-txt.ts can render this list in prose instead of hand-writing it.
  */
-const BAG_ITEM_KINDS = ['token', 'pawn', 'counter', 'card'] as const;
-const BAG_DRAW_MODES = ['random', 'lifo', 'fifo'] as const;
+export const BAG_ITEM_KINDS = ['token', 'pawn', 'counter', 'card'] as const;
+/** Exported so llms-txt.ts can render this list in prose instead of hand-writing it. */
+export const BAG_DRAW_MODES = ['random', 'lifo', 'fifo'] as const;
 
 /**
  * One entry of a bag's `contents`. A `card` item carries the face-ref grammar;

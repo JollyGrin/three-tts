@@ -39,7 +39,14 @@ import {
 	BAG_HEIGHT
 } from '../src/lib/utils/constants-pieces';
 import { SNAP_RADIUS_DEFAULT } from '../src/lib/utils/constants-snap';
-import { TBPP_VERSION, PACK_SCHEMA_URL } from '../src/lib/packs/file';
+import {
+	TBPP_VERSION,
+	PACK_SCHEMA_URL,
+	PIECE_KINDS,
+	BAG_ITEM_KINDS,
+	BAG_DRAW_MODES,
+	CARD_ORIENTATIONS
+} from '../src/lib/packs/file';
 import { TBPS_VERSION, TBPS_SUPPORTED, SCENARIO_SCHEMA_URL } from '../src/lib/scenario/file';
 import { PACK_SPEC_VERSION, SCENARIO_SPEC_VERSION } from '../src/lib/formats/spec-version';
 
@@ -93,6 +100,21 @@ const fence = (body: string) => '```json\n' + body.trimEnd() + '\n```';
 const jsonBlock = (value: unknown) => fence(JSON.stringify(value, null, '\t'));
 
 /**
+ * Render a closed set of string literals as prose — `` `"a"`, `"b"` or `"c"` ``
+ * — built from the same runtime array the parser validates `kind`/`drawMode`/
+ * etc. against, so a value added there can't ship without appearing here too.
+ * `notes` adds an optional parenthetical per value, e.g. marking a default.
+ */
+function enumProse(values: readonly string[], notes: Partial<Record<string, string>> = {}): string {
+	const parts = values.map((v) => {
+		const note = notes[v];
+		return note ? `\`"${v}"\` (${note})` : `\`"${v}"\``;
+	});
+	if (parts.length < 2) return parts.join('');
+	return `${parts.slice(0, -1).join(', ')} or ${parts[parts.length - 1]}`;
+}
+
+/**
  * Substitute `{{KEY}}` placeholders. Throws on an unknown or unfilled
  * placeholder so a typo fails the build rather than shipping a literal
  * `{{TYPO}}` into the published contract.
@@ -122,6 +144,14 @@ export function renderLlmsTxt(packSchemaJson: string, scenarioSchemaJson: string
 		PACK_SPEC_VERSION,
 		SCENARIO_SPEC_VERSION,
 		PACK_SCHEMA_URL,
-		SCENARIO_SCHEMA_URL
+		SCENARIO_SCHEMA_URL,
+		PIECE_KINDS: enumProse(PIECE_KINDS),
+		CARD_ORIENTATIONS: enumProse(CARD_ORIENTATIONS, { portrait: 'default' }),
+		BAG_PIECE_ITEM_KINDS: enumProse(BAG_ITEM_KINDS.filter((k) => k !== 'card')),
+		BAG_DRAW_MODES: enumProse(BAG_DRAW_MODES, {
+			random: 'the default: a blind draw',
+			lifo: 'last in, first out — a stack',
+			fifo: 'a queue'
+		})
 	});
 }
