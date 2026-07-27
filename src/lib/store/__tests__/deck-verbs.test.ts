@@ -3,7 +3,7 @@ import { get } from 'svelte/store';
 import { gameStore } from '../game/gameStore.svelte';
 import { gameActions } from '../game/actions';
 import { dragStore } from '../dragStore.svelte';
-import { CARD_REST_Y, CARD_THICKNESS } from '$lib/utils/constants-cards';
+import { CARD_DRAG_Y, CARD_REST_Y, CARD_THICKNESS } from '$lib/utils/constants-cards';
 import { resolveDrop } from '$lib/utils/transforms/drop';
 import { TABLE_TOP_Y } from '$lib/utils/constants-table';
 
@@ -81,6 +81,57 @@ describe('drawFromTop with a count', () => {
 	it('returns [] from an empty deck', () => {
 		gameStore.updateState({ decks: { [DECK]: { cards: [] } } });
 		expect(gameActions.drawFromTop(DECK, 2)).toEqual([]);
+	});
+});
+
+describe('drawIntoDrag (tableplace-103: drag off the top)', () => {
+	it('draws the top card into the air at the pointer point, at drag height', () => {
+		const cardId = gameActions.drawIntoDrag(DECK, [3, 2]);
+		expect(cardId).toBe('d'); // facedown: top = last
+		const state = get(gameStore);
+		// deck shrink and card creation land in ONE patch
+		expect(state.decks?.[DECK]?.cards?.map((c) => c.id)).toEqual(['a', 'b', 'c']);
+		expect(state.cards?.d?.position).toEqual([3, CARD_DRAG_Y, 2]);
+	});
+
+	it('spawns over the deck when no pointer point is available', () => {
+		gameActions.drawIntoDrag(DECK);
+		const [x = NaN, , z = NaN] = get(gameStore).cards?.d?.position ?? [];
+		expect([x, z]).toEqual([0, 0]); // the seeded deck's XZ
+	});
+
+	it('clamps the spawn point to the table', () => {
+		gameActions.drawIntoDrag(DECK, [9999, -9999]);
+		const [x = 0, , z = 0] = get(gameStore).cards?.d?.position ?? [];
+		expect(Math.abs(x)).toBeLessThan(100);
+		expect(Math.abs(z)).toBeLessThan(100);
+	});
+
+	it('keeps the facing conventions: facedown deck deals a facedown card', () => {
+		gameActions.drawIntoDrag(DECK, [0, 0]);
+		expect(get(gameStore).cards?.d?.rotation?.[0]).toBe(180);
+	});
+
+	it('deals face-up from a face-up deck, from the front of the array', () => {
+		seed(true);
+		const cardId = gameActions.drawIntoDrag(DECK, [0, 0]);
+		expect(cardId).toBe('a'); // face-up: top = first
+		expect(get(gameStore).cards?.a?.rotation?.[0]).toBe(0);
+	});
+
+	it('returns null from an empty deck so the caller can move the pile instead', () => {
+		gameStore.updateState({ decks: { [DECK]: { cards: [] } } });
+		expect(gameActions.drawIntoDrag(DECK, [0, 0])).toBeNull();
+		expect(get(gameStore).cards).toEqual({});
+	});
+
+	it('suffixes the id when the card id is already on the table', () => {
+		gameStore.updateState({
+			cards: { d: { faceImageUrl: 'other.png', position: [1, 0.26, 1], rotation: [0, 0, 0] } }
+		});
+		const cardId = gameActions.drawIntoDrag(DECK, [0, 0]);
+		expect(cardId).toBe('d-2');
+		expect(get(gameStore).cards?.['d-2']).toBeTruthy();
 	});
 });
 

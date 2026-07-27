@@ -163,13 +163,25 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 	 * clickable piece only lifts once the pointer has travelled past
 	 * DRAG_THRESHOLD_PX, and the position the drop commits comes from the
 	 * interactivity context's raycast on the last move.
+	 *
+	 * `hold` keeps the pointer pressed and still before travelling — since
+	 * tableplace-103 a deck only moves after a long press has armed it
+	 * (DECK_MOVE_HOLD_MS, 400ms; travel without the hold draws the top card
+	 * into the drag instead). The hold waits for the ARM CUE (the amber
+	 * footprint mounts, so the deck's mesh count grows) rather than a fixed
+	 * sleep: on a choked SwiftShader main thread, wall-clock time and page
+	 * event-loop time drift apart, and a fixed hold can release the moves into
+	 * the queue before the page has processed the press — or, worse, travel
+	 * before the arm timer has fired and draw a card instead of moving the
+	 * pile. Bounded: if the cue never mounts (the grab slipped entirely), the
+	 * drag proceeds and the caller's own movement assertion reports it.
 	 */
 	/** press on the entity, walk the pointer to a screen point, release there */
 	const dragFromTo = async (
 		id: string,
 		from: ScreenPoint,
 		to: ScreenPoint,
-		options: { alt?: boolean } = {}
+		options: { alt?: boolean; hold?: boolean } = {}
 	) => {
 		// A HUD pane over the entity swallows the press, and the failure looks
 		// exactly like a dead table — which cost an hour of chasing a bag that was
@@ -181,6 +193,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 				`${id} draws at (${Math.round(from.x)}, ${Math.round(from.y)}), where the HUD covers the table (${cover}) — move it clear of the panes`
 			);
 		}
+		const meshesAtRest = options.hold ? ((await describe(id))?.meshes ?? 0) : 0;
 		// held for the whole gesture: puppeteer stamps keyboard modifiers onto
 		// every mouse event it dispatches, so the release's pointerup carries
 		// altKey exactly like a user holding Alt
@@ -189,7 +202,15 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 			await page.mouse.move(from.x, from.y);
 			await sleep(80);
 			await page.mouse.down();
-			await sleep(80);
+			if (options.hold) {
+				const deadline = Date.now() + 4000;
+				while (Date.now() < deadline) {
+					await sleep(100);
+					if (((await describe(id))?.meshes ?? 0) > meshesAtRest) break;
+				}
+			} else {
+				await sleep(80);
+			}
 			for (let step = 1; step <= 12; step++) {
 				await page.mouse.move(
 					from.x + ((to.x - from.x) * step) / 12,
@@ -205,10 +226,13 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		await sleep(400);
 	};
 
+	/** decks arm-for-move on a long press; everything else lifts immediately */
+	const holdFor = (id: string) => id.startsWith('deck:');
+
 	const dragBy = async (id: string, dx: number, dy: number) => {
 		const from = await locate(id);
 		if (!from) throw new Error(`cannot locate ${id} on screen`);
-		await dragFromTo(id, from, { x: from.x + dx, y: from.y + dy });
+		await dragFromTo(id, from, { x: from.x + dx, y: from.y + dy }, { hold: holdFor(id) });
 	};
 
 	/**
@@ -230,7 +254,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 			worldZ
 		);
 		if (!to) throw new Error(`world (${worldX}, ${worldZ}) projects off-screen`);
-		await dragFromTo(id, from, to, options);
+		await dragFromTo(id, from, to, { ...options, hold: holdFor(id) });
 	};
 
 	return {

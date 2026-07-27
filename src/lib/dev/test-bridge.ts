@@ -39,7 +39,12 @@ export type TestBridge = {
 	/** the raycast the shared interactivity context runs, minus the dispatch */
 	hits: (screen: ScreenPoint) => string[];
 	/** what is being dragged / hovered right now — distinguishes "never lifted" from "lifted and snapped back" */
-	drag: () => { isDragging: string | null; isHovered: string | null; isBagHovered: string | null };
+	drag: () => {
+		isDragging: string | null;
+		isHovered: string | null;
+		isBagHovered: string | null;
+		isDeckHovered: string | null;
+	};
 	/** what an entity is actually made of — null if it never mounted at all */
 	describe: (id: string) => EntityShape | null;
 };
@@ -152,8 +157,8 @@ export function installTestBridge(handles: SceneHandles): void {
 		},
 		hits,
 		drag: () => {
-			const { isDragging, isHovered, isBagHovered } = get(dragStore);
-			return { isDragging, isHovered, isBagHovered };
+			const { isDragging, isHovered, isBagHovered, isDeckHovered } = get(dragStore);
+			return { isDragging, isHovered, isBagHovered, isDeckHovered };
 		},
 		describe: (id) => {
 			const object = handles.scene()?.getObjectByName(id);
