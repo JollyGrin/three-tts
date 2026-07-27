@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { T } from '@threlte/core';
-	import { Billboard, Text, ImageMaterial } from '@threlte/extras';
+	import { ImageMaterial } from '@threlte/extras';
 	import type { IntersectionEvent } from '@threlte/extras';
 	import { Spring } from 'svelte/motion';
 	import { clearBagHover, dragStart, dragStore, setBagHover } from './store/dragStore.svelte';
@@ -14,6 +14,7 @@
 	import { createBagInput } from '$lib/utils/bag-input';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import Die from './Die.svelte';
+	import LabelBadge from './LabelBadge.svelte';
 	import Model from './models/Model.svelte';
 	import DropFootprint from './drop/DropFootprint.svelte';
 	import {
@@ -371,28 +372,22 @@
 		<!-- a bag's remaining count is always on, like a counter's value: it's the
 		     only thing about a bag that is legible from across the table -->
 		{#if label && (kind === 'counter' || kind === 'bag' || isHovered)}
-			<Billboard>
-				<Text
-					text={label}
-					fontSize={kind === 'counter' ? 0.55 : kind === 'bag' ? 0.45 : 0.35}
-					position={[
-						0,
-						kind === 'pawn'
-							? 1.5
-							: kind === 'bag'
-								? BAG_HEIGHT + 0.45
-								: kind === 'model'
-									? 2.4
-									: 0.75,
-						0
-					]}
-					scale={kind === 'counter' ? labelScale.current : 1}
-					anchorX="center"
-					color="#ffffff"
-					outlineWidth={0.02}
-					outlineColor="#000000"
-				/>
-			</Billboard>
+			<LabelBadge
+				text={label}
+				fontSize={kind === 'counter' ? 0.55 : kind === 'bag' ? 0.45 : 0.35}
+				position={[
+					0,
+					kind === 'pawn'
+						? 1.5
+						: kind === 'bag'
+							? BAG_HEIGHT + 0.45
+							: kind === 'model'
+								? 2.4
+								: 0.75,
+					0
+				]}
+				scale={kind === 'counter' ? labelScale.current : 1}
+			/>
 		{/if}
 	</T.Group>
 {/if}

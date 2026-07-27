@@ -1140,6 +1140,110 @@ export const SPECS: Spec[] = [
 			})
 	},
 	{
+		/**
+		 * tableplace-156: every floating label is the same LabelBadge, and the
+		 * restyle must not have changed WHEN one shows or how it reacts. Pinned
+		 * here with a real pointer: a counter's value, a bag's count and a deck's
+		 * card count wear their badges with no hover anywhere; a plain piece's
+		 * name badge mounts under the pointer and unmounts when it leaves; and a
+		 * real click on the counter kicks the value-change pulse (the badge's
+		 * scale springs toward 1.6, then settles back to rest).
+		 */
+		name: 'badges: hover-only labels, always-on counts, and the value pulse',
+		run: (context) =>
+			withTable(context, 'badges', async (table) => {
+				const deck = await table.seedDeck();
+				const counter = await table.spawn('counter', {
+					name: 'HP',
+					maxValue: 17,
+					value: 5,
+					position: LANE(0)
+				});
+				const bag = await table.spawn('bag', { position: LANE(1) });
+				const token = await table.spawn('token', { name: 'Guard', position: LANE(2) });
+				await table.settle(1500);
+				assertClean(table, 'with a counter, a bag and a named token on the table');
+
+				const badge = (id: string) =>
+					table.page.evaluate((entityId) => window.__tableplace!.badge(entityId), id);
+
+				// always-on: the pointer has not been near any of these
+				for (const [id, label] of [
+					[counter, 'the counter'],
+					[bag, 'the bag'],
+					[deck, 'the deck']
+				] as const) {
+					ok(!!(await badge(id)), `${label} (${id}) has no badge mounted without hover`);
+				}
+
+				// hover-only: the plain token wears its name only under the pointer
+				ok(!(await badge(token)), 'the plain token mounted a badge with no pointer near it');
+				const over = await table.locate(token);
+				ok(over, 'the token never mounted — nothing to hover');
+				await table.page.mouse.move(over!.x, over!.y);
+				const hovered = await eventually(
+					() => badge(token),
+					(b) => !!b
+				);
+				ok(!!hovered, 'hovering the token never mounted its name badge');
+				// park the pointer on bare felt, well clear of everything
+				const felt = await table.page.evaluate(() => window.__tableplace!.project([0, 0.26, 6]));
+				ok(felt, 'the felt parking spot projects off-screen');
+				await table.page.mouse.move(felt!.x, felt!.y);
+				const unhovered = await eventually(
+					() => badge(token),
+					(b) => !b
+				);
+				ok(!unhovered, 'the token badge stayed mounted after the pointer left');
+
+				// the pulse: a real click deals 1 damage (counter-input's plain-click
+				// branch; shift-click is the heal) and the badge scale kicks toward
+				// 1.6 before springing back to rest. The kick is watched FIRST — it
+				// is instant on the value change, so waiting on the value and then
+				// looking for the kick could miss a fast pulse entirely.
+				const at = await table.locate(counter);
+				ok(at, 'the counter never mounted — nothing to click');
+				await table.page.mouse.click(at!.x, at!.y);
+				const kicked = await eventually(
+					() => badge(counter),
+					(b) => !!b && b.scale > 1.15,
+					5000
+				);
+				ok(
+					!!kicked && kicked.scale > 1.15,
+					`the value change never kicked the badge pulse: ${JSON.stringify(kicked)}`
+				);
+				const value = await eventually(
+					() =>
+						table.page.evaluate(
+							(id) => window.__tableplace!.state()?.pieces?.[id]?.value ?? null,
+							counter
+						),
+					(v) => v === 4
+				);
+				ok(value === 4, `the click did not damage the counter to 4: ${JSON.stringify(value)}`);
+				const rested = await eventually(
+					() => badge(counter),
+					(b) => !!b && Math.abs(b.scale - 1) < 0.05
+				);
+				ok(
+					!!rested && Math.abs(rested.scale - 1) < 0.05,
+					`the pulse never settled back to rest: ${JSON.stringify(rested)}`
+				);
+
+				// badges must not have cost the table its raycast
+				await assertDraggable(table, counter, 'the counter (wearing its badge)');
+				await assertDraggable(table, deck, 'deck (with badges on the table)');
+				assertClean(table, 'at the end of the badge suite');
+
+				// the train's visual evidence: counter, bag and deck badges always-on,
+				// and the token hovered so its name badge is in the frame too
+				const pose = await table.locate(token);
+				if (pose) await table.page.mouse.move(pose.x, pose.y);
+				await table.snap('badges');
+			})
+	},
+	{
 		// acceptance criterion 4: one table carrying all four at once
 		name: 'mixed table: deck + die + bag + multi-state piece',
 		run: (context) =>
@@ -1175,6 +1279,11 @@ export const SPECS: Spec[] = [
 					token
 				);
 				await table.settle();
+				// the loop's straight-down drag already walked the deck to the bottom
+				// edge; park it back mid-table first, so the liveness drag below has
+				// screen left to travel into instead of running off the canvas
+				await table.dragTo(deck, 2, -2);
+				await table.settle(900);
 				await assertDraggable(table, deck, 'deck (after cycling a piece state)');
 				assertClean(table, 'at the end of the mixed table');
 				await table.snap('mixed');
