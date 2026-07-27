@@ -52,9 +52,12 @@
 	 * A caught snap point is the whole feedback for snapping in /play, where the
 	 * markers themselves aren't drawn (see `store/tableFeatures`): the footprint
 	 * jumps onto the point, in its own colour, already turned to the authored
-	 * yaw. The ring behind it shows what caught it.
+	 * yaw. The ring behind it shows what caught it — and when the catcher is a
+	 * grid, the cell (a rect at the lattice's pitch and yaw) is what caught it,
+	 * so that is what draws instead.
 	 */
-	const snapRing = $derived(drop?.kind === 'snap' ? (drop.snap?.radius ?? 0) : 0);
+	const snapGrid = $derived(drop?.kind === 'snap' ? drop.snap?.grid : undefined);
+	const snapRing = $derived(drop?.kind === 'snap' && !snapGrid ? (drop.snap?.radius ?? 0) : 0);
 
 	// primitives, not the resolved objects: all of this recomputes on every
 	// pointer move, and threlte rebuilds a geometry whenever its `args` array
@@ -103,6 +106,21 @@
 			<!-- unrotated: the ring belongs to the point, not to what lands on it -->
 			<T.Group rotation.x={-Math.PI / 2}>
 				<DropFootprint shape="circle" r={snapRing} color={COLORS.snap} fill={0.1} border={0.04} />
+			</T.Group>
+		{/if}
+		{#if snapGrid}
+			<!-- the caught cell: turned to the lattice's yaw, not the entity's -->
+			<T.Group rotation.x={-Math.PI / 2}>
+				<T.Group rotation.z={-snapGrid.rotation * DEG2RAD}>
+					<DropFootprint
+						shape="rect"
+						w={snapGrid.pitch}
+						h={snapGrid.pitch}
+						color={COLORS.snap}
+						fill={0.1}
+						border={0.04}
+					/>
+				</T.Group>
 			</T.Group>
 		{/if}
 		<T.Group rotation.y={yaw}>

@@ -146,7 +146,7 @@
 						"type": "object",
 						"properties": {
 							"position": {
-								"description": "table-space `[x, z]`; no y — snap points live on the felt",
+								"description": "Table-space `[x, z]`. Stays two elements — elevation is the separate\noptional `y`, so every 0.1.x reader keeps parsing the tuple it expects.",
 								"type": "array",
 								"items": [
 									{
@@ -160,8 +160,13 @@
 								"maxItems": 2,
 								"title": "position"
 							},
+							"y": {
+								"description": "Elevation: the local floor whatever lands here rests on, replacing the\ntable top in the rest-height arithmetic. Omitted means the felt. A card\ndropped on a card on an elevated point still stacks.",
+								"type": "number",
+								"title": "y"
+							},
 							"rotation": {
-								"description": "Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's\nown rotation alone. Degrees, not the radians `placements` use, because\nthis is a single table yaw and it maps 1:1 onto both the card DTO's tap\nrotation and TTS's snap-point rotation.",
+								"description": "Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's\nown rotation alone. Degrees, not the radians `placements` use, because\nthis is a single table yaw and it maps 1:1 onto both the card DTO's tap\nrotation and TTS's snap-point rotation. On a grid this is the lattice's\nyaw instead; the landing's own yaw steps by `yawStep`.",
 								"type": "number",
 								"title": "rotation"
 							},
@@ -169,6 +174,32 @@
 								"description": "catch radius in world units; omitted means the app default (0.9)",
 								"type": "number",
 								"title": "radius"
+							},
+							"kind": {
+								"description": "`'grid'` turns this entry into a lattice of square cells (`pitch`,\n`cols`, `rows` required): a drop anywhere over the grid pulls to the\nnearest cell centre. Omitted (or `'point'`) is the discrete spot it\nalways was.",
+								"enum": ["grid", "point"],
+								"type": "string",
+								"title": "kind"
+							},
+							"pitch": {
+								"description": "grid only — cell size in world units",
+								"type": "number",
+								"title": "pitch"
+							},
+							"cols": {
+								"description": "grid only — extent in cells; `position` is the grid's centre",
+								"type": "number",
+								"title": "cols"
+							},
+							"rows": {
+								"description": "grid only — extent in cells",
+								"type": "number",
+								"title": "rows"
+							},
+							"yawStep": {
+								"description": "grid only — degrees a landing's yaw rounds to, from the grid's own yaw (default 90)",
+								"type": "number",
+								"title": "yawStep"
 							}
 						},
 						"required": ["position"]
@@ -706,6 +737,11 @@
 					"type": "boolean",
 					"title": "infinite"
 				},
+				"snap": {
+					"description": "Whether snap points (and grids) pull this piece's drops. Absent means\n`true`; `false` is the per-piece opt-out — the drop resolves as if Alt\nwere held, for snap resolution only (aimed-at targets like bags are\nunaffected). A big room section snaps to the grid; a loose prop doesn't.",
+					"type": "boolean",
+					"title": "snap"
+				},
 				"packOrigin": {
 					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
 					"type": "object",
@@ -811,7 +847,7 @@
 					"title": "id"
 				},
 				"position": {
-					"description": "Table-space `[x, z]`. No y: a snap point is a spot on the felt, and what\nlands on it keeps its own resting height (a card on a card still stacks).",
+					"description": "Table-space `[x, z]`. Stays a 2-tuple on purpose — its arity is asserted\nin four independent places (this type, `xz()` in transforms/snap,\n`parseSnapPoint`, the generated schema), so elevation is the separate\noptional `y` beside it rather than a breaking third element.",
 					"type": "array",
 					"items": [
 						{
@@ -825,8 +861,13 @@
 					"maxItems": 2,
 					"title": "position"
 				},
+				"y": {
+					"description": "Elevation: redefines the local floor for whatever lands on this point.\nThe landing's rest height is computed exactly as on the felt, with `y`\nsubstituted for the table top — so a card dropped on a card on an\nelevated point still stacks. Omitted means the table top.",
+					"type": "number",
+					"title": "y"
+				},
 				"rotation": {
-					"description": "Yaw the landing snaps to, in **degrees**, or omitted to keep whatever\nrotation the entity already had. Degrees to match the card DTO's tap\nrotation (`actions/card.ts`) and TTS's `SnapPoints`.",
+					"description": "Yaw the landing snaps to, in **degrees**, or omitted to keep whatever\nrotation the entity already had. Degrees to match the card DTO's tap\nrotation (`actions/card.ts`) and TTS's `SnapPoints`. On a grid this is\nthe lattice's yaw instead, and the landing's yaw steps by `yawStep`.",
 					"type": "number",
 					"title": "rotation"
 				},
@@ -834,12 +875,38 @@
 					"description": "catch radius in world units; omitted means `SNAP_RADIUS_DEFAULT`",
 					"type": "number",
 					"title": "radius"
+				},
+				"kind": {
+					"description": "`'grid'` makes this one entry a whole lattice of square cells: a drop\nanywhere over the grid pulls to the nearest cell centre. Absent (or\n`'point'`) is the discrete spot it always was — fully backward\ncompatible, and no sibling collection to teach a dozen call sites about.",
+					"enum": ["grid", "point"],
+					"type": "string",
+					"title": "kind"
+				},
+				"pitch": {
+					"description": "grid only — cell size in world units",
+					"type": "number",
+					"title": "pitch"
+				},
+				"cols": {
+					"description": "grid only — extent in cells; `position` is the grid's centre",
+					"type": "number",
+					"title": "cols"
+				},
+				"rows": {
+					"description": "grid only — extent in cells",
+					"type": "number",
+					"title": "rows"
+				},
+				"yawStep": {
+					"description": "grid only — degrees; a snapped entity's yaw rounds to the nearest\nmultiple, measured from the grid's own `rotation`. Default 90 (the\nmodular-kit case).",
+					"type": "number",
+					"title": "yawStep"
 				}
 			}
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.7",
-	"x-generated-at": "2026-07-27T01:05:03.812Z",
-	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
+	"x-tableplace-spec-version": "0.1.8",
+	"x-generated-at": "2026-07-27T09:20:28.352Z",
+	"x-tableplace-source-sha": "0cfcb6c1c13190aed0c94dc3d9f8024fdd32bf40-dirty"
 }

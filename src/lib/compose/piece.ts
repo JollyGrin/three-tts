@@ -85,6 +85,8 @@ export type PieceProps = {
 	/** dice only; how many faces (defaults to a d6) */
 	sides?: DieSides;
 	rotation?: Vec3;
+	/** false opts this piece out of snap points/grids (default true) */
+	snap?: boolean;
 	/** bags only; the hidden pool a draw pulls from */
 	contents?: BagItem[];
 	/** bags only; defaults to 'random' */
@@ -141,6 +143,8 @@ export function composePiece(
 		piece.state = currentPieceState({ states: opts.states, state: opts.state });
 	}
 	if (opts.packOrigin) piece.packOrigin = opts.packOrigin;
+	// only the opt-out is worth carrying: absent already means "snaps"
+	if (opts.snap === false) piece.snap = false;
 	if (kind === 'counter') {
 		const maxValue = opts.maxValue ?? COUNTER_MAX_DEFAULT;
 		piece.maxValue = maxValue;

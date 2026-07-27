@@ -154,8 +154,16 @@ function collectSnapPoints(s: Partial<GameDTO> | undefined | null): SnapPoint[] 
 			const position = point?.position;
 			if (!position) return [];
 			const snap: SnapPoint = { position: [position[0], position[1]] };
+			if (point?.y !== undefined) snap.y = point.y;
 			if (point?.rotation !== undefined) snap.rotation = point.rotation;
 			if (point?.radius !== undefined) snap.radius = point.radius;
+			if (point?.kind === 'grid') {
+				snap.kind = 'grid';
+				if (point.pitch !== undefined) snap.pitch = point.pitch;
+				if (point.cols !== undefined) snap.cols = point.cols;
+				if (point.rows !== undefined) snap.rows = point.rows;
+				if (point.yawStep !== undefined) snap.yawStep = point.yawStep;
+			}
 			return [snap];
 		});
 }

@@ -36,7 +36,13 @@
 	import { setSelectedDeck } from '$lib/store/deckSelection';
 	import { snapPointIds } from '$lib/store/game/actions/snap';
 	import { snapEditor, setSnapDefaults, setSnapPlacing } from '$lib/store/snapEditor';
-	import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
+	import {
+		SNAP_GRID_COLS_DEFAULT,
+		SNAP_GRID_PITCH_DEFAULT,
+		SNAP_GRID_ROWS_DEFAULT,
+		SNAP_GRID_YAW_STEP_DEFAULT,
+		SNAP_RADIUS_DEFAULT
+	} from '$lib/utils/constants-snap';
 	import HUDPieces from '$lib/HUDPieces.svelte';
 	import PaneProse from '$lib/tweakpane/PaneProse.svelte';
 	import FileDropZone from '$lib/files/FileDropZone.svelte';
@@ -376,6 +382,32 @@
 		});
 	}
 
+	/**
+	 * Switch one point between a discrete spot and a grid. Turning grid on
+	 * stamps workable lattice defaults (keeping any the point already had);
+	 * turning it off nulls the grid fields so a re-save doesn't carry ghosts.
+	 * `undefined` here means "delete the field" — see updateSnapPoint.
+	 */
+	function setSnapGrid(snapId: string, grid: boolean) {
+		const point = $gameStore?.snapPoints?.[snapId];
+		if (grid) {
+			gameActions.updateSnapPoint(snapId, {
+				kind: 'grid',
+				pitch: point?.pitch ?? SNAP_GRID_PITCH_DEFAULT,
+				cols: point?.cols ?? SNAP_GRID_COLS_DEFAULT,
+				rows: point?.rows ?? SNAP_GRID_ROWS_DEFAULT
+			});
+		} else {
+			gameActions.updateSnapPoint(snapId, {
+				kind: undefined,
+				pitch: undefined,
+				cols: undefined,
+				rows: undefined,
+				yawStep: undefined
+			});
+		}
+	}
+
 	// overlay controls — same shape as the /play settings pane
 	let rot = $state(0);
 	let scale = $state($gameStore?.overlays?.table?.scale ?? 12);
@@ -531,10 +563,77 @@
 								gameActions.updateSnapPoint(snapId, {
 									// 0 means "no authored yaw": a snap point that turns a card to
 									// 0° and one that leaves it alone are different things, and
-									// the wheel has no third state to say so
+									// the wheel has no third state to say so. Harmless on a grid,
+									// where the rotation is the lattice yaw and "none" IS 0°.
 									rotation: e.detail.value ? e.detail.value : undefined
 								})}
 						/>
+						<Slider
+							label="elevation (y)"
+							value={point?.y ?? 0}
+							min={0}
+							max={8}
+							step={0.05}
+							on:change={(e) =>
+								gameActions.updateSnapPoint(snapId, {
+									// 0 = back on the felt; an authored floor at exactly 0 would
+									// sit below the table top, so the sentinel costs nothing
+									y: e.detail.value ? e.detail.value : undefined
+								})}
+						/>
+						<!-- grid sub-flow: blades are ADDED under the checkbox, never
+						     swapped in place of it — replacing a blade tears the pane down -->
+						<Checkbox
+							label="grid"
+							value={point?.kind === 'grid'}
+							on:change={(e) => setSnapGrid(snapId, !!e.detail.value)}
+						/>
+						{#if point?.kind === 'grid'}
+							<Slider
+								label="pitch"
+								value={point?.pitch ?? SNAP_GRID_PITCH_DEFAULT}
+								min={0.5}
+								max={8}
+								step={0.1}
+								on:change={(e) =>
+									gameActions.updateSnapPoint(snapId, {
+										pitch: e.detail.value ?? SNAP_GRID_PITCH_DEFAULT
+									})}
+							/>
+							<Slider
+								label="cols"
+								value={point?.cols ?? SNAP_GRID_COLS_DEFAULT}
+								min={1}
+								max={20}
+								step={1}
+								on:change={(e) =>
+									gameActions.updateSnapPoint(snapId, {
+										cols: Math.round(e.detail.value ?? SNAP_GRID_COLS_DEFAULT)
+									})}
+							/>
+							<Slider
+								label="rows"
+								value={point?.rows ?? SNAP_GRID_ROWS_DEFAULT}
+								min={1}
+								max={20}
+								step={1}
+								on:change={(e) =>
+									gameActions.updateSnapPoint(snapId, {
+										rows: Math.round(e.detail.value ?? SNAP_GRID_ROWS_DEFAULT)
+									})}
+							/>
+							<Slider
+								label="yaw step"
+								value={point?.yawStep ?? SNAP_GRID_YAW_STEP_DEFAULT}
+								min={15}
+								max={180}
+								step={15}
+								on:change={(e) =>
+									gameActions.updateSnapPoint(snapId, {
+										yawStep: e.detail.value ?? SNAP_GRID_YAW_STEP_DEFAULT
+									})}
+							/>
+						{/if}
 						<Button
 							title="Delete this point"
 							on:click={() => gameActions.removeSnapPoint(snapId)}
@@ -615,9 +714,13 @@
 				</p>
 				<p>
 					<span class="text-white/65">Snap points:</span> arm
-					<em class="text-white/65 not-italic">place on click</em> and click the felt, drag a ring to
-					move it, right-click it to delete. They ride along in the scenario and pull dropped cards/tokens
-					onto themselves in /play (hold Alt on release to ignore them); the rings only show here.
+					<em class="text-white/65 not-italic">place on click</em> and click the felt, drag a ring
+					to move it, right-click it to delete. They ride along in the scenario and pull dropped
+					cards/tokens onto themselves in /play (hold Alt on release to ignore them); the rings only
+					show here. A point can raise its floor (<em class="text-white/65 not-italic">elevation</em
+					>) or become a
+					<em class="text-white/65 not-italic">grid</em> of square cells that drops pull onto, cell by
+					cell.
 				</p>
 				<p>
 					Your library lives in this browser only — share a pack by exporting its

@@ -148,7 +148,7 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
   - **`cards[]`** — `code` (stable id within the deck), optional `name`, `face` (a face ref), and optional `orientation` — `"portrait"` (default) or `"landscape"`. A landscape card rests turned 90° everywhere it renders (board, hand, preview) while its art stays portrait in the image; use it for cards that are played sideways (the analog of Tabletop Simulator's `SidewaysCard`).
-- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
+- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), optional `snap` (default `true`; `false` opts the piece out of snap points and grids — it drops as if Alt were held), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
 
@@ -253,13 +253,21 @@ Scenarios are **seat-relative**. Entities belong to placeholder players `seat0`�
 ```json
 "snapPoints": [
 	{ "position": [0, 2.5], "rotation": 0, "radius": 1 },
-	{ "position": [-4, 0] }
+	{ "position": [-4, 0], "y": 2 },
+	{ "position": [6, 0], "kind": "grid", "pitch": 2, "cols": 4, "rows": 3 }
 ]
 ```
 
-- **`position`** — `[x, z]` in table space (§4). Two elements, no y: a snap point is a spot on the felt, and what lands on it keeps its own resting height, so a card dropped on an occupied point still stacks on what is already there.
-- **`rotation`** _(optional)_ — the yaw a caught drop turns to, in **degrees**. Note the unit: `placements[].rotation` is radians, this is degrees, because it maps 1:1 onto a card's own tap rotation and onto TTS snap points. Omit it for a position-only guide, which leaves whatever lands facing as it was.
+- **`position`** — `[x, z]` in table space (§4). Two elements — elevation is the separate optional `y`, never a third tuple element.
+- **`y`** _(optional)_ — elevation: the local floor whatever lands here rests on, substituted for the table top in the rest-height arithmetic. A card dropped on a card on an elevated point still stacks. Omitted means the felt.
+- **`rotation`** _(optional)_ — the yaw a caught drop turns to, in **degrees**. Note the unit: `placements[].rotation` is radians, this is degrees, because it maps 1:1 onto a card's own tap rotation and onto TTS snap points. Omit it for a position-only guide, which leaves whatever lands facing as it was. On a grid this is the lattice's yaw instead.
 - **`radius`** _(optional)_ — catch radius in world units. Omitted means `SNAP_RADIUS_DEFAULT` (§4). A drop lands on a point when its release is inside the radius; when radii overlap, the nearest point wins.
+- **`kind`** _(optional)_ — `"grid"` makes the entry a lattice of square cells; omitted (or `"point"`) is a discrete spot. A drop anywhere over the grid pulls to the nearest **cell centre**; cells and discrete points compete on distance, and a discrete point beats a cell on an exact tie. Grids require:
+  - **`pitch`** — cell size in world units;
+  - **`cols`**, **`rows`** — extent in cells, `position` being the grid's centre;
+  - **`yawStep`** _(optional)_ — degrees; the landing's yaw rounds to the nearest multiple, measured from the grid's `rotation`. Default 90.
+
+Pieces can opt out per piece: a pack piece (or `state` piece) with `snap: false` ignores points and grids entirely — see §6.1.
 
 Snap points are **table-scoped, not seat-relative**: unlike a pack piece's `[x, z]`, they are never mirrored for the far side of the table. Author both ends explicitly — one at `[0, 2.5]` facing `0`, one at `[0, -2.5]` facing `180`.
 
@@ -283,7 +291,7 @@ Deliberately unresolved. Do not invent syntax for these — a file using it will
 - **Pack content versioning.** `tbpp` is the _format_ version; a pack cannot declare its own version ("Ember Duel v1.2"). There is no field for it and no upgrade story for a pack whose contents changed under a scenario that references it.
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing or registry. Two authors can both publish `ember-duel`, and a scenario referencing `ember-duel` by a URL that later serves different content will silently resolve differently. Until this is decided, prefer a distinctive `id` and always pin `source` to a URL you control.
 - **Pieces and overlays in scenarios beyond the fields above** — piece rotation, stacking and zones are not expressible.
-- **Snapping beyond single points.** `snapPoints` is a list of discrete spots. Grids (square/hex), per-object opt-outs, and hidden/layout/randomize zones have no syntax; a snap point cannot restrict _what_ may land on it either.
+- **Snapping beyond square grids.** Square grids (`kind: "grid"`), elevation (`y`) and the per-piece `snap` opt-out exist (§7.2), but hex grids and hidden/layout/randomize zones have no syntax; a snap point cannot restrict _what_ may land on it either.
 - **Nested containers.** A bag's `contents` is one level deep: a bag inside a bag has no representation, and the TTS importer skips one rather than flattening it. There is also no way to express the remaining contents of a partly-drawn bag in a scenario.
 
 ## 9. Before you emit a file

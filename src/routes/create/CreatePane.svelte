@@ -387,6 +387,7 @@
 			contents: [],
 			drawMode: 'random',
 			infinite: false,
+			snap: true,
 			position: [0, 0]
 		});
 		pieceCursor = pack.pieces.length - 1;
@@ -1102,6 +1103,9 @@
 							{/if}
 						</Folder>
 						<AutoValue label="Radius" bind:value={piece.radius} />
+						<!-- the per-piece snap opt-out (unticked = drops as if Alt were
+						     held): a room section snaps to a grid, a loose prop doesn't -->
+						<Checkbox label="Snaps to points" bind:value={piece.snap} />
 						{#if piece.kind === 'counter'}
 							<AutoValue label="Max value" bind:value={piece.maxValue} />
 						{/if}

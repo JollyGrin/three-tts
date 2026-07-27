@@ -60,6 +60,7 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 		contents: [],
 		drawMode: 'random',
 		infinite: false,
+		snap: true,
 		position: [0, 0],
 		...over
 	});

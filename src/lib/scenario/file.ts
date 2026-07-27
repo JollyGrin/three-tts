@@ -84,17 +84,42 @@ export type PackPlacement = {
  * rotation) so importing those stays a mechanical mapping.
  */
 export type SnapPoint = {
-	/** table-space `[x, z]`; no y — snap points live on the felt */
+	/**
+	 * Table-space `[x, z]`. Stays two elements — elevation is the separate
+	 * optional `y`, so every 0.1.x reader keeps parsing the tuple it expects.
+	 */
 	position: [number, number];
+	/**
+	 * Elevation: the local floor whatever lands here rests on, replacing the
+	 * table top in the rest-height arithmetic. Omitted means the felt. A card
+	 * dropped on a card on an elevated point still stacks.
+	 */
+	y?: number;
 	/**
 	 * Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's
 	 * own rotation alone. Degrees, not the radians `placements` use, because
 	 * this is a single table yaw and it maps 1:1 onto both the card DTO's tap
-	 * rotation and TTS's snap-point rotation.
+	 * rotation and TTS's snap-point rotation. On a grid this is the lattice's
+	 * yaw instead; the landing's own yaw steps by `yawStep`.
 	 */
 	rotation?: number;
 	/** catch radius in world units; omitted means the app default (0.9) */
 	radius?: number;
+	/**
+	 * `'grid'` turns this entry into a lattice of square cells (`pitch`,
+	 * `cols`, `rows` required): a drop anywhere over the grid pulls to the
+	 * nearest cell centre. Omitted (or `'point'`) is the discrete spot it
+	 * always was.
+	 */
+	kind?: 'point' | 'grid';
+	/** grid only — cell size in world units */
+	pitch?: number;
+	/** grid only — extent in cells; `position` is the grid's centre */
+	cols?: number;
+	/** grid only — extent in cells */
+	rows?: number;
+	/** grid only — degrees a landing's yaw rounds to, from the grid's own yaw (default 90) */
+	yawStep?: number;
 };
 
 export type Scenario = {
@@ -241,6 +266,12 @@ function parseSnapPoint(v: unknown, path: string): SnapPoint {
 		fail(`${path}.position must be [x, z] in table space`);
 	}
 	const point: SnapPoint = { position: position as [number, number] };
+	if (v.y !== undefined) {
+		if (typeof v.y !== 'number' || !Number.isFinite(v.y)) {
+			fail(`${path}.y must be an elevation in world units`);
+		}
+		point.y = v.y;
+	}
 	if (v.rotation !== undefined) {
 		if (typeof v.rotation !== 'number' || !Number.isFinite(v.rotation)) {
 			fail(`${path}.rotation must be a yaw in degrees`);
@@ -252,6 +283,29 @@ function parseSnapPoint(v: unknown, path: string): SnapPoint {
 			fail(`${path}.radius must be a positive number of world units`);
 		}
 		point.radius = v.radius;
+	}
+	if (v.kind !== undefined && v.kind !== 'point' && v.kind !== 'grid') {
+		fail(`${path}.kind must be 'point' or 'grid'`);
+	}
+	if (v.kind === 'grid') {
+		point.kind = 'grid';
+		if (typeof v.pitch !== 'number' || !Number.isFinite(v.pitch) || v.pitch <= 0) {
+			fail(`${path}.pitch must be a positive cell size in world units`);
+		}
+		point.pitch = v.pitch;
+		for (const field of ['cols', 'rows'] as const) {
+			const cells = v[field];
+			if (typeof cells !== 'number' || !Number.isInteger(cells) || cells < 1) {
+				fail(`${path}.${field} must be a positive whole number of cells`);
+			}
+			point[field] = cells;
+		}
+		if (v.yawStep !== undefined) {
+			if (typeof v.yawStep !== 'number' || !Number.isFinite(v.yawStep) || v.yawStep <= 0) {
+				fail(`${path}.yawStep must be a positive number of degrees`);
+			}
+			point.yawStep = v.yawStep;
+		}
 	}
 	return point;
 }

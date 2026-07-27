@@ -133,6 +133,109 @@ describe('snap points through save → export → import → load', () => {
 		expect(gameActions.snapPointIds()).toEqual([]);
 	});
 
+	it('round-trips elevation and the grid variant (tableplace-134)', async () => {
+		gameActions.addSnapPoint({ position: [0, 2.5], y: 2, rotation: 180 });
+		gameActions.addSnapPoint({
+			position: [6, -3],
+			kind: 'grid',
+			pitch: 2.5,
+			cols: 4,
+			rows: 2,
+			yawStep: 45,
+			y: 1
+		});
+
+		const exported = serializeScenarioFile(saveScenario('elevated-grid'));
+		expect(JSON.parse(exported).snapPoints).toEqual([
+			{ position: [0, 2.5], y: 2, rotation: 180, radius: SNAP_RADIUS_DEFAULT },
+			{
+				position: [6, -3],
+				y: 1,
+				radius: SNAP_RADIUS_DEFAULT,
+				kind: 'grid',
+				pitch: 2.5,
+				cols: 4,
+				rows: 2,
+				yawStep: 45
+			}
+		]);
+
+		emptyTable();
+		await applyScenario(importScenarioFromText(exported));
+		expect(snapPointsInStore()['snap:0']).toMatchObject({ position: [0, 2.5], y: 2 });
+		expect(snapPointsInStore()['snap:1']).toMatchObject({
+			kind: 'grid',
+			pitch: 2.5,
+			cols: 4,
+			rows: 2,
+			yawStep: 45,
+			y: 1
+		});
+	});
+
+	it('refuses a grid missing its lattice fields, naming the field', () => {
+		const file = (snapPoint: Record<string, unknown>) =>
+			JSON.stringify({ tbps: 1, name: 'bad', createdAt: 1, state: {}, snapPoints: [snapPoint] });
+		expect(() => importScenarioFromText(file({ position: [0, 0], kind: 'grid' }))).toThrow(/pitch/);
+		expect(() =>
+			importScenarioFromText(file({ position: [0, 0], kind: 'grid', pitch: 2, rows: 2 }))
+		).toThrow(/cols/);
+		expect(() => importScenarioFromText(file({ position: [0, 0], y: 'high' }))).toThrow(/\.y/);
+	});
+
+	it('round-trips a piece snap opt-out through the state snapshot', async () => {
+		ensureSeatPlaceholder(0);
+		const id = gameActions.addPiece('token', {
+			ownerId: seatPlaceholderId(0),
+			name: 'Loose prop'
+		});
+		gameActions.setPieceSnap(id, false);
+		expect(get(gameStore).pieces?.[id]?.snap).toBe(false);
+
+		const exported = serializeScenarioFile(saveScenario('loose-prop'));
+		emptyTable();
+		await applyScenario(importScenarioFromText(exported));
+		expect(get(gameStore).pieces?.[id]?.snap).toBe(false);
+
+		// and turning it back on deletes the field instead of writing `true`
+		gameActions.setPieceSnap(id, true);
+		expect(get(gameStore).pieces?.[id]?.snap).toBeUndefined();
+	});
+
+	it('a landscape card landed on a grid keeps its orientation and still taps on the 90° lattice', () => {
+		// tableplace-132 composition: `orientation` is a render-only quarter
+		// turn and the synced rotation[2] stays orientation-relative. The grid
+		// steps that synced yaw, the commit writes position + rotation only, so
+		// the orientation field survives the landing — and tapCard (additive on
+		// rotation[2]) keeps working in 90° steps afterwards.
+		const id = 'card:seat0:site';
+		gameStore.updateState({
+			cards: {
+				[id]: {
+					position: [0, 2, 0],
+					rotation: [0, 0, 130],
+					faceImageUrl: 'f.png',
+					orientation: 'landscape'
+				}
+			}
+		});
+		gameActions.addSnapPoint({ position: [10, 2], kind: 'grid', pitch: 2, cols: 3, rows: 3 });
+
+		const drop = resolveDrop(get(gameStore), id, { x: 10, z: 2 });
+		expect(drop?.kind).toBe('snap');
+		// commit the exact patch a release writes: position + rotation, nothing else
+		gameStore.updateState({
+			cards: { [id]: { position: drop!.position, rotation: drop!.rotation } }
+		});
+
+		const landed = get(gameStore).cards?.[id];
+		expect(landed?.orientation).toBe('landscape'); // untouched by the landing
+		expect(landed?.rotation?.[2]).toBe(90); // 130 stepped in SYNCED space
+
+		gameActions.tapCard(false, id);
+		expect(get(gameStore).cards?.[id]?.rotation?.[2]).toBe(180); // still 90° steps
+	});
+
 	it('leaves a loaded table where a dropped card actually snaps', async () => {
 		const scenario = importScenarioFromText(
 			JSON.stringify({

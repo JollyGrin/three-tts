@@ -16,8 +16,23 @@ export const SNAP_RADIUS_DEFAULT = 0.9;
 /** Below this a point could never catch anything; authored values clamp up. */
 export const SNAP_RADIUS_MIN = 0.05;
 
-/** Sanity ceiling for an authored radius — a whole-table snap point is a bug. */
+/**
+ * Sanity ceiling for an authored radius — a whole-table snap point is a bug.
+ * Deliberately not applied to a grid's extent: a grid covers area on purpose.
+ */
 export const SNAP_RADIUS_MAX = 15;
+
+/**
+ * Yaw stepping a grid applies when it doesn't author `yawStep`: snapped
+ * entities' yaw rounds to the nearest 90° — the modular-kit case, and the
+ * right-angle world most tile-layers live in.
+ */
+export const SNAP_GRID_YAW_STEP_DEFAULT = 90;
+
+/** What the editor stamps on a point freshly switched to `kind: 'grid'`. */
+export const SNAP_GRID_PITCH_DEFAULT = 2;
+export const SNAP_GRID_COLS_DEFAULT = 3;
+export const SNAP_GRID_ROWS_DEFAULT = 3;
 
 /** y the editor draws snap markers at: on the felt, under everything that rests on it. */
 export const SNAP_MARKER_Y = TABLE_TOP_Y + 0.0015;

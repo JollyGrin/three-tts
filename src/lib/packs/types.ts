@@ -119,6 +119,12 @@ export type PackPieceDef = {
 	sides?: DieSides;
 	/** table-plane position [x, z] in world units */
 	position: [number, number];
+	/**
+	 * Whether snap points (and grids) pull this piece's drops. Default `true`;
+	 * `false` is the per-piece opt-out — a big room section should snap to the
+	 * grid, a loose prop shouldn't.
+	 */
+	snap?: boolean;
 	/** bags only — what a draw pulls out. Hidden from every player in play. */
 	contents?: PackBagItemDef[];
 	/** bags only — draw order; defaults to `'random'` */

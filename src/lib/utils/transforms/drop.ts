@@ -1,3 +1,4 @@
+import { DEG2RAD } from 'three/src/math/MathUtils.js';
 import type { GameDTO } from '$lib/store/game/types';
 import { TABLE_FEATURES_DEFAULT, type TableFeatures } from '$lib/store/tableFeatures';
 import {
@@ -49,9 +50,15 @@ export interface DropTarget {
 	 * Set when `kind === 'snap'`: the point that caught the drop — its id, its
 	 * catch radius (the preview draws it), and the yaw it authored, if any, so
 	 * the commit can tell "this drop turned the entity" from "this drop only
-	 * moved it" without diffing rotations.
+	 * moved it" without diffing rotations. `grid` is set when the catcher was
+	 * a grid cell, so the preview can draw the cell instead of a ring.
 	 */
-	snap?: { id: string; radius: number; rotation?: number };
+	snap?: {
+		id: string;
+		radius: number;
+		rotation?: number;
+		grid?: { pitch: number; rotation: number };
+	};
 }
 
 export interface DropHover {
@@ -78,6 +85,15 @@ export interface DropOptions {
 	 * module-global — can't win a drop the editor has no way to represent.
 	 */
 	hand?: TableFeatures['hand'];
+	/**
+	 * A second floor source, for surfaces that aren't snap points: the model
+	 * catalog (tableplace-135) injects raycast surface height over model
+	 * meshes here — rudimentary collision. The effective floor for a landing
+	 * is `snap.y ?? surfaceYAt?.(x, z) ?? TABLE_TOP_Y`. Left undefined by
+	 * every current caller; it exists so #135 can plug in without touching
+	 * the precedence rules.
+	 */
+	surfaceYAt?: (x: number, z: number) => number | undefined;
 }
 
 /** What the caught drop reports back about the point that caught it. */
@@ -85,7 +101,8 @@ function snapInfo(snap: SnapResolution): NonNullable<DropTarget['snap']> {
 	return {
 		id: snap.id,
 		radius: snap.radius,
-		...(snap.rotation !== undefined ? { rotation: snap.rotation } : {})
+		...(snap.rotation !== undefined ? { rotation: snap.rotation } : {}),
+		...(snap.grid ? { grid: snap.grid } : {})
 	};
 }
 
@@ -152,10 +169,31 @@ export function resolveDrop(
 	const [x, z] = clampToTable(rawPoint?.x ?? ex, rawPoint?.z ?? ez);
 	const rotation = (entity.rotation ?? [0, 0, 0]) as [number, number, number];
 
+	// the entity's current table yaw in DEGREES, whatever unit and slot its
+	// kind stores it in — a grid cell's yaw stepping rounds this
+	const entityYaw = isDeck
+		? (rotation[1] ?? 0) / DEG2RAD
+		: isPiece
+			? (rotation[1] ?? 0)
+			: (rotation[2] ?? 0);
+
 	// An authored snap point pulls the landing onto itself. Alt opts out — it is
-	// already the "put it exactly where I said" modifier — and the aimed-at
-	// targets (bag, deck, tray) still beat proximity.
-	const snap = options.noSnap ? null : resolveSnap(state?.snapPoints, x, z);
+	// already the "put it exactly where I said" modifier — as does a piece
+	// authored with `snap: false`; the aimed-at targets (bag, deck, tray) still
+	// beat proximity either way.
+	const pieceOptedOut = isPiece && 'snap' in entity && entity.snap === false;
+	const snap =
+		options.noSnap || pieceOptedOut ? null : resolveSnap(state?.snapPoints, x, z, entityYaw);
+
+	/**
+	 * The local floor a landing rests on — the one seam elevation flows
+	 * through: an elevated snap point's `y` first, then whatever surface the
+	 * route injects (model meshes, tableplace-135), then the felt. Every rest
+	 * height below is computed exactly as it always was, with this substituted
+	 * for the table top.
+	 */
+	const floorAt = (fx: number, fz: number, snapY?: number) =>
+		snapY ?? options.surfaceYAt?.(fx, fz) ?? TABLE_TOP_Y;
 
 	// A bag swallows what is dropped on it — cards and pieces alike — so it is
 	// resolved before the piece branch, and before the snap pull those branches
@@ -202,12 +240,13 @@ export function resolveDrop(
 	if (isPiece) {
 		const r = ('radius' in entity ? entity.radius : undefined) ?? PIECE_DEFAULT_RADIUS;
 		const [px, pz] = snap ? [snap.x, snap.z] : [x, z];
+		const floor = floorAt(px, pz, snap?.y);
 		return {
 			kind: snap ? 'snap' : 'table',
-			position: [px, PIECE_REST_Y, pz],
+			position: [px, floor + (PIECE_REST_Y - TABLE_TOP_Y), pz],
 			rotation: applySnapRotation(rotation, snap?.rotation, 'piece'),
 			footprint: { shape: 'circle', r },
-			footprintY: TABLE_TOP_Y,
+			footprintY: floor,
 			...(snap ? { snap: snapInfo(snap) } : {})
 		};
 	}
@@ -223,14 +262,15 @@ export function resolveDrop(
 	// applySnapRotation.
 	if (isDeck) {
 		const count = ('cards' in entity ? entity.cards : undefined)?.length ?? 0;
-		const restY = TABLE_TOP_Y + deckHeightForCount(count) / 2;
 		const [dx, dz] = snap ? [snap.x, snap.z] : [x, z];
+		const floor = floorAt(dx, dz, snap?.y);
+		const restY = floor + deckHeightForCount(count) / 2;
 		return {
 			kind: snap ? 'snap' : 'table',
 			position: [dx, restY, dz],
 			rotation: applySnapRotation(rotation, snap?.rotation, 'deck'),
 			footprint: { shape: 'rect', w: CARD_WIDTH, h: CARD_HEIGHT },
-			footprintY: TABLE_TOP_Y,
+			footprintY: floor,
 			...(snap ? { snap: snapInfo(snap) } : {})
 		};
 	}
@@ -268,20 +308,24 @@ export function resolveDrop(
 	// the deck and tray, which are aimed-at targets rather than a side effect
 	// of proximity.
 	if (options.noSnap) {
+		const floor = floorAt(x, z);
+		const restY = floor + (CARD_REST_Y - TABLE_TOP_Y);
 		return {
 			kind: 'table',
-			position: [x, CARD_REST_Y, z],
+			position: [x, restY, z],
 			rotation,
 			footprint,
-			footprintY: CARD_REST_Y
+			footprintY: restY
 		};
 	}
 
 	// A caught card commits on the point exactly, but still stacks: the resting
-	// height comes from whatever is already sitting there, so a second card on
-	// the same snap point lands on top of the first instead of inside it.
+	// height comes from whatever is already sitting there — relative to the
+	// point's own floor when it authors one, so a card dropped on a card on an
+	// elevated point lands on top of it, not inside it.
 	if (snap) {
-		const stack = resolveStack(state?.cards, dragId, snap.x, snap.z);
+		const floor = floorAt(snap.x, snap.z, snap.y);
+		const stack = resolveStack(state?.cards, dragId, snap.x, snap.z, floor);
 		return {
 			kind: 'snap',
 			position: [snap.x, stack.restY, snap.z],
@@ -294,7 +338,7 @@ export function resolveDrop(
 
 	// landing on a pile squares up to its base XZ (resolveStack), so cards
 	// dropped roughly together settle into a neat stack instead of a fan
-	const stack = resolveStack(state?.cards, dragId, x, z);
+	const stack = resolveStack(state?.cards, dragId, x, z, floorAt(x, z));
 	return {
 		kind: stack.count > 0 ? 'stack' : 'table',
 		position: [stack.x, stack.restY, stack.z],
