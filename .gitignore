@@ -23,6 +23,9 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# E2E render harness evidence (uploaded as a CI artifact, never committed)
+/e2e/screenshots
+
 # Go
 *.exe
 *.exe~

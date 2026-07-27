@@ -9,7 +9,11 @@
  */
 
 import type { Browser, ConsoleMessage, Page } from 'puppeteer-core';
+import { mkdirSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import type { Servers } from './servers';
 
 export type Problem = { kind: 'console' | 'pageerror' | 'requestfailed'; text: string };
@@ -48,8 +52,16 @@ export type Table = {
 	) => Promise<void>;
 	positionOf: (id: string) => Promise<number[] | null>;
 	settle: (ms?: number) => Promise<void>;
+	/**
+	 * capture the page to e2e/screenshots/<name>.png — the visual-polish
+	 * train's evidence artifact — failing if the frame is silently blank
+	 */
+	snap: (name: string) => Promise<string>;
 	close: () => Promise<void>;
 };
+
+/** gitignored; CI uploads it as the `e2e-screenshots` artifact */
+const SCREENSHOT_DIR = fileURLToPath(new URL('./screenshots/', import.meta.url));
 
 /**
  * Noise that is the *environment*, never the app: SwiftShader's warnings, and a
@@ -257,6 +269,97 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		await dragFromTo(id, from, to, { ...options, hold: holdFor(id) });
 	};
 
+	/**
+	 * One PNG per spec, written after a settle so the springs are done posing.
+	 *
+	 * The flat-color guard exists because SwiftShader's failure mode is not an
+	 * error but an empty frame: the harness's structural assertions (mesh
+	 * counts, raycasts) all keep passing while the canvas draws nothing. So the
+	 * check reads pixels back from the PNG that was actually written — not from
+	 * the live canvas, whose drawing buffer may not even be preserved — by
+	 * loading it into the page and sampling a grid of points inside the table
+	 * canvas's own box. Points the HUD panes cover are skipped: a pane's chrome
+	 * would count as "variation" over a canvas that rendered nothing at all.
+	 */
+	const snap = async (name: string) => {
+		await settle();
+		mkdirSync(SCREENSHOT_DIR, { recursive: true });
+		const file = join(SCREENSHOT_DIR, `${name}.png`);
+		const png = new Uint8Array(await page.screenshot({ type: 'png' }));
+		await writeFile(file, png);
+
+		const sampled = await page.evaluate(
+			async (dataUrl) => {
+				const image = new Image();
+				await new Promise<void>((resolve, reject) => {
+					image.onload = () => resolve();
+					image.onerror = () => reject(new Error('the captured PNG did not decode'));
+					image.src = dataUrl;
+				});
+				const surface = document.createElement('canvas');
+				surface.width = image.width;
+				surface.height = image.height;
+				const context = surface.getContext('2d');
+				if (!context) return { points: 0, spread: 0 };
+				context.drawImage(image, 0, 0);
+
+				// the WebGL table is the biggest canvas on the page — the HUD's
+				// Tweakpane panes each carry small canvases of their own
+				const table = [...document.querySelectorAll('canvas')].sort(
+					(a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight
+				)[0];
+				const box = table?.getBoundingClientRect();
+				if (!table || !box || !box.width || !box.height) return { points: 0, spread: 0 };
+				// the screenshot is in device pixels; the box is in CSS pixels
+				const scaleX = image.width / window.innerWidth;
+				const scaleY = image.height / window.innerHeight;
+
+				const low = [255, 255, 255];
+				const high = [0, 0, 0];
+				let points = 0;
+				const STEPS = 8;
+				for (let row = 1; row < STEPS; row++) {
+					for (let column = 1; column < STEPS; column++) {
+						const cssX = box.left + (box.width * column) / STEPS;
+						const cssY = box.top + (box.height * row) / STEPS;
+						if (document.elementFromPoint(cssX, cssY) !== table) continue;
+						const pixel = context.getImageData(
+							Math.round(cssX * scaleX),
+							Math.round(cssY * scaleY),
+							1,
+							1
+						).data;
+						points++;
+						for (const channel of [0, 1, 2]) {
+							low[channel] = Math.min(low[channel]!, pixel[channel]!);
+							high[channel] = Math.max(high[channel]!, pixel[channel]!);
+						}
+					}
+				}
+				// how far apart the sampled pixels are, on the widest RGB channel.
+				// A blank canvas shows the page background through: measured ≤5
+				// even with a HUD pane's drop shadow grazing a sample, while the
+				// felt's own shading alone spans ≥29 — so 16 splits them cleanly
+				// without caring what color anything is.
+				const spread = Math.max(high[0]! - low[0]!, high[1]! - low[1]!, high[2]! - low[2]!);
+				return { points, spread };
+			},
+			`data:image/png;base64,${Buffer.from(png).toString('base64')}`
+		);
+
+		if (sampled.points === 0) {
+			throw new Error(`screenshot ${name}.png: found no table canvas pixels to sample`);
+		}
+		if (sampled.spread < 16) {
+			throw new Error(
+				`screenshot ${name}.png is one flat color across ${sampled.points} sampled canvas ` +
+					`points (RGB spread ${sampled.spread}) — SwiftShader rendered a blank frame. ` +
+					`The PNG is at ${file}.`
+			);
+		}
+		return file;
+	};
+
 	return {
 		page,
 		problems,
@@ -271,6 +374,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		dragTo,
 		positionOf,
 		settle,
+		snap,
 		close: () => page.close()
 	};
 }
