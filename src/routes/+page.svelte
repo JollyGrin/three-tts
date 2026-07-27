@@ -208,7 +208,7 @@
 			<p class="mt-4 max-w-2xl text-lg text-emerald-950/80">
 				Want to see what's already playable? Browse the
 				<a
-					href="https://demos.table.place"
+					href="https://demo.table.place"
 					class="underline decoration-emerald-700/40 underline-offset-4 hover:text-emerald-950"
 					>demos gallery of games on table.place</a
 				> — ready-made tables you can open and play right away.
@@ -231,7 +231,7 @@
 			<span class="wordmark text-base text-emerald-50">table.place</span>
 			<span class="alpha-badge">alpha</span>
 			<span>free, no accounts</span>
-			<a href="https://demos.table.place" class="link-light ml-auto">Game demos</a>
+			<a href="https://demo.table.place" class="link-light ml-auto">Game demos</a>
 			<a href="https://github.com/JollyGrin/tableplace" class="link-light">GitHub</a>
 		</div>
 	</footer>
