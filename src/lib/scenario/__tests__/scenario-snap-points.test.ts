@@ -202,6 +202,40 @@ describe('snap points through save → export → import → load', () => {
 		expect(get(gameStore).pieces?.[id]?.snap).toBeUndefined();
 	});
 
+	it('a landscape card landed on a grid keeps its orientation and still taps on the 90° lattice', () => {
+		// tableplace-132 composition: `orientation` is a render-only quarter
+		// turn and the synced rotation[2] stays orientation-relative. The grid
+		// steps that synced yaw, the commit writes position + rotation only, so
+		// the orientation field survives the landing — and tapCard (additive on
+		// rotation[2]) keeps working in 90° steps afterwards.
+		const id = 'card:seat0:site';
+		gameStore.updateState({
+			cards: {
+				[id]: {
+					position: [0, 2, 0],
+					rotation: [0, 0, 130],
+					faceImageUrl: 'f.png',
+					orientation: 'landscape'
+				}
+			}
+		});
+		gameActions.addSnapPoint({ position: [10, 2], kind: 'grid', pitch: 2, cols: 3, rows: 3 });
+
+		const drop = resolveDrop(get(gameStore), id, { x: 10, z: 2 });
+		expect(drop?.kind).toBe('snap');
+		// commit the exact patch a release writes: position + rotation, nothing else
+		gameStore.updateState({
+			cards: { [id]: { position: drop!.position, rotation: drop!.rotation } }
+		});
+
+		const landed = get(gameStore).cards?.[id];
+		expect(landed?.orientation).toBe('landscape'); // untouched by the landing
+		expect(landed?.rotation?.[2]).toBe(90); // 130 stepped in SYNCED space
+
+		gameActions.tapCard(false, id);
+		expect(get(gameStore).cards?.[id]?.rotation?.[2]).toBe(180); // still 90° steps
+	});
+
 	it('leaves a loaded table where a dropped card actually snaps', async () => {
 		const scenario = importScenarioFromText(
 			JSON.stringify({

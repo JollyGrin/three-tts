@@ -730,6 +730,51 @@ describe('resolveDrop', () => {
 			const s = withGrid({ cards: { a: card(0, 2, 0) } });
 			expect(resolveDrop(s, 'a', { x: 10, z: 2 }, {}, { noSnap: true })?.kind).toBe('table');
 		});
+
+		/**
+		 * Composition with per-card `orientation` (tableplace-132). A landscape
+		 * card's quarter turn is render-only: the synced rotation[2] stays
+		 * orientation-relative, and tapCard is additive on it. The grid must
+		 * therefore step the SYNCED yaw and never consult the rendered one —
+		 * stepping rendered yaw would bake the 90° offset into the store, the
+		 * exact leak tableplace-132 was built to prevent, and tapping the landed
+		 * card would then lay it the wrong way.
+		 */
+		describe('composes with per-card orientation (tableplace-132)', () => {
+			const landscape = (
+				x: number,
+				y: number,
+				z: number,
+				rotation: [number, number, number] = [0, 0, 0]
+			) => ({ ...card(x, y, z, rotation), orientation: 'landscape' as const });
+
+			it('a resting landscape card (synced yaw 0) lands with its yaw untouched', () => {
+				// stepped from the rendered yaw it would come back 90 — the card
+				// would stand upright on landing instead of staying landscape
+				const s = withGrid({ cards: { a: landscape(0, 2, 0) } });
+				expect(resolveDrop(s, 'a', { x: 10, z: 2 })?.rotation).toEqual([0, 0, 0]);
+			});
+
+			it('steps identically to a portrait card with the same synced rotation', () => {
+				// the resolver is orientation-blind on purpose: the offset lives in
+				// the renderer, so in synced space the two cards are the same card
+				const asLandscape = withGrid({ cards: { a: landscape(0, 2, 0, [180, 0, 130]) } });
+				const asPortrait = withGrid({ cards: { a: card(0, 2, 0, [180, 0, 130]) } });
+				const landed = resolveDrop(asLandscape, 'a', { x: 10, z: 2 });
+				expect(landed?.rotation).toEqual([180, 0, 90]);
+				expect(landed?.rotation).toEqual(resolveDrop(asPortrait, 'a', { x: 10, z: 2 })?.rotation);
+			});
+
+			it('keeps a discrete point yaw orientation-relative too', () => {
+				const s = state({
+					snapPoints: { 'snap:0': { id: 'snap:0', position: [4, 2], radius: 1, rotation: 90 } },
+					cards: { a: landscape(0, 2, 0) }
+				});
+				// the authored 90 goes into the synced slot as-is; the renderer
+				// adds the landscape quarter-turn on top
+				expect(resolveDrop(s, 'a', { x: 4, z: 2 })?.rotation).toEqual([0, 0, 90]);
+			});
+		});
 	});
 
 	describe('per-piece snap opt-out (snap: false)', () => {
