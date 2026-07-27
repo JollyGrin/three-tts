@@ -10,10 +10,11 @@ export default defineConfig({
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
 			manifest: {
-				name: 'TableTop Browser',
-				short_name: 'TTB',
-				description: 'A tabletop simulator in the browser',
-				theme_color: '#ffffff',
+				name: 'table.place',
+				short_name: 'table.place',
+				description: 'Board games in your browser. No installs, no accounts — a table is just a link.',
+				theme_color: '#1d5c3a',
+				background_color: '#123f27',
 				icons: [
 					{
 						src: 'favicon.png',
