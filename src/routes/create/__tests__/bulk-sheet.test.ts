@@ -167,6 +167,20 @@ describe('buildBulkCards', () => {
 		expect(new Set(cards.map((c) => c.code)).size).toBe(6);
 	});
 
+	it('stamps orientation on the whole batch only when asked (tableplace-132)', () => {
+		const portrait = buildBulkCards({ url: SHEET, cols: 2, rows: 1, cells: cellsWith(2, 1) });
+		expect(portrait.every((c) => c.orientation === undefined)).toBe(true);
+
+		const landscape = buildBulkCards({
+			url: SHEET,
+			cols: 2,
+			rows: 1,
+			cells: cellsWith(2, 1),
+			landscape: true
+		});
+		expect(landscape.every((c) => c.orientation === 'landscape')).toBe(true);
+	});
+
 	it('skips excluded cells — a partial last row is not a special case', () => {
 		const cells = cellsWith(3, 2, [{}, {}, {}, {}, { include: false }, { include: false }]);
 		const cards = buildBulkCards({ url: SHEET, cols: 3, rows: 2, cells });

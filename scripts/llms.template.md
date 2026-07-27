@@ -147,7 +147,7 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 - **`name`** — human-readable title.
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
-  - **`cards[]`** — `code` (stable id within the deck), optional `name`, and `face` (a face ref).
+  - **`cards[]`** — `code` (stable id within the deck), optional `name`, `face` (a face ref), and optional `orientation` — `"portrait"` (default) or `"landscape"`. A landscape card rests turned 90° everywhere it renders (board, hand, preview) while its art stays portrait in the image; use it for cards that are played sideways (the analog of Tabletop Simulator's `SidewaysCard`).
 - **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
@@ -200,7 +200,7 @@ A piece of `kind: "bag"` is a container: a pouch holding a pool nobody can look 
 }
 ```
 
-- **`contents`** — what the bag holds, in insertion order. Each entry is either a **piece item** — `kind` `"token"`, `"pawn"` or `"counter"`, plus `name` and the optional `color` / `imageUrl` / `radius` / `maxValue`; there is no `position`, because the draw decides where it lands — or a **card item**: `kind: "card"` plus `code`, optional `name`, `face` (a face ref, §5) and optional `back`.
+- **`contents`** — what the bag holds, in insertion order. Each entry is either a **piece item** — `kind` `"token"`, `"pawn"` or `"counter"`, plus `name` and the optional `color` / `imageUrl` / `radius` / `maxValue`; there is no `position`, because the draw decides where it lands — or a **card item**: `kind: "card"` plus `code`, optional `name`, `face` (a face ref, §5), optional `back` and optional `orientation` (§6.1).
 - **`drawMode`** — `"random"` (the default: a blind draw), `"lifo"` (last in, first out — a stack) or `"fifo"` (a queue).
 - **`infinite`** — `true` makes each draw **clone** the item rather than remove it, so the bag never empties. Its badge reads `∞`.
 - `code` must be **unique within the bag**, like a deck's card codes: the drawn card's table id is built from it.

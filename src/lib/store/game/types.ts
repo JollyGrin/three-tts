@@ -6,6 +6,16 @@ export type CardDTO = {
 	rotation: [number, number, number];
 	faceImageUrl: string;
 	backImageUrl?: string;
+	/**
+	 * Default resting orientation (pack `PackCardDef.orientation`). Landscape
+	 * cards render turned 90° in every renderer, while `rotation` stays
+	 * orientation-relative — `tapCard` is additive on `rotation[2]` and the
+	 * snap/group logic assumes a squared-up yaw is `z % 180 == 0`, so the
+	 * quarter turn must never be baked into the persisted rotation. Its own
+	 * field (not part of `rotation`) so it survives the `CardInDeck` hop,
+	 * which strips `rotation`. Absent = 'portrait'.
+	 */
+	orientation?: 'portrait' | 'landscape';
 };
 
 export type CardInDeck = Omit<CardDTO, 'position' | 'rotation'> & { id: string };
@@ -105,6 +115,8 @@ export type BagCardItem = {
 	name?: string;
 	face: string;
 	back?: string;
+	/** default resting orientation of the drawn card; absent = 'portrait' */
+	orientation?: 'portrait' | 'landscape';
 };
 
 export type BagItem = BagPieceItem | BagCardItem;

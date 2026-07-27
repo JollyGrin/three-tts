@@ -142,3 +142,92 @@ describe('ttsToPack on a save containing containers', () => {
 		expect(parsed.skipped).toEqual(['Fancy (Custom_Assetbundle in bag)']);
 	});
 });
+
+describe('SidewaysCard → orientation (tableplace-132)', () => {
+	const sheet = {
+		FaceURL: 'https://example.com/sheet.png',
+		BackURL: 'https://example.com/back.png',
+		NumWidth: 2,
+		NumHeight: 1
+	};
+
+	it('maps a per-card flag, and the deck-level flag as the pile default', () => {
+		const parsed = parseSavedObject({
+			ObjectStates: [
+				{
+					Name: 'Deck',
+					Nickname: 'Atlas',
+					DeckIDs: [100, 101],
+					CustomDeck: { '1': sheet },
+					ContainedObjects: [
+						{ Name: 'Card', Nickname: 'Site', CardID: 100, SidewaysCard: true },
+						{ Name: 'Card', Nickname: 'Spell', CardID: 101, SidewaysCard: false }
+					]
+				},
+				{
+					Name: 'Deck',
+					Nickname: 'All Sideways',
+					SidewaysCard: true,
+					DeckIDs: [100],
+					CustomDeck: { '1': sheet },
+					ContainedObjects: [{ Name: 'Card', Nickname: 'Board', CardID: 100 }]
+				}
+			]
+		});
+		const pack = ttsToPack(parsed);
+		const [atlas, allSideways] = pack.decks;
+		expect(atlas.cards[0].orientation).toBe('landscape');
+		expect(atlas.cards[1].orientation).toBeUndefined();
+		expect(allSideways.cards[0].orientation).toBe('landscape');
+	});
+
+	it('maps the flag on a loose card and on a card in a bag', () => {
+		const parsed = parseSavedObject({
+			ObjectStates: [
+				{
+					Name: 'Card',
+					Nickname: 'Lone Site',
+					CardID: 100,
+					CustomDeck: { '1': sheet },
+					SidewaysCard: true
+				},
+				{
+					Name: 'Bag',
+					Nickname: 'Site Bag',
+					ContainedObjects: [
+						{
+							Name: 'Card',
+							Nickname: 'Bagged Site',
+							CardID: 101,
+							CustomDeck: { '1': sheet },
+							SidewaysCard: true
+						}
+					]
+				}
+			]
+		});
+		expect(parsed.looseCards[0].sideways).toBe(true);
+		const pack = ttsToPack(parsed);
+		// loose cards group into the face-up 'loose' pile
+		const loose = pack.decks.find((d) => d.slot === 'loose-cards');
+		expect(loose?.cards[0].orientation).toBe('landscape');
+		const bag = pack.pieces?.find((p) => p.kind === 'bag');
+		expect(bag?.contents?.[0]).toMatchObject({ kind: 'card', orientation: 'landscape' });
+	});
+
+	it('the mapped pack still round-trips as tbpp', () => {
+		const parsed = parseSavedObject({
+			ObjectStates: [
+				{
+					Name: 'Card',
+					Nickname: 'Lone Site',
+					CardID: 100,
+					CustomDeck: { '1': sheet },
+					SidewaysCard: true
+				}
+			]
+		});
+		const pack = ttsToPack(parsed);
+		expect(parsePackFile(serializePackFile(pack))).toEqual(pack);
+	});
+});

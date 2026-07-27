@@ -59,6 +59,12 @@
 											"description": "Face ref: https url, `sheet:` descriptor, or `gen:` scheme",
 											"type": "string",
 											"title": "face"
+										},
+										"orientation": {
+											"description": "default resting orientation; absent = 'portrait' (TTS analog: SidewaysCard)",
+											"enum": ["landscape", "portrait"],
+											"type": "string",
+											"title": "orientation"
 										}
 									},
 									"required": ["code", "face"]
@@ -303,6 +309,12 @@
 						"back": {
 							"type": "string",
 							"title": "back"
+						},
+						"orientation": {
+							"description": "default resting orientation; absent = 'portrait'",
+							"enum": ["landscape", "portrait"],
+							"type": "string",
+							"title": "orientation"
 						}
 					},
 					"required": ["code", "face", "kind"]
@@ -311,7 +323,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.3.0",
-	"x-generated-at": "2026-07-25T14:26:38.507Z",
-	"x-tableplace-source-sha": "d5a1b8460d539d961a93caa6935931fdbb35557c-dirty"
+	"x-tableplace-spec-version": "1.4.0",
+	"x-generated-at": "2026-07-27T01:05:03.812Z",
+	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
 }

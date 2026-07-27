@@ -33,7 +33,7 @@ Every file carries an in-band discriminator at the top level: `"tbpp": 1` or `"t
 
 ### 2.1 Spec versions
 
-Current: **pack `1.3.0`**, **scenario `0.1.6`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
+Current: **pack `1.4.0`**, **scenario `0.1.7`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
 
 Two version fields exist and they answer different questions:
 
@@ -168,12 +168,12 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 
 ### 6.1 Fields
 
-- **`specVersion`** — the pack spec you generated against (§2.1). Currently `1.3.0`.
+- **`specVersion`** — the pack spec you generated against (§2.1). Currently `1.4.0`.
 - **`id`** — stable identity for the pack, e.g. `ember-duel`. See §8 on collisions.
 - **`name`** — human-readable title.
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
-  - **`cards[]`** — `code` (stable id within the deck), optional `name`, and `face` (a face ref).
+  - **`cards[]`** — `code` (stable id within the deck), optional `name`, `face` (a face ref), and optional `orientation` — `"portrait"` (default) or `"landscape"`. A landscape card rests turned 90° everywhere it renders (board, hand, preview) while its art stays portrait in the image; use it for cards that are played sideways (the analog of Tabletop Simulator's `SidewaysCard`).
 - **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
@@ -226,7 +226,7 @@ A piece of `kind: "bag"` is a container: a pouch holding a pool nobody can look 
 }
 ```
 
-- **`contents`** — what the bag holds, in insertion order. Each entry is either a **piece item** — `kind` `"token"`, `"pawn"` or `"counter"`, plus `name` and the optional `color` / `imageUrl` / `radius` / `maxValue`; there is no `position`, because the draw decides where it lands — or a **card item**: `kind: "card"` plus `code`, optional `name`, `face` (a face ref, §5) and optional `back`.
+- **`contents`** — what the bag holds, in insertion order. Each entry is either a **piece item** — `kind` `"token"`, `"pawn"` or `"counter"`, plus `name` and the optional `color` / `imageUrl` / `radius` / `maxValue`; there is no `position`, because the draw decides where it lands — or a **card item**: `kind: "card"` plus `code`, optional `name`, `face` (a face ref, §5), optional `back` and optional `orientation` (§6.1).
 - **`drawMode`** — `"random"` (the default: a blind draw), `"lifo"` (last in, first out — a stack) or `"fifo"` (a queue).
 - **`infinite`** — `true` makes each draw **clone** the item rather than remove it, so the bag never empties. Its badge reads `∞`.
 - `code` must be **unique within the bag**, like a deck's card codes: the drawn card's table id is built from it.
@@ -300,6 +300,12 @@ A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of
 											"description": "Face ref: https url, `sheet:` descriptor, or `gen:` scheme",
 											"type": "string",
 											"title": "face"
+										},
+										"orientation": {
+											"description": "default resting orientation; absent = 'portrait' (TTS analog: SidewaysCard)",
+											"enum": ["landscape", "portrait"],
+											"type": "string",
+											"title": "orientation"
 										}
 									},
 									"required": ["code", "face"]
@@ -544,6 +550,12 @@ A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of
 						"back": {
 							"type": "string",
 							"title": "back"
+						},
+						"orientation": {
+							"description": "default resting orientation; absent = 'portrait'",
+							"enum": ["landscape", "portrait"],
+							"type": "string",
+							"title": "orientation"
 						}
 					},
 					"required": ["code", "face", "kind"]
@@ -552,9 +564,9 @@ A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.3.0",
-	"x-generated-at": "2026-07-25T14:26:38.507Z",
-	"x-tableplace-source-sha": "d5a1b8460d539d961a93caa6935931fdbb35557c-dirty"
+	"x-tableplace-spec-version": "1.4.0",
+	"x-generated-at": "2026-07-27T01:05:03.812Z",
+	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
 }
 ```
 
@@ -566,7 +578,7 @@ A complete, valid pack. Save as `ember-duel.tbpp.json` and import it from the ta
 {
 	"$schema": "https://table.place/pack.schema.json",
 	"tbpp": 1,
-	"specVersion": "1.3.0",
+	"specVersion": "1.4.0",
 	"id": "ember-duel",
 	"name": "Ember Duel",
 	"scope": "player",
@@ -604,6 +616,12 @@ A complete, valid pack. Save as `ember-duel.tbpp.json` and import it from the ta
 					"code": "wound",
 					"name": "Wound",
 					"face": "https://example.com/img/wound.png"
+				},
+				{
+					"code": "rampart",
+					"name": "Rampart",
+					"face": "https://example.com/img/rampart.png",
+					"orientation": "landscape"
 				}
 			]
 		}
@@ -690,7 +708,7 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
 
 ### 7.1 Fields
 
-- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `0.1.6`.
+- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `0.1.7`.
 - **`name`**, **`createdAt`** — title and a Unix epoch timestamp in milliseconds.
 - **`packs[]`** — `{ id, source? }` for every pack the scenario draws from. `source` is `"builtin"` for packs shipped with the app (currently only `standard-52`), `"local"` for a pack held in the reader's own browser-local pack library, or an `https://` URL a `.tbpp.json` can be fetched from. A remote pack goes through the same validation as a local import. A scenario meant to travel to other people must use `"builtin"` or a URL: `"local"` resolves only on the machine that has the pack, and fails loudly (naming the pack id) anywhere else.
 - **`placements[]`** — one entry per spawned thing:
@@ -1051,6 +1069,12 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 				"backImageUrl": {
 					"type": "string",
 					"title": "backImageUrl"
+				},
+				"orientation": {
+					"description": "Default resting orientation (pack `PackCardDef.orientation`). Landscape\ncards render turned 90° in every renderer, while `rotation` stays\norientation-relative — `tapCard` is additive on `rotation[2]` and the\nsnap/group logic assumes a squared-up yaw is `z % 180 == 0`, so the\nquarter turn must never be baked into the persisted rotation. Its own\nfield (not part of `rotation`) so it survives the `CardInDeck` hop,\nwhich strips `rotation`. Absent = 'portrait'.",
+					"enum": ["landscape", "portrait"],
+					"type": "string",
+					"title": "orientation"
 				}
 			}
 		},
@@ -1178,6 +1202,12 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 				"backImageUrl": {
 					"type": "string",
 					"title": "backImageUrl"
+				},
+				"orientation": {
+					"description": "Default resting orientation (pack `PackCardDef.orientation`). Landscape\ncards render turned 90° in every renderer, while `rotation` stays\norientation-relative — `tapCard` is additive on `rotation[2]` and the\nsnap/group logic assumes a squared-up yaw is `z % 180 == 0`, so the\nquarter turn must never be baked into the persisted rotation. Its own\nfield (not part of `rotation`) so it survives the `CardInDeck` hop,\nwhich strips `rotation`. Absent = 'portrait'.",
+					"enum": ["landscape", "portrait"],
+					"type": "string",
+					"title": "orientation"
 				}
 			},
 			"required": ["faceImageUrl"]
@@ -1510,6 +1540,12 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 						"back": {
 							"type": "string",
 							"title": "back"
+						},
+						"orientation": {
+							"description": "default resting orientation of the drawn card; absent = 'portrait'",
+							"enum": ["landscape", "portrait"],
+							"type": "string",
+							"title": "orientation"
 						}
 					},
 					"required": ["code", "face", "kind"]
@@ -1553,9 +1589,9 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.6",
-	"x-generated-at": "2026-07-25T14:26:38.507Z",
-	"x-tableplace-source-sha": "d5a1b8460d539d961a93caa6935931fdbb35557c-dirty"
+	"x-tableplace-spec-version": "0.1.7",
+	"x-generated-at": "2026-07-27T01:05:03.812Z",
+	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
 }
 ```
 
@@ -1567,7 +1603,7 @@ Two packs — one builtin, one fetched from `https://example.com/packs/ember-due
 {
 	"$schema": "https://table.place/scenario.schema.json",
 	"tbps": 2,
-	"specVersion": "0.1.6",
+	"specVersion": "0.1.7",
 	"name": "ember-duel-opening",
 	"createdAt": 1700000000000,
 	"packs": [

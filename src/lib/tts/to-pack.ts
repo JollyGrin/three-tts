@@ -50,7 +50,9 @@ function toDeck(
 			return {
 				code,
 				...(card.name ? { name: card.name } : {}),
-				face: cellToRef(card.face, { name: card.name })
+				face: cellToRef(card.face, { name: card.name }),
+				// TTS SidewaysCard → the pack's per-card default orientation
+				...(card.sideways ? { orientation: 'landscape' as const } : {})
 			};
 		})
 	};
@@ -85,7 +87,8 @@ function toBagContents(items: ParsedBagItem[]): PackBagItemDef[] {
 			code,
 			...(item.name ? { name: item.name } : {}),
 			face: cellToRef(item.face, { name: item.name }),
-			back: cellToRef(item.back, { back: true })
+			back: cellToRef(item.back, { back: true }),
+			...(item.sideways ? { orientation: 'landscape' as const } : {})
 		};
 	});
 }

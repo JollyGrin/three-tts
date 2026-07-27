@@ -43,7 +43,11 @@ function importEditExport(): { draft: EditorPack; exported: string } {
 	// edit: touch metadata and cards, then author every primitive the pane offers
 	draft.name = 'Clone Troopers (edited)';
 	draft.decks[0].cards[0].name = 'Renamed Card';
-	draft.decks[0].cards.push({ code: 'AS', name: 'Ace of Spades', face: 'gen:std52/AS' });
+	draft.decks[0].cards.push(
+		{ code: 'AS', name: 'Ace of Spades', face: 'gen:std52/AS', orientation: 'portrait' },
+		// a sideways card (tableplace-132): only 'landscape' ships in the file
+		{ code: 'site', name: 'Site', face: 'gen:std52/KH', orientation: 'landscape' }
+	);
 	const editorPiece = (over: Partial<EditorPiece>): EditorPiece => ({
 		kind: 'token',
 		name: '',
@@ -191,6 +195,13 @@ describe('/create round-trip (tts-clonetroopers.json)', () => {
 		// editor's own Image URL field was left empty
 		expect(brazier?.imageUrl).toBe('https://example.com/brazier-lit.png');
 		expect(brazier?.state).toBe(2);
+	});
+
+	it('ships a landscape orientation and strips the portrait default', () => {
+		const pack = parsePackFile(importEditExport().exported);
+		const cards = pack.decks[0].cards;
+		expect(cards.find((c) => c.code === 'site')?.orientation).toBe('landscape');
+		expect(cards.find((c) => c.code === 'AS')?.orientation).toBeUndefined();
 	});
 
 	it('strips editing defaults instead of shipping them', () => {

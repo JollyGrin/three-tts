@@ -8,12 +8,23 @@
 // (scripts/build-schemas.ts), and that program is compiled without the
 // SvelteKit path aliases
 import type { DieSides } from '../store/game/types';
+
+/**
+ * Which way a card rests when squared up. `'landscape'` cards (e.g. Sorcery
+ * TCG sites) render turned 90° everywhere — board, hand, preview — while the
+ * persisted rotation state stays orientation-relative, so tap/flip/snap logic
+ * never sees the extra quarter turn. Absent means `'portrait'`.
+ */
+export type CardOrientation = 'portrait' | 'landscape';
+
 export type PackCardDef = {
 	/** Stable code within the pack, e.g. 'AS' (ace of spades) */
 	code: string;
 	name?: string;
 	/** Face ref: https url, `sheet:` descriptor, or `gen:` scheme */
 	face: string;
+	/** default resting orientation; absent = 'portrait' (TTS analog: SidewaysCard) */
+	orientation?: CardOrientation;
 };
 
 export type PackDeckDef = {
@@ -56,6 +67,8 @@ export type PackBagCardItem = {
 	/** Face ref: https url, `sheet:` descriptor, or `gen:` scheme */
 	face: string;
 	back?: string;
+	/** default resting orientation; absent = 'portrait' */
+	orientation?: CardOrientation;
 };
 
 /** One thing inside a bag, discriminated on `kind` like pieces are. */

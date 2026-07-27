@@ -133,7 +133,8 @@ export function composePackDeck(
 	let cards: CardInDeck[] = defs.map((card) => ({
 		id: packCardId(opts.ownerId, deck.slot, card.code),
 		faceImageUrl: card.face,
-		backImageUrl: deck.back
+		backImageUrl: deck.back,
+		...(card.orientation === 'landscape' ? { orientation: card.orientation } : {})
 	}));
 	if (opts.shuffle) {
 		const shuffle = opts.shuffleWith ?? shuffleInPlace;
