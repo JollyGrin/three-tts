@@ -9,6 +9,9 @@
 		CARD_DRAG_Y,
 		CARD_WIDTH,
 		CARD_HEIGHT,
+		DECK_ARM_COLOR,
+		DECK_ARM_LIFT,
+		DECK_MOVE_HOLD_MS,
 		deckBodyGeometry,
 		deckHeightForCount
 	} from '$lib/utils/constants-cards';
@@ -86,7 +89,9 @@
 		precision: 0.0001
 	});
 	$effect(() => {
-		lift.target = isDragged ? CARD_DRAG_Y : (deck.position?.[1] ?? 0);
+		lift.target = isDragged
+			? CARD_DRAG_Y
+			: (deck.position?.[1] ?? 0) + (moveArmed ? DECK_ARM_LIFT : 0);
 	});
 
 	const planar = new Spring(
@@ -116,24 +121,79 @@
 		wiggle.target = 0;
 	});
 
-	let pendingDrag: { x: number; y: number } | null = null;
+	let pendingDrag: { x: number; y: number; t: number } | null = null;
+	let armTimer: ReturnType<typeof setTimeout> | null = null;
+	// Long press elapsed with the pointer still down: the pile is armed to
+	// move. $state because it is also the cue — the deck lifts DECK_ARM_LIFT
+	// and wears the amber outline while armed. The timer only DRAWS the cue
+	// and suppresses the tap-draw; the draw-vs-move decision itself is made
+	// from event timestamps in onPendingMove, because pointermove delivery is
+	// rAF-aligned — on a slow-framed client a quick drag's first move can
+	// arrive AFTER the 400ms timer even though the finger moved instantly,
+	// and wall-clock arming would misread that drag as a pile move.
+	let moveArmed = $state(false);
+	// A gesture that stopped being a tap must do NOTHING extra on release:
+	// threlte's click fires on pointerdown+pointerup DISPLACEMENT (e.delta),
+	// not path length, so both a long press that never travelled AND a drag
+	// that wandered and released back over its own start pixel (drawing a
+	// card off the top and dropping it back on the pile does exactly this)
+	// would otherwise read as a tap and draw a card nobody asked for.
+	let suppressClick = false;
 
-	// Drag threshold, same as Card/Piece: the pointerdown only arms the
-	// gesture. Travel past the threshold and it's a deck move; release under
-	// it and the click handler draws instead.
+	// The tap / drag / long-press disambiguation (tableplace-103). Pointerdown
+	// only arms the gesture; what it becomes is decided here:
+	//  - travel before the hold elapses → draw the top card INTO the drag: the
+	//    card spawns under the pointer and dragStart hands it the in-flight
+	//    gesture (the pipeline is store-driven — TableScene streams position to
+	//    whatever id isDragging — so ownership transfer is just the id swap)
+	//  - travel after the hold armed the move → drag the whole pile, as before
+	//  - release without travel → the click handler draws 1 (or, if the hold
+	//    armed first, nothing at all)
 	function onPendingMove(ne: PointerEvent) {
 		if (!pendingDrag) return;
 		if (Math.hypot(ne.clientX - pendingDrag.x, ne.clientY - pendingDrag.y) < DRAG_THRESHOLD_PX)
 			return;
+		// Event time, not wall clock: timeStamp carries when the input HAPPENED,
+		// so a threshold-crossing move that sat in the queue behind a long
+		// SwiftShader/low-FPS frame still reads as the quick drag it was.
+		const heldLong = ne.timeStamp - pendingDrag.t >= DECK_MOVE_HOLD_MS;
+		// past the threshold this is a drag, whatever pixel it ends on — the
+		// click that follows the eventual release must not also draw
+		suppressClick = true;
 		cancelPendingDrag();
-		// origin (pre-lift store position) is what Esc returns the deck to
-		dragStart(id, CARD_DRAG_Y, deck.position);
+		// an empty deck has nothing to draw — moving the slab is the only drag
+		if (heldLong || (cards?.length ?? 0) === 0) {
+			// origin (pre-lift store position) is what Esc returns the deck to
+			dragStart(id, CARD_DRAG_Y, deck.position);
+			return;
+		}
+		// the last raycast already put the pointer's table point in the store,
+		// so the card materialises exactly under the cursor at drag height
+		const point = $dragStore.intersectionPoint;
+		const cardId = gameActions.drawIntoDrag(id, point ? [point.x, point.z] : undefined);
+		// no origin: a card drawn out of a deck has no table position for Esc
+		// to return to — cancel settles it where it floats (see cancelActiveDrag)
+		if (cardId) dragStart(cardId, CARD_DRAG_Y);
+	}
+
+	// touch: the browser answers a long press with its context menu (and some
+	// platforms with a text-selection callout); while a deck gesture is live
+	// that press belongs to the table
+	function blockContextMenu(e: Event) {
+		e.preventDefault();
 	}
 
 	function cancelPendingDrag() {
 		pendingDrag = null;
+		moveArmed = false;
+		if (armTimer) {
+			clearTimeout(armTimer);
+			armTimer = null;
+		}
 		window.removeEventListener('pointermove', onPendingMove);
 		window.removeEventListener('pointerup', cancelPendingDrag);
+		window.removeEventListener('pointercancel', cancelPendingDrag);
+		window.removeEventListener('contextmenu', blockContextMenu);
 	}
 
 	$effect(() => cancelPendingDrag);
@@ -142,16 +202,35 @@
 		// claims the pointerdown ahead of anything behind the deck — see
 		// claimPointerDown — and locks OrbitControls out of the gesture
 		if (!claimPointerDown(e)) return;
-		pendingDrag = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+		pendingDrag = {
+			x: e.nativeEvent.clientX,
+			y: e.nativeEvent.clientY,
+			t: e.nativeEvent.timeStamp
+		};
+		suppressClick = false;
+		moveArmed = false;
+		armTimer = setTimeout(() => {
+			armTimer = null;
+			moveArmed = true; // the cue mounts; the next travel moves the pile
+			suppressClick = true; // and a travel-less release must not draw
+		}, DECK_MOVE_HOLD_MS);
 		window.addEventListener('pointermove', onPendingMove);
 		window.addEventListener('pointerup', cancelPendingDrag);
+		// touch long-press can end in pointercancel when the browser reclaims
+		// the gesture — clean up the same way a release would
+		window.addEventListener('pointercancel', cancelPendingDrag);
+		window.addEventListener('contextmenu', blockContextMenu);
 	}
 
-	// a press that never travelled: the draw (the pre-threshold behavior —
-	// one card off the top, landing in front of the deck)
+	// a press that never travelled: the draw (one card off the top, landing in
+	// front of the deck) — unless it was a long press, which draws nothing
 	function handleClick(e: IntersectionEvent<MouseEvent>) {
 		if (e.delta > DRAG_THRESHOLD_PX) return; // was a drag, not a click
 		e.stopPropagation();
+		if (suppressClick) {
+			suppressClick = false;
+			return;
+		}
 		gameActions.drawFromTop(id);
 	}
 </script>
@@ -209,6 +288,24 @@
 				color={DECK_SELECT_COLOR}
 				fill={0.08}
 				border={0.07}
+				depthTest={false}
+			/>
+		</T.Group>
+	{/if}
+
+	<!-- Armed-for-move cue (tableplace-103): a long press lifts the deck
+	     DECK_ARM_LIFT and mounts this amber outline, so "the next travel moves
+	     the pile" is visible before the player commits to the gesture. Amber to
+	     stay distinct from the cyan drop cue and the violet editor selection. -->
+	{#if moveArmed}
+		<T.Group rotation.x={-Math.PI / 2} position.y={height / 2 + 0.04}>
+			<DropFootprint
+				shape="rect"
+				w={CARD_WIDTH + 0.3}
+				h={CARD_HEIGHT + 0.3}
+				color={DECK_ARM_COLOR}
+				fill={0.15}
+				border={0.08}
 				depthTest={false}
 			/>
 		</T.Group>

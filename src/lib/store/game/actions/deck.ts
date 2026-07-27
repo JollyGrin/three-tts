@@ -5,6 +5,7 @@ import { get } from 'svelte/store';
 import { dragStore } from '$lib/store/dragStore.svelte';
 import { collectStackGroup, orderForDeck } from '$lib/utils/transforms/stacking';
 import {
+	CARD_DRAG_Y,
 	CARD_FAN_STEP,
 	CARD_HEIGHT,
 	CARD_REST_Y,
@@ -285,6 +286,53 @@ function drawFromTop(id: string, count = 1): CardInDeck[] {
 }
 
 /**
+ * Draw the top card straight into an in-flight drag (tableplace-103): the
+ * card spawns already airborne — at the pointer's table point, at
+ * CARD_DRAG_Y, the height every drag floats at — so the caller can hand it
+ * the live gesture (`dragStart(cardId)`) in the same tick and the card is
+ * under the pointer on its very first frame. Deck shrink and card creation
+ * are ONE patch, same as drawFromTop, so remote clients never see the card
+ * in both places.
+ *
+ * Returns the allocated table card id, or null when the deck has nothing to
+ * draw (the caller falls back to moving the pile).
+ */
+function drawIntoDrag(id: string, at?: [number, number]): string | null {
+	const deck = get(gameStore)?.decks?.[id];
+	const available = deck?.cards;
+	if (!available || available.length === 0) return null;
+
+	const isFaceUp = deck.isFaceUp ?? false;
+	const remaining = [...available];
+	const card = isFaceUp ? remaining.shift() : remaining.pop();
+	if (!card) return null;
+
+	const [deckX = 0, , deckZ = 0] = deck.position ?? [];
+	const [x, z] = clampToTable(at?.[0] ?? deckX, at?.[1] ?? deckZ);
+	const seatYaw = degrees[gameActions.getMySeat()] ?? 0;
+	const taken = new Set(Object.keys(get(gameStore)?.cards ?? {}));
+	const cardId = allocateCardId(card.id, `${id}:draw-0`, taken);
+
+	gameStore.updateState({
+		decks: { [id]: { cards: remaining } },
+		cards: {
+			[cardId]: {
+				faceImageUrl: card.faceImageUrl ?? '',
+				...(card.backImageUrl || deck.deckBackImageUrl
+					? { backImageUrl: card.backImageUrl ?? (deck.deckBackImageUrl as string) }
+					: {}),
+				...(card.orientation ? { orientation: card.orientation } : {}),
+				position: [x, CARD_DRAG_Y, z],
+				// a face-up deck deals face-up cards; 180 on x is facedown — same
+				// conventions as drawFromTop, yawed toward the drawer's seat
+				rotation: [isFaceUp ? 0 : 180, 0, -seatYaw / DEG2RAD]
+			}
+		}
+	});
+	return cardId;
+}
+
+/**
  * Flip the whole deck like a physical pile (hotkey `F` on a hovered deck).
  *
  * Toggling `isFaceUp` IS the flip: drawFromTop's ordering convention
@@ -359,6 +407,7 @@ export const deckActions = {
 	groupStackIntoDeck,
 	ungroupDeck,
 	drawFromTop,
+	drawIntoDrag,
 	flipDeck,
 	getDeckLength,
 	getMyDecks,

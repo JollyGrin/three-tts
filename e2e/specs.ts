@@ -804,6 +804,328 @@ export const SPECS: Spec[] = [
 			})
 	},
 	{
+		/**
+		 * tableplace-103: the deck's three gestures, driven by a real mouse.
+		 * Tap draws one; travel without a hold draws the top card INTO the
+		 * in-flight drag (the deck itself must not budge); a 400ms hold arms a
+		 * whole-pile move — with a visible cue — and only then does travel move
+		 * the deck. A hold released without travel does nothing at all.
+		 *
+		 * Timing follows #141's de-flake pattern: every gesture first ASSERTS
+		 * IT ARRIVED (the drag started / the cue mounted) before judging what
+		 * it did, a slipped or mis-timed synthetic gesture is retried up to 3x,
+		 * and animated outcomes are polled to a bounded final state instead of
+		 * racing a fixed settle. Draw-vs-move itself is decided by EVENT
+		 * timestamps in Deck.svelte (pointermove delivery is rAF-aligned, so on
+		 * a slow-framed runner a quick drag's first move can arrive after the
+		 * 400ms arm timer) — this spec is what caught that; the retries remain
+		 * for grabs that slip entirely.
+		 */
+		name: 'deck gestures: tap draws, drag draws into the drag, long press moves',
+		run: (context) =>
+			withTable(context, 'deck-gestures', async (table) => {
+				const deck = await table.seedDeck();
+				await table.settle();
+
+				const deckCount = () =>
+					table.page.evaluate(
+						(id) => window.__tableplace!.state()?.decks?.[id]?.cards?.length ?? -1,
+						deck
+					);
+				const looseCards = () =>
+					table.page.evaluate(() => Object.keys(window.__tableplace!.state()?.cards ?? {}));
+				const dragOwner = () => table.page.evaluate(() => window.__tableplace!.drag().isDragging);
+				const deckMeshes = async () => (await table.describe(deck))!.meshes;
+
+				// ── tap: one card to the felt, deck stays put ─────────────────
+				const start = await deckCount();
+				const tapAt = await table.locate(deck);
+				ok(tapAt, 'the deck never mounted — nothing to tap');
+				await table.page.mouse.click(tapAt!.x, tapAt!.y);
+				// polled: the count is store truth, but a loaded runner can lag
+				// processing the click itself
+				const afterTap = await eventually(deckCount, (count) => count === start - 1);
+				ok(
+					afterTap === start - 1 && (await looseCards()).length === 1,
+					`a tap did not draw exactly one card: deck ${start} → ${afterTap}, ` +
+						`${(await looseCards()).length} loose`
+				);
+
+				// ── drag off the top: the drawn card takes over the gesture ───
+				// The press and the threshold-crossing move are dispatched
+				// back-to-back so no arm timer can be processed between them, and
+				// the travel goes up-screen: the seeded deck sits near the table's
+				// bottom edge, and a release down-screen of it would land the card
+				// in the hand tray, which swallows it out of `cards` entirely.
+				let handoff: { owner: string; deckAt: number[]; count: number } | null = null;
+				let lastArrival: string | null = null;
+				for (let attempt = 0; attempt < 3 && !handoff; attempt++) {
+					const count = await deckCount();
+					const deckAt = await table.positionOf(deck);
+					const from = await table.locate(deck);
+					ok(deckAt && from, 'the deck vanished from the scene');
+					await table.page.mouse.move(from!.x, from!.y);
+					await sleep(80);
+					await table.page.mouse.down();
+					await table.page.mouse.move(from!.x, from!.y - 40);
+					// did the gesture arrive — and as what?
+					const owner = await eventually(dragOwner, (o) => o !== null, 3000);
+					lastArrival = owner;
+					if (owner?.startsWith('card:')) {
+						// walk on and confirm the drag never changes hands mid-flight
+						for (let step = 1; step <= 6; step++) {
+							await table.page.mouse.move(from!.x, from!.y - 40 - step * 20);
+							await sleep(30);
+							const now = await dragOwner();
+							ok(
+								now === owner,
+								`the drag changed hands mid-gesture (${owner} → ${JSON.stringify(now)}) — the handoff flickered`
+							);
+						}
+						await table.page.mouse.up();
+						handoff = { owner, deckAt: deckAt!, count };
+					} else {
+						// never arrived (slipped grab) or arrived as the deck (the
+						// spurious-arm race): abandon this attempt and re-baseline
+						await table.page.mouse.up();
+						await table.settle(900);
+					}
+				}
+				ok(
+					!!handoff,
+					`travel off the deck never handed the drag to the drawn card in 3 attempts — ` +
+						`the last gesture arrived as ${JSON.stringify(lastArrival)}`
+				);
+				const afterDraw = await eventually(deckCount, (count) => count === handoff!.count - 1);
+				ok(
+					afterDraw === handoff!.count - 1,
+					`the drag-off draw did not shrink the deck by one (${handoff!.count} → ${afterDraw})`
+				);
+				const deckAfterDraw = await table.positionOf(deck);
+				ok(
+					planarDistance(handoff!.deckAt, deckAfterDraw) < 0.05,
+					`dragging off the top moved the deck itself: ${JSON.stringify(handoff!.deckAt)} → ${JSON.stringify(deckAfterDraw)}`
+				);
+				const drawnPos = await eventually(
+					() => table.positionOf(handoff!.owner),
+					(p) => !!p && planarDistance(handoff!.deckAt, p) > 0.5
+				);
+				ok(
+					!!drawnPos && planarDistance(handoff!.deckAt, drawnPos) > 0.5,
+					`the drawn card did not follow the pointer away from the deck: ${JSON.stringify(drawnPos)}`
+				);
+
+				// ── long press, no travel: cue mounts, nothing is drawn ───────
+				const countBeforeHold = await deckCount();
+				const meshesAtRest = await deckMeshes();
+				let meshesArmed = meshesAtRest;
+				for (let attempt = 0; attempt < 3 && meshesArmed <= meshesAtRest; attempt++) {
+					const at = await table.locate(deck);
+					ok(at, 'the deck vanished before the long press');
+					await table.page.mouse.move(at!.x, at!.y);
+					await sleep(80);
+					await table.page.mouse.down();
+					// poll for the cue rather than sleeping DECK_MOVE_HOLD_MS of
+					// wall-clock — page time is what the arm timer runs on
+					meshesArmed = await eventually(deckMeshes, (m) => m > meshesAtRest, 4000);
+					await table.page.mouse.up();
+					if (meshesArmed <= meshesAtRest) await table.settle(600); // slipped grab
+				}
+				ok(
+					meshesArmed > meshesAtRest,
+					`no visible cue mounted after the long press armed the move ` +
+						`(${meshesAtRest} meshes at rest, ${meshesArmed} armed)`
+				);
+				const meshesReleased = await eventually(deckMeshes, (m) => m === meshesAtRest);
+				ok(meshesReleased === meshesAtRest, `the armed cue did not unmount after release`);
+				ok(
+					(await deckCount()) === countBeforeHold,
+					`a long press released without travel drew a card — it must do nothing`
+				);
+
+				// ── long press then travel: the whole pile moves ──────────────
+				// dragBy waits for the arm cue before travelling (see table.ts);
+				// the outcome is still polled and a slipped grab retried
+				let moved: { count: number } | null = null;
+				for (let attempt = 0; attempt < 3 && !moved; attempt++) {
+					const count = await deckCount();
+					const before = await table.positionOf(deck);
+					await table.dragBy(deck, 0, 150);
+					const after = await eventually(
+						() => table.positionOf(deck),
+						(p) => !!p && planarDistance(before, p) > 0.5,
+						3000
+					);
+					if (after && planarDistance(before, after) > 0.5) moved = { count };
+				}
+				ok(!!moved, `a long press + travel did not move the pile in 3 attempts`);
+				ok((await deckCount()) === moved!.count, `moving the pile changed its card count`);
+
+				assertClean(table, 'after the deck gesture suite');
+			})
+	},
+	{
+		/**
+		 * tableplace-103 × tableplace-145, the composed case: a card drawn INTO
+		 * the drag (one continuous gesture off the deck top) released with Alt
+		 * held. Two reachable landings:
+		 *  - overlapping a resting card near the deck: the noSnap branch must
+		 *    keep the pointer's XZ (no square-up) but rest one thickness above
+		 *    the card under it — #145's height merge, fed by a card that did
+		 *    not exist at pointerdown;
+		 *  - back over its own deck: the aimed deck hover is checked BEFORE
+		 *    noSnap in resolveDrop, so Alt or not, the card returns onto the
+		 *    pile and the count is restored.
+		 * (Alt-dropping NEAR the deck slab never height-merges against it:
+		 * resolveStack scans cards only, and decks are aimed-at targets, not
+		 * proximity stacks — unchanged semantics either side of #145.)
+		 */
+		name: 'composed: alt-drop of a drag-drawn card — rests on cards, returns to its deck',
+		run: (context) =>
+			withTable(context, 'deck-alt', async (table) => {
+				const CARD_THICKNESS = 0.03;
+
+				// a four-card deck in the clear lane (same berth as the alt-drop spec)
+				const deck = await table.page.evaluate(() => {
+					const cards = ['AS', 'KH', 'QD', 'JC'].map((code) => ({
+						id: `card:std:deckalt-${code}`,
+						faceImageUrl: `gen:std52/${code}`,
+						backImageUrl: 'gen:std52/back'
+					}));
+					return String(
+						window.__tableplace!.actions.addDeck({ cards, position: [-2, 0.4, -2] } as never) ?? ''
+					);
+				});
+				await table.settle(1000);
+
+				const deckCount = () =>
+					table.page.evaluate(
+						(id) => window.__tableplace!.state()?.decks?.[id]?.cards?.length ?? -1,
+						deck
+					);
+				const dragOwner = () => table.page.evaluate(() => window.__tableplace!.drag().isDragging);
+
+				/**
+				 * The #103 gesture under #145's modifier: press the deck, cross the
+				 * threshold back-to-back with the press (no arm timer can interleave),
+				 * confirm the drag arrived owned by a drawn card, walk to `resolveTo`'s
+				 * pixel and release — with Alt held for the whole gesture, so the
+				 * pointerup carries altKey. Slipped or mis-armed gestures retry 3x.
+				 */
+				const drawDragAltTo = async (
+					resolveTo: () => Promise<{ x: number; y: number } | null>,
+					options: { awaitDeckHover?: boolean } = {}
+				) => {
+					for (let attempt = 0; attempt < 3; attempt++) {
+						const from = await table.locate(deck);
+						const to = await resolveTo();
+						ok(from && to, 'the deck or the release point left the screen');
+						await table.page.keyboard.down('Alt');
+						try {
+							await table.page.mouse.move(from!.x, from!.y);
+							await sleep(80);
+							await table.page.mouse.down();
+							await table.page.mouse.move(from!.x, from!.y - 40);
+							const owner = await eventually(dragOwner, (o) => o !== null, 3000);
+							if (owner?.startsWith('card:')) {
+								for (let step = 1; step <= 8; step++) {
+									await table.page.mouse.move(
+										from!.x + ((to!.x - from!.x) * step) / 8,
+										from!.y - 40 + ((to!.y - (from!.y - 40)) * step) / 8
+									);
+									await sleep(30);
+								}
+								if (options.awaitDeckHover) {
+									// the landing under test is the aimed deck target: assert
+									// the hover ARRIVED before releasing, so a slipped enter
+									// reads as its own failure and not as a wrong landing
+									const hovered = await eventually(
+										() => table.page.evaluate(() => window.__tableplace!.drag().isDeckHovered),
+										(id) => id === deck,
+										3000
+									);
+									ok(
+										hovered === deck,
+										`the deck never became the hover target before release — ` +
+											`isDeckHovered is ${JSON.stringify(hovered)}`
+									);
+								}
+								await sleep(150);
+								await table.page.mouse.up();
+								return owner;
+							}
+							await table.page.mouse.up(); // slipped or spuriously armed
+						} finally {
+							await table.page.keyboard.up('Alt');
+						}
+						await table.settle(900);
+					}
+					throw new Error(
+						'the drag-off gesture never handed the drag to a drawn card in 3 attempts'
+					);
+				};
+
+				// park a resting card on bare felt via the plain action (this phase is
+				// #145's precondition, not what is under test)
+				const underId = await table.page.evaluate(
+					(id) => window.__tableplace!.actions.drawFromTop(id, 1)[0]?.id ?? '',
+					deck
+				);
+				ok(!!underId, 'nothing came off the top of the deck');
+				await table.settle(1500);
+				await table.dragTo(underId, -4, 1);
+				const under = await eventually(
+					() => table.positionOf(underId),
+					(p) => !!p && Math.hypot((p[0] ?? 9) - -4, (p[2] ?? 9) - 1) < 1.0
+				);
+				ok(!!under, `the resting card never parked: ${JSON.stringify(under)}`);
+
+				// ── landing 1: Alt-release overlapping the parked card ────────
+				const countBefore = await deckCount();
+				const overlap = await drawDragAltTo(() =>
+					table.page.evaluate(
+						(x, z) => window.__tableplace!.project([x, 0.26, z]),
+						under![0]! + 0.5,
+						under![2]! + 0.4
+					)
+				);
+				const landed = await eventually(
+					() => table.positionOf(overlap),
+					(p) => !!p && (p[1] ?? 9) < 1 // committed out of the air
+				);
+				ok((await deckCount()) === countBefore - 1, `the drag-off draw did not shrink the deck`);
+				const apart = planarDistance(under, landed);
+				ok(
+					!!landed && apart > 0.2 && apart < 1.6,
+					`the Alt-drop did not stay at the pointer: ${JSON.stringify(landed)} vs ` +
+						`${JSON.stringify(under)} (planar ${apart.toFixed(3)})`
+				);
+				ok(
+					Math.abs((landed![1] ?? 9) - ((under![1] ?? 0) + CARD_THICKNESS)) < 0.005,
+					`the drag-drawn card did not rest one thickness above the card under it: ` +
+						`${JSON.stringify(landed)} over ${JSON.stringify(under)}`
+				);
+
+				// ── landing 2: Alt-release back over its own deck ─────────────
+				const countMid = await deckCount();
+				const returned = await drawDragAltTo(() => table.locate(deck), { awaitDeckHover: true });
+				const backOnPile = await eventually(deckCount, (count) => count === countMid);
+				ok(
+					backOnPile === countMid,
+					`the Alt-release over the deck did not return the card to the pile ` +
+						`(${countMid} → ${backOnPile})`
+				);
+				const stillLoose = await table.positionOf(returned);
+				ok(
+					!stillLoose,
+					`the returned card is still loose on the table: ${JSON.stringify(stillLoose)}`
+				);
+
+				await assertDraggable(table, deck, 'deck (after the composed alt-drops)');
+				assertClean(table, 'after alt-dropping drag-drawn cards');
+			})
+	},
+	{
 		// acceptance criterion 4: one table carrying all four at once
 		name: 'mixed table: deck + die + bag + multi-state piece',
 		run: (context) =>
