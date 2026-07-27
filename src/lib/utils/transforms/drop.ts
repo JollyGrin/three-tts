@@ -73,9 +73,10 @@ export interface DropHover {
 export interface DropOptions {
 	/**
 	 * Alt held at release: place the card exactly where the pointer is, with
-	 * no XZ square-up onto a nearby pile, no stack-height merge, and no pull
-	 * onto an authored snap point. The escape hatch for laying cards out next
-	 * to each other on purpose.
+	 * no XZ square-up onto a nearby pile and no pull onto an authored snap
+	 * point. The escape hatch for laying cards out next to each other on
+	 * purpose. Height still merges — an overlapping card rests on top of what
+	 * is under it, because coplanar cards z-fight (see resolveStack).
 	 */
 	noSnap?: boolean;
 	/**
@@ -306,19 +307,19 @@ export function resolveDrop(
 		};
 	}
 
-	// Alt beats the pile: commit at the pointer, resting on the felt rather
-	// than merging into whatever the card happens to overlap. Checked after
-	// the deck and tray, which are aimed-at targets rather than a side effect
-	// of proximity.
+	// Alt beats the pile's pull, not its height: commit at the pointer, but
+	// still rest on top of whatever the card overlaps — coplanar cards z-fight
+	// (see resolveStack), and resting on top is physics, not snapping. Checked
+	// after the deck and tray, which are aimed-at targets rather than a side
+	// effect of proximity.
 	if (options.noSnap) {
-		const floor = floorAt(x, z);
-		const restY = floor + (CARD_REST_Y - TABLE_TOP_Y);
+		const stack = resolveStack(state?.cards, dragId, x, z, floorAt(x, z));
 		return {
-			kind: 'table',
-			position: [x, restY, z],
+			kind: stack.count > 0 ? 'stack' : 'table',
+			position: [x, stack.restY, z],
 			rotation,
 			footprint,
-			footprintY: restY
+			footprintY: stack.restY
 		};
 	}
 
