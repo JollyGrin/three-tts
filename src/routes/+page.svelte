@@ -27,11 +27,25 @@
 		name="description"
 		content="Board games in your browser. No installs, no accounts — a table is just a link. Open a table, share the URL, and play."
 	/>
+	<link rel="canonical" href="https://table.place/" />
 	<meta property="og:title" content="table.place — board games in your browser" />
 	<meta
 		property="og:description"
 		content="No installs, no accounts — a table is just a link. Open a table, share the URL, and play."
 	/>
+	<meta property="og:type" content="website" />
+	<meta property="og:url" content="https://table.place/" />
+	<meta property="og:image" content="https://table.place/og-card.png" />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content="A fanned hand of playing cards on a green felt table" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="table.place — board games in your browser" />
+	<meta
+		name="twitter:description"
+		content="No installs, no accounts — a table is just a link. Open a table, share the URL, and play."
+	/>
+	<meta name="twitter:image" content="https://table.place/og-card.png" />
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link
@@ -191,6 +205,14 @@
 				into a deck. Communities offering “play online” right from their own sites, with a table
 				that's just a link away.
 			</p>
+			<p class="mt-4 max-w-2xl text-lg text-emerald-950/80">
+				Want to see what's already playable? Browse the
+				<a
+					href="https://demo.table.place"
+					class="underline decoration-emerald-700/40 underline-offset-4 hover:text-emerald-950"
+					>demos gallery of games on table.place</a
+				> — ready-made tables you can open and play right away.
+			</p>
 			<p class="mt-4 max-w-2xl text-emerald-950/60">
 				table.place is in alpha and free — no accounts, no tiers. Expect rough edges, and say hi on
 				<a
@@ -209,7 +231,8 @@
 			<span class="wordmark text-base text-emerald-50">table.place</span>
 			<span class="alpha-badge">alpha</span>
 			<span>free, no accounts</span>
-			<a href="https://github.com/JollyGrin/tableplace" class="link-light ml-auto">GitHub</a>
+			<a href="https://demo.table.place" class="link-light ml-auto">Game demos</a>
+			<a href="https://github.com/JollyGrin/tableplace" class="link-light">GitHub</a>
 		</div>
 	</footer>
 </div>

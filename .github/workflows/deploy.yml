@@ -25,7 +25,6 @@ jobs:
 
       - name: Build
         env:
-          PUBLIC_BASE_PATH: '/svelte-aframe'
           PATH: ${{ env.PATH }}
         run: |
           bun run build
