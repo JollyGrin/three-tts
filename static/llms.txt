@@ -570,8 +570,8 @@ A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"x-tableplace-spec-version": "1.5.0",
-	"x-generated-at": "2026-07-27T09:14:44.102Z",
-	"x-tableplace-source-sha": "4c497038f5dfb3a787347cab8170025cbf3c7559-dirty"
+	"x-generated-at": "2026-07-27T09:15:20.263Z",
+	"x-tableplace-source-sha": "7c7fdd9026836453a87093d37db10169aa40d57f"
 }
 ```
 
@@ -1670,8 +1670,8 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"x-tableplace-spec-version": "0.1.8",
-	"x-generated-at": "2026-07-27T09:14:44.102Z",
-	"x-tableplace-source-sha": "4c497038f5dfb3a787347cab8170025cbf3c7559-dirty"
+	"x-generated-at": "2026-07-27T09:15:20.263Z",
+	"x-tableplace-source-sha": "7c7fdd9026836453a87093d37db10169aa40d57f"
 }
 ```
 
