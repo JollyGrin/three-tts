@@ -2,7 +2,13 @@ import { get } from 'svelte/store';
 import { gameStore } from '../gameStore.svelte';
 import { SNAP_RADIUS_DEFAULT } from '$lib/utils/constants-snap';
 import { clampToTable } from '$lib/utils/transforms/drop';
+import { compareSnapIds } from '$lib/utils/transforms/snap';
 import type { GameDTO, SnapPointDTO } from '../types';
+
+// the resolver breaks distance ties on the same ordering the pane lists
+// points in, so the comparator lives with the pure transforms — re-exported
+// here because this module is where the editor has always imported it from
+export { compareSnapIds };
 
 /**
  * Authoring snap points — the /setup layer's whole vocabulary: add, move,
@@ -22,14 +28,6 @@ export function snapPointIds(state?: Partial<GameDTO> | null): string[] {
 		.sort(compareSnapIds);
 }
 
-/** `snap:2` before `snap:10` — the pane lists them in creation order. */
-export function compareSnapIds(a: string, b: string): number {
-	const na = Number(a.split(':')[1]);
-	const nb = Number(b.split(':')[1]);
-	if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
-	return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /**
  * Next free `snap:<n>`, one past the highest currently on the table. Deleting
  * the newest point frees its id again, which is fine: /setup is a local editor
@@ -45,9 +43,17 @@ function nextSnapId(): string {
 export type AddSnapPointOptions = {
 	/** table-space [x, z]; clamped inside the felt like any other placement */
 	position?: [number, number];
-	/** yaw in degrees a caught drop turns to */
+	/** elevation — the local floor a landing rests on (omitted: the felt) */
+	y?: number;
+	/** yaw in degrees a caught drop turns to (a grid's lattice yaw) */
 	rotation?: number;
 	radius?: number;
+	/** `'grid'` plus pitch/cols/rows makes the point a lattice of cells */
+	kind?: SnapPointDTO['kind'];
+	pitch?: number;
+	cols?: number;
+	rows?: number;
+	yawStep?: number;
 };
 
 /** Place a snap point. Returns its id. */
@@ -59,7 +65,9 @@ function addSnapPoint(opts: AddSnapPointOptions = {}): string {
 		position: [x, z],
 		radius: opts.radius ?? SNAP_RADIUS_DEFAULT
 	};
-	if (opts.rotation !== undefined) point.rotation = opts.rotation;
+	for (const field of ['y', 'rotation', 'kind', 'pitch', 'cols', 'rows', 'yawStep'] as const) {
+		if (opts[field] !== undefined) (point as Record<string, unknown>)[field] = opts[field];
+	}
 	gameStore.updateState({ snapPoints: { [id]: point } });
 	return id;
 }
@@ -70,13 +78,16 @@ function moveSnapPoint(id: string, position: [number, number]) {
 }
 
 /**
- * Retune a point in place. A `rotation` of `undefined` is how the editor says
- * "no authored yaw" — `null` at that path is what deletes the field, since an
- * undefined value would be dropped from the patch and change nothing.
+ * Retune a point in place. An optional field set to `undefined` is how the
+ * editor says "back to none" — `null` at that path is what deletes the field,
+ * since an undefined value would be dropped from the patch and change nothing.
+ * (`rotation: undefined` = no authored yaw; `kind: undefined` = plain point.)
  */
 function updateSnapPoint(id: string, patch: Partial<Omit<SnapPointDTO, 'id'>>) {
 	const next: Record<string, unknown> = { ...patch };
-	if ('rotation' in patch && patch.rotation === undefined) next.rotation = null;
+	for (const field of ['y', 'rotation', 'kind', 'pitch', 'cols', 'rows', 'yawStep'] as const) {
+		if (field in patch && patch[field] === undefined) next[field] = null;
+	}
 	gameStore.updateState({
 		snapPoints: { [id]: next as Partial<SnapPointState> }
 	} as Parameters<typeof gameStore.updateState>[0]);

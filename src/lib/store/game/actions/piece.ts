@@ -60,6 +60,18 @@ function setPieceState(pieceId: string, index: number) {
 	return gameStore.updateState({ pieces: { [pieceId]: { state: wrapped } } });
 }
 
+/**
+ * The per-piece snap opt-out: `false` makes this piece's drops resolve as if
+ * Alt were held (snap points and grids only — aimed-at targets like bags are
+ * unaffected). Absent means "snaps", so turning it back on deletes the field
+ * (`null` at that path) rather than shipping a redundant `true` on the wire.
+ */
+function setPieceSnap(pieceId: string, snap: boolean) {
+	return gameStore.updateState({
+		pieces: { [pieceId]: { snap: snap ? null : false } }
+	} as Parameters<typeof gameStore.updateState>[0]);
+}
+
 /** Step a multi-state piece to its next (or previous) face. Never a die or bag. */
 function cyclePieceState(pieceId: string, delta = 1) {
 	const piece = getPieceState(pieceId);
@@ -189,6 +201,7 @@ export const pieceActions = {
 	incrementCounter,
 	currentPieceState,
 	setPieceState,
+	setPieceSnap,
 	cyclePieceState,
 	rollDie
 };

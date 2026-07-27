@@ -213,6 +213,7 @@ function parsePiece(v: unknown, path: string): PackPieceDef {
 		piece.drawMode = mode;
 	}
 	if (v.infinite !== undefined) piece.infinite = Boolean(v.infinite);
+	if (v.snap !== undefined) piece.snap = Boolean(v.snap);
 	return piece;
 }
 

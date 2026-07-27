@@ -23,7 +23,9 @@ describe('tbpp round-trip', () => {
 			decks: [],
 			pieces: [
 				{ kind: 'counter', name: 'HP', color: '#ff0000', maxValue: 20, position: [1, -2] },
-				{ kind: 'token', name: 'Tile', imageUrl: 'https://x/y.png', radius: 1.5, position: [0, 0] }
+				{ kind: 'token', name: 'Tile', imageUrl: 'https://x/y.png', radius: 1.5, position: [0, 0] },
+				// the per-piece snap opt-out (tableplace-134) survives the round-trip
+				{ kind: 'token', name: 'Loose prop', snap: false, position: [3, 3] }
 			],
 			overlays: [{ imageUrl: 'https://x/map.webp', ratio: 1.6, scale: 10 }],
 			source: 'tts'

@@ -133,6 +133,75 @@ describe('snap points through save → export → import → load', () => {
 		expect(gameActions.snapPointIds()).toEqual([]);
 	});
 
+	it('round-trips elevation and the grid variant (tableplace-134)', async () => {
+		gameActions.addSnapPoint({ position: [0, 2.5], y: 2, rotation: 180 });
+		gameActions.addSnapPoint({
+			position: [6, -3],
+			kind: 'grid',
+			pitch: 2.5,
+			cols: 4,
+			rows: 2,
+			yawStep: 45,
+			y: 1
+		});
+
+		const exported = serializeScenarioFile(saveScenario('elevated-grid'));
+		expect(JSON.parse(exported).snapPoints).toEqual([
+			{ position: [0, 2.5], y: 2, rotation: 180, radius: SNAP_RADIUS_DEFAULT },
+			{
+				position: [6, -3],
+				y: 1,
+				radius: SNAP_RADIUS_DEFAULT,
+				kind: 'grid',
+				pitch: 2.5,
+				cols: 4,
+				rows: 2,
+				yawStep: 45
+			}
+		]);
+
+		emptyTable();
+		await applyScenario(importScenarioFromText(exported));
+		expect(snapPointsInStore()['snap:0']).toMatchObject({ position: [0, 2.5], y: 2 });
+		expect(snapPointsInStore()['snap:1']).toMatchObject({
+			kind: 'grid',
+			pitch: 2.5,
+			cols: 4,
+			rows: 2,
+			yawStep: 45,
+			y: 1
+		});
+	});
+
+	it('refuses a grid missing its lattice fields, naming the field', () => {
+		const file = (snapPoint: Record<string, unknown>) =>
+			JSON.stringify({ tbps: 1, name: 'bad', createdAt: 1, state: {}, snapPoints: [snapPoint] });
+		expect(() => importScenarioFromText(file({ position: [0, 0], kind: 'grid' }))).toThrow(/pitch/);
+		expect(() =>
+			importScenarioFromText(file({ position: [0, 0], kind: 'grid', pitch: 2, rows: 2 }))
+		).toThrow(/cols/);
+		expect(() => importScenarioFromText(file({ position: [0, 0], y: 'high' }))).toThrow(/\.y/);
+	});
+
+	it('round-trips a piece snap opt-out through the state snapshot', async () => {
+		ensureSeatPlaceholder(0);
+		const id = gameActions.addPiece('token', {
+			ownerId: seatPlaceholderId(0),
+			name: 'Loose prop'
+		});
+		gameActions.setPieceSnap(id, false);
+		expect(get(gameStore).pieces?.[id]?.snap).toBe(false);
+
+		const exported = serializeScenarioFile(saveScenario('loose-prop'));
+		emptyTable();
+		await applyScenario(importScenarioFromText(exported));
+		expect(get(gameStore).pieces?.[id]?.snap).toBe(false);
+
+		// and turning it back on deletes the field instead of writing `true`
+		gameActions.setPieceSnap(id, true);
+		expect(get(gameStore).pieces?.[id]?.snap).toBeUndefined();
+	});
+
 	it('leaves a loaded table where a dropped card actually snaps', async () => {
 		const scenario = importScenarioFromText(
 			JSON.stringify({

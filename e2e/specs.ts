@@ -255,6 +255,57 @@ export const SPECS: Spec[] = [
 			})
 	},
 	{
+		/**
+		 * Snap grids (tableplace-134) under a real mouse: a token and a whole
+		 * deck released over a 3×3 grid must land on cell centres — the exact
+		 * transform the resolver promises — and the rest of the table must
+		 * still answer the pointer afterwards (a broken grid entry in the
+		 * shared snapPoints record would poison every drop on the table).
+		 */
+		name: 'snap grid: a token and a deck land on cell centres',
+		run: (context) =>
+			withTable(context, 'snap-grid', async (table) => {
+				const deck = await table.seedDeck();
+				const token = await table.spawn('token', { position: LANE(0) });
+				// grid centred at [6, 1], pitch 2, 3×3 → cells x ∈ {4,6,8}, z ∈ {-1,1,3}
+				await table.page.evaluate(() =>
+					window.__tableplace!.actions.addSnapPoint({
+						position: [6, 1],
+						kind: 'grid',
+						pitch: 2,
+						cols: 3,
+						rows: 3
+					})
+				);
+				await table.settle();
+
+				// released inside the middle cell but off its centre: the landing
+				// must be the centre, not the pointer
+				await table.dragTo(token, 5.4, 0.6);
+				const tokenPos = await table.positionOf(token);
+				ok(tokenPos, `the token has no position after the drop`);
+				ok(
+					Math.abs(tokenPos![0] - 6) < 0.01 && Math.abs(tokenPos![2] - 1) < 0.01,
+					`the token did not land on the cell centre [6, 1]: ${JSON.stringify(tokenPos)}`
+				);
+
+				// a whole deck snaps too, released nearest the [8, 1] cell
+				await table.dragTo(deck, 7.6, 0.8);
+				const deckPos = await table.positionOf(deck);
+				ok(deckPos, `the deck has no position after the drop`);
+				ok(
+					Math.abs(deckPos![0] - 8) < 0.01 && Math.abs(deckPos![2] - 1) < 0.01,
+					`the deck did not land on the cell centre [8, 1]: ${JSON.stringify(deckPos)}`
+				);
+
+				// the grid must not have cost the table its raycast: everything
+				// still lifts and drags (single shared interactivity() — #86)
+				await assertDraggable(table, deck, 'deck (after grid snapping)');
+				await assertDraggable(table, token, 'the token (after grid snapping)');
+				assertClean(table, 'after snapping onto a grid');
+			})
+	},
+	{
 		// acceptance criterion 4: one table carrying all four at once
 		name: 'mixed table: deck + die + bag + multi-state piece',
 		run: (context) =>

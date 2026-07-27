@@ -72,7 +72,7 @@ Field notes:
 - **`scope`** — `'table'` (the shared game: board, communal decks; loaded once per lobby by the host) or `'player'` (what one player brings, spawned per seat — a deck-builder export is a player pack). See SPEC.md §4d.
 - **`decks[].slot`** — stable id within the pack; **`cards[].code`** — stable id within the deck, and **unique within it**: spawning builds table entity ids as `card:<owner>:<slot>-<code>`, so two cards sharing a code collapse into one entity. /create allocates every code through `allocateCode` (`src/routes/create/bulk-sheet.ts`) — a taken `AS` becomes `AS-2`, then `AS-3`. Both survive re-exports, so external tools can reference cards as `<pack>/<slot>/<code>`.
 - **`cards[].orientation`** (optional) — `'portrait'` (default) or `'landscape'`. A landscape card (e.g. a Sorcery TCG site) rests turned 90° everywhere it renders — board, hand tray, hold-space preview — while its synced rotation stays orientation-relative, so tapping it stands it upright and tapping again lays it back down. The face image itself stays portrait; the renderers turn the card, not the art. This is the tbpp analog of TTS's `SidewaysCard`, and the importer maps that flag onto this field.
-- **`pieces`** (optional) — tokens, pawns, counters, dice, and bags: `{ kind: 'token'|'pawn'|'counter'|'die'|'bag', name, color?, imageUrl?, states?, state?, radius?, maxValue?, sides?, contents?, drawMode?, infinite?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states` and [Bags](#bags--a-hidden-blind-draw-pool) for a container's fields. `sides` is dice-only and must be one of 4, 6, 8, 10, 12, 20 — the shapes the primitive library builds; a die's `radius` is its circumradius, and its numbers are drawn procedurally, so a die references no image and is never a multi-state piece.
+- **`pieces`** (optional) — tokens, pawns, counters, dice, and bags: `{ kind: 'token'|'pawn'|'counter'|'die'|'bag', name, color?, imageUrl?, states?, state?, radius?, maxValue?, sides?, contents?, drawMode?, infinite?, snap?, position: [x, z] }`. See [Multi-state pieces](#multi-state-pieces) for `states` and [Bags](#bags--a-hidden-blind-draw-pool) for a container's fields. `sides` is dice-only and must be one of 4, 6, 8, 10, 12, 20 — the shapes the primitive library builds; a die's `radius` is its circumradius, and its numbers are drawn procedurally, so a die references no image and is never a multi-state piece. `snap` (default `true`) is the per-piece snap opt-out: `false` makes the piece drop as if Alt were held, so it ignores snap points and grids — a big room section should snap to the grid, a loose prop shouldn't.
 - **`overlays`** (optional) — board/map images: `{ imageUrl, ratio, scale }` (`ratio` = width/height).
 - **`source`** (optional) — provenance stamp written by converters (currently only `"tts"`). Native packs omit it.
 
@@ -217,13 +217,19 @@ Scenarios are **seat-relative**: entities belong to placeholder players `seat0`�
 ```json
 "snapPoints": [
 	{ "position": [0, 2.5], "rotation": 0, "radius": 1 },
-	{ "position": [-4, 0] }
+	{ "position": [-4, 0], "y": 2 },
+	{ "position": [6, 0], "kind": "grid", "pitch": 2, "cols": 4, "rows": 3 }
 ]
 ```
 
-- **`position`** — table-space `[x, z]`. Two elements, no y: the point is a spot on the felt and what lands there keeps its own resting height, so a second card on the same point still stacks on the first.
-- **`rotation`** (optional) — the yaw a caught drop turns to, in **degrees**. Placements use radians; this uses degrees, because it is a single table yaw that maps 1:1 onto the card DTO's tap rotation (`actions/card.ts`) and onto TTS's `SnapPoints`. Omitted means "position only — leave the facing alone".
+- **`position`** — table-space `[x, z]`. Two elements — elevation is the separate optional `y`, so the tuple every 0.1.x reader asserts stays two long.
+- **`y`** (optional) — elevation: the local floor whatever lands here rests on. The rest height is computed exactly as on the felt with `y` substituted for the table top, so a card dropped on a card on an elevated point still stacks. Omitted means the felt.
+- **`rotation`** (optional) — the yaw a caught drop turns to, in **degrees**. Placements use radians; this uses degrees, because it is a single table yaw that maps 1:1 onto the card DTO's tap rotation (`actions/card.ts`) and onto TTS's `SnapPoints`. Omitted means "position only — leave the facing alone". On a grid this is the lattice's yaw instead.
 - **`radius`** (optional) — catch radius in world units, defaulting to `SNAP_RADIUS_DEFAULT` (`utils/constants-snap.ts`). Nearest point wins where radii overlap.
+- **`kind`** (optional) — `'grid'` turns the entry into a lattice of square cells; absent (or `'point'`) is the discrete spot it always was. A drop anywhere over the grid's extent pulls to the nearest **cell centre**; grid cells and discrete points compete on distance, and an authored discrete point beats a generated cell on an exact tie (authored intent over generated lattice). The extent is deliberately not clamped the way a point's radius is — a grid covers area on purpose.
+  - **`pitch`** — cell size in world units (required on grids).
+  - **`cols`**, **`rows`** — extent in cells (required); `position` is the grid's centre.
+  - **`yawStep`** (optional) — degrees; a snapped entity's yaw rounds to the nearest multiple, measured from the grid's own `rotation`. Default 90 — the modular-kit case.
 
 Snap points are **table-scoped and not seat-relative** — unlike a pack piece's `[x, z]` they are never mirrored, so both ends of a board are authored explicitly. In the store they live in `GameDTO.snapPoints` keyed `snap:<n>`; the file drops those ids (nothing references them) and reassigns them on load, which is why the field is an array rather than a record.
 
@@ -328,6 +334,6 @@ Open questions the format deliberately does **not** answer yet. They are listed 
 - **Nested containers.** A bag's `contents` is one level deep — no bag inside a bag, and no way to say what is left in a partly-drawn bag when a scenario saves it. Deep `ContainedObjects` recursion on import is tracked with the importer envelope work, not here.
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing, registry, or ownership check. Two authors can both ship `ember-duel`, and `resolve-packs.ts` only warns when a fetched pack's `id` disagrees with the ref. Until this is decided, the practical advice is a distinctive `id` plus a `source` URL you control.
 
-- **Snapping beyond discrete points.** `snapPoints` is a list of spots. Grids (square/hex), per-object snap opt-outs, and hidden/layout/randomize zones have no syntax, and a snap point cannot restrict what is allowed to land on it. Pack-level snap sets (a snap layout that travels with an overlay, rather than with the scenario) are also unresolved — that would pull the pack schema and /create in under the parity rule, so it is deliberately left to a follow-up.
+- **Snapping beyond square grids.** Square grids (`kind: 'grid'`), elevation (`y`) and the per-piece `snap` opt-out landed with tableplace-134, but hex grids and hidden/layout/randomize zones still have no syntax, and a snap point cannot restrict what is allowed to land on it. Pack-level snap sets (a snap layout that travels with an overlay, rather than with the scenario) are also unresolved — that would pull the pack schema and /create in under the parity rule, so it is deliberately left to a follow-up.
 
 `GamePackDef` also does not carry a board/table definition (SPEC §4d mentions one); overlays are the closest thing today.

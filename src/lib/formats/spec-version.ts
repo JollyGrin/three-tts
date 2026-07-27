@@ -19,13 +19,15 @@
 /**
  * Bump on any change to the pack schema. See docs/packs.md § Spec versioning.
  *
+ * 1.5.0 — pieces can carry `snap: false` (the per-piece snap opt-out),
+ * additive: every earlier 1.x pack is still valid.
  * 1.4.0 — added per-card `orientation` (`'portrait' | 'landscape'`) to deck
  * cards and bag card items, additive: every earlier 1.x pack is still valid.
  *
  * 1.3.0 — added the `bag` piece kind (`contents`/`drawMode`/`infinite`),
  * additive: every earlier 1.x pack is still valid.
  */
-export const PACK_SPEC_VERSION = '1.4.0';
+export const PACK_SPEC_VERSION = '1.5.0';
 
 /**
  * The scenario spec is deliberately 0.x: it is unstable and carries no
@@ -39,13 +41,17 @@ export const PACK_SPEC_VERSION = '1.4.0';
  * "additive → minor" convention in docs/packs.md § Release convention is the
  * 1.x rule; it inverts under 0.x.)
  *
+ * 0.1.8 — snap points 2.0: optional elevation (`y`), the `kind: 'grid'`
+ * variant (`pitch`/`cols`/`rows`/`yawStep`), and `snap: false` on pieces. All
+ * optional fields on existing shapes — additive, so PATCH, not minor (two
+ * workers have bumped 0.x wrong before; `check-schemas.ts` will not catch it).
  * 0.1.7 — `state.cards` (and bag card items) can carry `orientation`,
  * additive — so a PATCH bump, per the 0.x rule above.
  *
  * 0.1.6 — `state.pieces` can carry the bag fields (this schema is generated
  * from `Partial<GameDTO>`), additive.
  */
-export const SCENARIO_SPEC_VERSION = '0.1.7';
+export const SCENARIO_SPEC_VERSION = '0.1.8';
 
 export type Semver = { major: number; minor: number; patch: number };
 

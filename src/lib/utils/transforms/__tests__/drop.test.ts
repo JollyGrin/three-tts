@@ -581,4 +581,194 @@ describe('resolveDrop', () => {
 			);
 		});
 	});
+
+	describe('elevated snap points (y)', () => {
+		// the local floor is 2; every rest height is the usual arithmetic with
+		// 2 substituted for the table top
+		const FLOOR = 2;
+		const withElevated = (over: Partial<GameDTO> = {}) =>
+			state({
+				snapPoints: { 'snap:0': { id: 'snap:0', position: [4, 2], radius: 1, y: FLOOR } },
+				...over
+			});
+
+		it('rests a card on the substituted floor', () => {
+			const s = withElevated({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 4.3, z: 2 });
+			expect(drop?.kind).toBe('snap');
+			expect(drop?.position).toEqual([4, FLOOR + (CARD_REST_Y - TABLE_TOP_Y), 2]);
+		});
+
+		it('rests a piece half a disc above the substituted floor', () => {
+			const s = withElevated({
+				pieces: { 'piece:me:t': { position: [0, 1.2, 0], rotation: [0, 0, 0], kind: 'token' } }
+			});
+			const drop = resolveDrop(s, 'piece:me:t', { x: 4, z: 2 });
+			expect(drop?.position).toEqual([4, FLOOR + (PIECE_REST_Y - TABLE_TOP_Y), 2]);
+			// the footprint belongs on the elevated floor, not on the felt below
+			expect(drop?.footprintY).toBe(FLOOR);
+		});
+
+		it('rests a deck at half its body height above the substituted floor', () => {
+			const s = withElevated({
+				decks: {
+					'deck:me:main': {
+						id: 'deck:me:main',
+						position: [0, CARD_DRAG_Y, 0],
+						rotation: [0, 0, 0],
+						cards: Array.from({ length: 20 }, (_, i) => ({ id: `c${i}`, faceImageUrl: 'f.png' }))
+					}
+				}
+			});
+			const drop = resolveDrop(s, 'deck:me:main', { x: 4, z: 2 });
+			expect(drop?.position).toEqual([4, FLOOR + deckHeightForCount(20) / 2, 2]);
+		});
+
+		it('still stacks: a card dropped on a card on an elevated point lands on top', () => {
+			const restingY = FLOOR + (CARD_REST_Y - TABLE_TOP_Y);
+			const s = withElevated({
+				cards: { a: card(0, 2, 0), resting: card(4, restingY, 2) }
+			});
+			const drop = resolveDrop(s, 'a', { x: 4.3, z: 2 });
+			expect(drop?.kind).toBe('snap');
+			expect(drop?.position[1]).toBeCloseTo(restingY + CARD_THICKNESS);
+		});
+
+		it('ignores a card resting on the felt underneath the platform', () => {
+			// a table-level card at the same XZ must not pull the drop down
+			// through the elevated floor
+			const s = withElevated({
+				cards: { a: card(0, 2, 0), below: card(4, CARD_REST_Y, 2) }
+			});
+			const drop = resolveDrop(s, 'a', { x: 4.3, z: 2 });
+			expect(drop?.position[1]).toBeCloseTo(FLOOR + (CARD_REST_Y - TABLE_TOP_Y));
+		});
+	});
+
+	describe('the surfaceYAt seam (tableplace-135 plugs in here)', () => {
+		it('is the floor fallback when no snap point authors one', () => {
+			const s = state({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 3, z: 1 }, {}, { surfaceYAt: () => 1.4 });
+			expect(drop?.position[1]).toBeCloseTo(1.4 + (CARD_REST_Y - TABLE_TOP_Y));
+		});
+
+		it('loses to an elevated snap point — snap.y comes first', () => {
+			const s = state({
+				cards: { a: card(0, 2, 0) },
+				snapPoints: { 'snap:0': { id: 'snap:0', position: [4, 2], radius: 1, y: 3 } }
+			});
+			const drop = resolveDrop(s, 'a', { x: 4, z: 2 }, {}, { surfaceYAt: () => 1.4 });
+			expect(drop?.position[1]).toBeCloseTo(3 + (CARD_REST_Y - TABLE_TOP_Y));
+		});
+
+		it('changes nothing when it answers undefined', () => {
+			const s = state({ cards: { a: card(0, 2, 0) } });
+			expect(resolveDrop(s, 'a', { x: 3, z: 1 }, {}, { surfaceYAt: () => undefined })).toEqual(
+				resolveDrop(s, 'a', { x: 3, z: 1 })
+			);
+		});
+	});
+
+	describe('snap grids', () => {
+		// cells at x ∈ {8, 10, 12}, z ∈ {0, 2, 4}
+		const withGrid = (over: Partial<GameDTO> = {}) =>
+			state({
+				snapPoints: {
+					'snap:0': { id: 'snap:0', position: [10, 2], kind: 'grid', pitch: 2, cols: 3, rows: 3 }
+				},
+				...over
+			});
+
+		it('pulls a card to the nearest cell centre and reports the cell for the preview', () => {
+			const s = withGrid({ cards: { a: card(0, 2, 0) } });
+			const drop = resolveDrop(s, 'a', { x: 8.4, z: 3.7 });
+			expect(drop).toMatchObject({
+				kind: 'snap',
+				position: [8, CARD_REST_Y, 4],
+				snap: { id: 'snap:0', grid: { pitch: 2, rotation: 0 } }
+			});
+		});
+
+		it('steps a card yaw to the nearest 90°, in degrees on rotation[2]', () => {
+			const s = withGrid({ cards: { a: card(0, 2, 0, [180, 0, 130]) } });
+			const drop = resolveDrop(s, 'a', { x: 10, z: 2 });
+			// the facedown flip on rotation[0] survives, like any snap rotation
+			expect(drop?.rotation).toEqual([180, 0, 90]);
+		});
+
+		it('steps a piece yaw in degrees on rotation[1]', () => {
+			const s = withGrid({
+				pieces: { 'piece:me:t': { position: [0, 1.2, 0], rotation: [0, 50, 0], kind: 'token' } }
+			});
+			const drop = resolveDrop(s, 'piece:me:t', { x: 10, z: 2 });
+			expect(drop?.rotation).toEqual([0, 90, 0]);
+			expect(drop?.position).toEqual([10, PIECE_REST_Y, 2]);
+		});
+
+		it('steps a deck yaw in RADIANS — the deck rotation convention', () => {
+			// the deck carries ~100° as radians; the nearest 90° multiple is 90°,
+			// and it must go back in as radians, not degrees (a degree write
+			// would spin the pile ~57×)
+			const s = withGrid({
+				decks: {
+					'deck:me:main': {
+						id: 'deck:me:main',
+						position: [0, CARD_DRAG_Y, 0],
+						rotation: [0, (100 * Math.PI) / 180, 0],
+						cards: [{ id: 'c0', faceImageUrl: 'f.png' }]
+					}
+				}
+			});
+			const drop = resolveDrop(s, 'deck:me:main', { x: 10, z: 2 });
+			expect(drop?.kind).toBe('snap');
+			const [rx, ry, rz] = drop!.rotation;
+			expect([rx, rz]).toEqual([0, 0]);
+			expect(ry).toBeCloseTo(Math.PI / 2);
+		});
+
+		it('is opted out of by Alt like any snap', () => {
+			const s = withGrid({ cards: { a: card(0, 2, 0) } });
+			expect(resolveDrop(s, 'a', { x: 10, z: 2 }, {}, { noSnap: true })?.kind).toBe('table');
+		});
+	});
+
+	describe('per-piece snap opt-out (snap: false)', () => {
+		const withSnapAndPieces = () =>
+			state({
+				snapPoints: { 'snap:0': { id: 'snap:0', position: [4, 2], radius: 1, rotation: 90 } },
+				pieces: {
+					'piece:me:snappy': { position: [0, 1.2, 0], rotation: [0, 0, 0], kind: 'token' },
+					'piece:me:loose': {
+						position: [0, 1.2, 0],
+						rotation: [0, 0, 0],
+						kind: 'token',
+						snap: false
+					},
+					'piece:me:bag': { kind: 'bag', position: [4, PIECE_REST_Y, 2], radius: 0.9 }
+				}
+			});
+
+		it('drops as if Alt were held — position and rotation untouched by the point', () => {
+			const s = withSnapAndPieces();
+			const drop = resolveDrop(s, 'piece:me:loose', { x: 4.2, z: 2 });
+			expect(drop).toMatchObject({ kind: 'table', position: [4.2, PIECE_REST_Y, 2] });
+			expect(drop?.rotation).toEqual([0, 0, 0]);
+			expect(drop?.snap).toBeUndefined();
+		});
+
+		it('leaves every other piece snapping as before', () => {
+			const drop = resolveDrop(withSnapAndPieces(), 'piece:me:snappy', { x: 4.2, z: 2 });
+			expect(drop).toMatchObject({ kind: 'snap', position: [4, PIECE_REST_Y, 2] });
+		});
+
+		it('does not opt out of aimed-at targets: a bag still swallows it', () => {
+			const drop = resolveDrop(
+				withSnapAndPieces(),
+				'piece:me:loose',
+				{ x: 4, z: 2 },
+				{ bagId: 'piece:me:bag' }
+			);
+			expect(drop?.kind).toBe('bag');
+		});
+	});
 });

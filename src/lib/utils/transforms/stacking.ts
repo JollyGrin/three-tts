@@ -6,6 +6,7 @@ import {
 	CARD_STACK_MAX_Y,
 	CARD_FAN_STEP
 } from '$lib/utils/constants-cards';
+import { TABLE_TOP_Y } from '$lib/utils/constants-table';
 
 export interface StackResolution {
 	/** resting height for the dropped card */
@@ -25,22 +26,32 @@ export interface StackResolution {
  * coplanar cards z-fight no matter how precise the depth buffer is — and the
  * drop squares up to the base card's XZ so a pile reads as an intentional
  * stack instead of a drifting fan.
+ *
+ * `floorY` is the local floor the pile rests on — the table top, unless an
+ * elevated snap point substitutes its own (see `resolveDrop`). All the height
+ * bookkeeping shifts with it: the empty-spot rest, the "mid-drag, not
+ * resting" ceiling, and a lower bound that keeps a card sitting on the felt
+ * *under* an elevated platform from pulling the drop down through the floor.
  */
 export function resolveStack(
 	cards: GameDTO['cards'] | undefined,
 	droppedId: string,
 	x: number,
-	z: number
+	z: number,
+	floorY: number = TABLE_TOP_Y
 ): StackResolution {
 	let top: number | null = null;
 	let base: { id: string; x: number; y: number; z: number } | null = null;
 	let count = 0;
 	const radiusSq = CARD_STACK_RADIUS * CARD_STACK_RADIUS;
+	const restBase = floorY + (CARD_REST_Y - TABLE_TOP_Y);
+	const maxRestingY = floorY + (CARD_STACK_MAX_Y - TABLE_TOP_Y);
 
 	for (const [id, card] of Object.entries(cards ?? {})) {
 		if (id === droppedId || !card?.position) continue;
 		const [cx = 0, cy = 0, cz = 0] = card.position;
-		if (cy > CARD_STACK_MAX_Y) continue; // mid-drag/animation, not resting
+		if (cy > maxRestingY) continue; // mid-drag/animation, not resting
+		if (cy < floorY - CARD_THICKNESS) continue; // resting below this floor
 		const dx = cx - x;
 		const dz = cz - z;
 		if (dx * dx + dz * dz > radiusSq) continue;
@@ -52,7 +63,7 @@ export function resolveStack(
 			base = { id, x: cx, y: cy, z: cz };
 	}
 
-	if (top === null || base === null) return { restY: CARD_REST_Y, x, z, count: 0 };
+	if (top === null || base === null) return { restY: restBase, x, z, count: 0 };
 	return { restY: top + CARD_THICKNESS, x: base.x, z: base.z, count };
 }
 

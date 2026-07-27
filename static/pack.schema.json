@@ -158,6 +158,11 @@
 								"maxItems": 2,
 								"title": "position"
 							},
+							"snap": {
+								"description": "Whether snap points (and grids) pull this piece's drops. Default `true`;\n`false` is the per-piece opt-out — a big room section should snap to the\ngrid, a loose prop shouldn't.",
+								"type": "boolean",
+								"title": "snap"
+							},
 							"contents": {
 								"description": "bags only — what a draw pulls out. Hidden from every player in play.",
 								"type": "array",
@@ -323,7 +328,7 @@
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.4.0",
-	"x-generated-at": "2026-07-27T01:05:03.812Z",
-	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
+	"x-tableplace-spec-version": "1.5.0",
+	"x-generated-at": "2026-07-27T09:14:44.102Z",
+	"x-tableplace-source-sha": "4c497038f5dfb3a787347cab8170025cbf3c7559-dirty"
 }

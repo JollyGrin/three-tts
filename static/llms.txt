@@ -33,7 +33,7 @@ Every file carries an in-band discriminator at the top level: `"tbpp": 1` or `"t
 
 ### 2.1 Spec versions
 
-Current: **pack `1.4.0`**, **scenario `0.1.7`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
+Current: **pack `1.5.0`**, **scenario `0.1.8`**. The scenario spec is `0.x` on purpose — under semver, `0.x` may break on every minor, which is precisely the promise being made.
 
 Two version fields exist and they answer different questions:
 
@@ -168,13 +168,13 @@ Resolution is asynchronous and failure is non-fatal: an unreachable sheet falls 
 
 ### 6.1 Fields
 
-- **`specVersion`** — the pack spec you generated against (§2.1). Currently `1.4.0`.
+- **`specVersion`** — the pack spec you generated against (§2.1). Currently `1.5.0`.
 - **`id`** — stable identity for the pack, e.g. `ember-duel`. See §8 on collisions.
 - **`name`** — human-readable title.
 - **`scope`** — `"table"` or `"player"`. `table` is the shared game loaded once per lobby by the host (board, communal decks). `player` is what one participant brings and is spawned per seat — a deck-builder export is a player pack. When in doubt for a card game, use `player`.
 - **`decks[]`** — `slot` (stable id within the pack), `name`, `back` (a face ref), optional `isFaceUp`, and `cards[]`.
   - **`cards[]`** — `code` (stable id within the deck), optional `name`, `face` (a face ref), and optional `orientation` — `"portrait"` (default) or `"landscape"`. A landscape card rests turned 90° everywhere it renders (board, hand, preview) while its art stays portrait in the image; use it for cards that are played sideways (the analog of Tabletop Simulator's `SidewaysCard`).
-- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
+- **`pieces[]`** _(optional)_ — `kind` (`"token"`, `"pawn"`, `"counter"` or `"bag"`), `name`, optional `color` (hex string, used when there is no image), optional `imageUrl` (a face ref), optional `states` and `state` (§6.2), optional `radius`, optional `maxValue` (counters), optional `snap` (default `true`; `false` opts the piece out of snap points and grids — it drops as if Alt were held), and `position` as `[x, z]`. A bag adds the three fields in §6.3.
 - **`overlays[]`** _(optional)_ — board/map images: `imageUrl` (a face ref), `ratio` (image width ÷ height), `scale` (world size along the long axis).
 - **`source`** _(optional)_ — provenance stamp written by converters; the only value is `"tts"`. Omit it in hand-authored packs.
 
@@ -399,6 +399,11 @@ A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of
 								"maxItems": 2,
 								"title": "position"
 							},
+							"snap": {
+								"description": "Whether snap points (and grids) pull this piece's drops. Default `true`;\n`false` is the per-piece opt-out — a big room section should snap to the\ngrid, a loose prop shouldn't.",
+								"type": "boolean",
+								"title": "snap"
+							},
 							"contents": {
 								"description": "bags only — what a draw pulls out. Hidden from every player in play.",
 								"type": "array",
@@ -564,9 +569,9 @@ A drawn card arrives **facedown**; a drawn piece arrives as an ordinary piece of
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "1.4.0",
-	"x-generated-at": "2026-07-27T01:05:03.812Z",
-	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
+	"x-tableplace-spec-version": "1.5.0",
+	"x-generated-at": "2026-07-27T09:14:44.102Z",
+	"x-tableplace-source-sha": "4c497038f5dfb3a787347cab8170025cbf3c7559-dirty"
 }
 ```
 
@@ -578,7 +583,7 @@ A complete, valid pack. Save as `ember-duel.tbpp.json` and import it from the ta
 {
 	"$schema": "https://table.place/pack.schema.json",
 	"tbpp": 1,
-	"specVersion": "1.4.0",
+	"specVersion": "1.5.0",
 	"id": "ember-duel",
 	"name": "Ember Duel",
 	"scope": "player",
@@ -708,7 +713,7 @@ A scenario is a saved arrangement. Version 2 **references** packs rather than co
 
 ### 7.1 Fields
 
-- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `0.1.7`.
+- **`specVersion`** — the scenario spec you generated against (§2.1). Currently `0.1.8`.
 - **`name`**, **`createdAt`** — title and a Unix epoch timestamp in milliseconds.
 - **`packs[]`** — `{ id, source? }` for every pack the scenario draws from. `source` is `"builtin"` for packs shipped with the app (currently only `standard-52`), `"local"` for a pack held in the reader's own browser-local pack library, or an `https://` URL a `.tbpp.json` can be fetched from. A remote pack goes through the same validation as a local import. A scenario meant to travel to other people must use `"builtin"` or a URL: `"local"` resolves only on the machine that has the pack, and fails loudly (naming the pack id) anywhere else.
 - **`placements[]`** — one entry per spawned thing:
@@ -733,13 +738,21 @@ Scenarios are **seat-relative**. Entities belong to placeholder players `seat0`�
 ```json
 "snapPoints": [
 	{ "position": [0, 2.5], "rotation": 0, "radius": 1 },
-	{ "position": [-4, 0] }
+	{ "position": [-4, 0], "y": 2 },
+	{ "position": [6, 0], "kind": "grid", "pitch": 2, "cols": 4, "rows": 3 }
 ]
 ```
 
-- **`position`** — `[x, z]` in table space (§4). Two elements, no y: a snap point is a spot on the felt, and what lands on it keeps its own resting height, so a card dropped on an occupied point still stacks on what is already there.
-- **`rotation`** _(optional)_ — the yaw a caught drop turns to, in **degrees**. Note the unit: `placements[].rotation` is radians, this is degrees, because it maps 1:1 onto a card's own tap rotation and onto TTS snap points. Omit it for a position-only guide, which leaves whatever lands facing as it was.
+- **`position`** — `[x, z]` in table space (§4). Two elements — elevation is the separate optional `y`, never a third tuple element.
+- **`y`** _(optional)_ — elevation: the local floor whatever lands here rests on, substituted for the table top in the rest-height arithmetic. A card dropped on a card on an elevated point still stacks. Omitted means the felt.
+- **`rotation`** _(optional)_ — the yaw a caught drop turns to, in **degrees**. Note the unit: `placements[].rotation` is radians, this is degrees, because it maps 1:1 onto a card's own tap rotation and onto TTS snap points. Omit it for a position-only guide, which leaves whatever lands facing as it was. On a grid this is the lattice's yaw instead.
 - **`radius`** _(optional)_ — catch radius in world units. Omitted means `SNAP_RADIUS_DEFAULT` (§4). A drop lands on a point when its release is inside the radius; when radii overlap, the nearest point wins.
+- **`kind`** _(optional)_ — `"grid"` makes the entry a lattice of square cells; omitted (or `"point"`) is a discrete spot. A drop anywhere over the grid pulls to the nearest **cell centre**; cells and discrete points compete on distance, and a discrete point beats a cell on an exact tie. Grids require:
+  - **`pitch`** — cell size in world units;
+  - **`cols`**, **`rows`** — extent in cells, `position` being the grid's centre;
+  - **`yawStep`** _(optional)_ — degrees; the landing's yaw rounds to the nearest multiple, measured from the grid's `rotation`. Default 90.
+
+Pieces can opt out per piece: a pack piece (or `state` piece) with `snap: false` ignores points and grids entirely — see §6.1.
 
 Snap points are **table-scoped, not seat-relative**: unlike a pack piece's `[x, z]`, they are never mirrored for the far side of the table. Author both ends explicitly — one at `[0, 2.5]` facing `0`, one at `[0, -2.5]` facing `180`.
 
@@ -896,7 +909,7 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 						"type": "object",
 						"properties": {
 							"position": {
-								"description": "table-space `[x, z]`; no y — snap points live on the felt",
+								"description": "Table-space `[x, z]`. Stays two elements — elevation is the separate\noptional `y`, so every 0.1.x reader keeps parsing the tuple it expects.",
 								"type": "array",
 								"items": [
 									{
@@ -910,8 +923,13 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 								"maxItems": 2,
 								"title": "position"
 							},
+							"y": {
+								"description": "Elevation: the local floor whatever lands here rests on, replacing the\ntable top in the rest-height arithmetic. Omitted means the felt. A card\ndropped on a card on an elevated point still stacks.",
+								"type": "number",
+								"title": "y"
+							},
 							"rotation": {
-								"description": "Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's\nown rotation alone. Degrees, not the radians `placements` use, because\nthis is a single table yaw and it maps 1:1 onto both the card DTO's tap\nrotation and TTS's snap-point rotation.",
+								"description": "Yaw a caught drop turns to, in **degrees**. Omitted leaves the entity's\nown rotation alone. Degrees, not the radians `placements` use, because\nthis is a single table yaw and it maps 1:1 onto both the card DTO's tap\nrotation and TTS's snap-point rotation. On a grid this is the lattice's\nyaw instead; the landing's own yaw steps by `yawStep`.",
 								"type": "number",
 								"title": "rotation"
 							},
@@ -919,6 +937,32 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 								"description": "catch radius in world units; omitted means the app default (0.9)",
 								"type": "number",
 								"title": "radius"
+							},
+							"kind": {
+								"description": "`'grid'` turns this entry into a lattice of square cells (`pitch`,\n`cols`, `rows` required): a drop anywhere over the grid pulls to the\nnearest cell centre. Omitted (or `'point'`) is the discrete spot it\nalways was.",
+								"enum": ["grid", "point"],
+								"type": "string",
+								"title": "kind"
+							},
+							"pitch": {
+								"description": "grid only — cell size in world units",
+								"type": "number",
+								"title": "pitch"
+							},
+							"cols": {
+								"description": "grid only — extent in cells; `position` is the grid's centre",
+								"type": "number",
+								"title": "cols"
+							},
+							"rows": {
+								"description": "grid only — extent in cells",
+								"type": "number",
+								"title": "rows"
+							},
+							"yawStep": {
+								"description": "grid only — degrees a landing's yaw rounds to, from the grid's own yaw (default 90)",
+								"type": "number",
+								"title": "yawStep"
 							}
 						},
 						"required": ["position"]
@@ -1456,6 +1500,11 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 					"type": "boolean",
 					"title": "infinite"
 				},
+				"snap": {
+					"description": "Whether snap points (and grids) pull this piece's drops. Absent means\n`true`; `false` is the per-piece opt-out — the drop resolves as if Alt\nwere held, for snap resolution only (aimed-at targets like bags are\nunaffected). A big room section snaps to the grid; a loose prop doesn't.",
+					"type": "boolean",
+					"title": "snap"
+				},
 				"packOrigin": {
 					"description": "Provenance stamped on pack-spawned entities so a scenario export (tbps v2)\ncan reference the pack instead of inlining its content. Wire-safe: the\nrelay server merges state schema-agnostically.",
 					"type": "object",
@@ -1561,7 +1610,7 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 					"title": "id"
 				},
 				"position": {
-					"description": "Table-space `[x, z]`. No y: a snap point is a spot on the felt, and what\nlands on it keeps its own resting height (a card on a card still stacks).",
+					"description": "Table-space `[x, z]`. Stays a 2-tuple on purpose — its arity is asserted\nin four independent places (this type, `xz()` in transforms/snap,\n`parseSnapPoint`, the generated schema), so elevation is the separate\noptional `y` beside it rather than a breaking third element.",
 					"type": "array",
 					"items": [
 						{
@@ -1575,8 +1624,13 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 					"maxItems": 2,
 					"title": "position"
 				},
+				"y": {
+					"description": "Elevation: redefines the local floor for whatever lands on this point.\nThe landing's rest height is computed exactly as on the felt, with `y`\nsubstituted for the table top — so a card dropped on a card on an\nelevated point still stacks. Omitted means the table top.",
+					"type": "number",
+					"title": "y"
+				},
 				"rotation": {
-					"description": "Yaw the landing snaps to, in **degrees**, or omitted to keep whatever\nrotation the entity already had. Degrees to match the card DTO's tap\nrotation (`actions/card.ts`) and TTS's `SnapPoints`.",
+					"description": "Yaw the landing snaps to, in **degrees**, or omitted to keep whatever\nrotation the entity already had. Degrees to match the card DTO's tap\nrotation (`actions/card.ts`) and TTS's `SnapPoints`. On a grid this is\nthe lattice's yaw instead, and the landing's yaw steps by `yawStep`.",
 					"type": "number",
 					"title": "rotation"
 				},
@@ -1584,14 +1638,40 @@ They are inert data. Nothing spawns from them, they claim no ids, they are drawn
 					"description": "catch radius in world units; omitted means `SNAP_RADIUS_DEFAULT`",
 					"type": "number",
 					"title": "radius"
+				},
+				"kind": {
+					"description": "`'grid'` makes this one entry a whole lattice of square cells: a drop\nanywhere over the grid pulls to the nearest cell centre. Absent (or\n`'point'`) is the discrete spot it always was — fully backward\ncompatible, and no sibling collection to teach a dozen call sites about.",
+					"enum": ["grid", "point"],
+					"type": "string",
+					"title": "kind"
+				},
+				"pitch": {
+					"description": "grid only — cell size in world units",
+					"type": "number",
+					"title": "pitch"
+				},
+				"cols": {
+					"description": "grid only — extent in cells; `position` is the grid's centre",
+					"type": "number",
+					"title": "cols"
+				},
+				"rows": {
+					"description": "grid only — extent in cells",
+					"type": "number",
+					"title": "rows"
+				},
+				"yawStep": {
+					"description": "grid only — degrees; a snapped entity's yaw rounds to the nearest\nmultiple, measured from the grid's own `rotation`. Default 90 (the\nmodular-kit case).",
+					"type": "number",
+					"title": "yawStep"
 				}
 			}
 		}
 	},
 	"$schema": "http://json-schema.org/draft-07/schema#",
-	"x-tableplace-spec-version": "0.1.7",
-	"x-generated-at": "2026-07-27T01:05:03.812Z",
-	"x-tableplace-source-sha": "f79cab9140088ca0e2cfffe6b6112d2445578584-dirty"
+	"x-tableplace-spec-version": "0.1.8",
+	"x-generated-at": "2026-07-27T09:14:44.102Z",
+	"x-tableplace-source-sha": "4c497038f5dfb3a787347cab8170025cbf3c7559-dirty"
 }
 ```
 
@@ -1603,7 +1683,7 @@ Two packs — one builtin, one fetched from `https://example.com/packs/ember-due
 {
 	"$schema": "https://table.place/scenario.schema.json",
 	"tbps": 2,
-	"specVersion": "0.1.7",
+	"specVersion": "0.1.8",
 	"name": "ember-duel-opening",
 	"createdAt": 1700000000000,
 	"packs": [
@@ -1734,7 +1814,7 @@ Deliberately unresolved. Do not invent syntax for these — a file using it will
 - **Pack content versioning.** `tbpp` is the _format_ version; a pack cannot declare its own version ("Ember Duel v1.2"). There is no field for it and no upgrade story for a pack whose contents changed under a scenario that references it.
 - **`id` collision policy across authors.** Pack `id` is a bare string with no namespacing or registry. Two authors can both publish `ember-duel`, and a scenario referencing `ember-duel` by a URL that later serves different content will silently resolve differently. Until this is decided, prefer a distinctive `id` and always pin `source` to a URL you control.
 - **Pieces and overlays in scenarios beyond the fields above** — piece rotation, stacking and zones are not expressible.
-- **Snapping beyond single points.** `snapPoints` is a list of discrete spots. Grids (square/hex), per-object opt-outs, and hidden/layout/randomize zones have no syntax; a snap point cannot restrict _what_ may land on it either.
+- **Snapping beyond square grids.** Square grids (`kind: "grid"`), elevation (`y`) and the per-piece `snap` opt-out exist (§7.2), but hex grids and hidden/layout/randomize zones have no syntax; a snap point cannot restrict _what_ may land on it either.
 - **Nested containers.** A bag's `contents` is one level deep: a bag inside a bag has no representation, and the TTS importer skips one rather than flattening it. There is also no way to express the remaining contents of a partly-drawn bag in a scenario.
 
 ## 9. Before you emit a file

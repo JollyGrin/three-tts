@@ -49,7 +49,10 @@ export type EditorBagItem = {
 	orientation: CardOrientation;
 };
 
-export type EditorPiece = Omit<PackPieceDef, 'states' | 'contents' | 'drawMode' | 'infinite'> & {
+export type EditorPiece = Omit<
+	PackPieceDef,
+	'states' | 'contents' | 'drawMode' | 'infinite' | 'snap'
+> & {
 	color: string;
 	imageUrl: string;
 	radius: number;
@@ -59,6 +62,7 @@ export type EditorPiece = Omit<PackPieceDef, 'states' | 'contents' | 'drawMode' 
 	contents: EditorBagItem[];
 	drawMode: PackBagDrawMode;
 	infinite: boolean;
+	snap: boolean;
 };
 export type EditorPack = Omit<GamePackDef, 'decks' | 'pieces' | 'overlays'> & {
 	decks: EditorDeck[];
@@ -123,6 +127,7 @@ export function withEditorDefaults(pack: GamePackDef): EditorPack {
 			contents: (piece.contents ?? []).map(withBagItemDefaults),
 			drawMode: piece.drawMode ?? 'random',
 			infinite: piece.infinite ?? false,
+			snap: piece.snap ?? true,
 			position: [...piece.position] as [number, number]
 		})),
 		overlays: (pack.overlays ?? []).map((overlay) => ({ ...overlay }))
@@ -203,6 +208,8 @@ export function cleanForExport(draft: GamePackDef): GamePackDef {
 						...(piece.infinite ? { infinite: true } : {})
 					}
 				: {}),
+			// true is the default, so only the opt-out ships
+			...(piece.snap === false ? { snap: false } : {}),
 			position: [...piece.position] as [number, number]
 		};
 	});

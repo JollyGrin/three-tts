@@ -172,6 +172,13 @@ export type PieceDTO = {
 	drawMode?: BagDrawMode;
 	/** bags only — draws clone instead of removing (TTS Infinite_Bag) */
 	infinite?: boolean;
+	/**
+	 * Whether snap points (and grids) pull this piece's drops. Absent means
+	 * `true`; `false` is the per-piece opt-out — the drop resolves as if Alt
+	 * were held, for snap resolution only (aimed-at targets like bags are
+	 * unaffected). A big room section snaps to the grid; a loose prop doesn't.
+	 */
+	snap?: boolean;
 	packOrigin?: PackOrigin;
 };
 
@@ -197,18 +204,47 @@ export type OverlayDTO = {
 export type SnapPointDTO = {
 	id: string;
 	/**
-	 * Table-space `[x, z]`. No y: a snap point is a spot on the felt, and what
-	 * lands on it keeps its own resting height (a card on a card still stacks).
+	 * Table-space `[x, z]`. Stays a 2-tuple on purpose — its arity is asserted
+	 * in four independent places (this type, `xz()` in transforms/snap,
+	 * `parseSnapPoint`, the generated schema), so elevation is the separate
+	 * optional `y` beside it rather than a breaking third element.
 	 */
 	position: [number, number];
 	/**
+	 * Elevation: redefines the local floor for whatever lands on this point.
+	 * The landing's rest height is computed exactly as on the felt, with `y`
+	 * substituted for the table top — so a card dropped on a card on an
+	 * elevated point still stacks. Omitted means the table top.
+	 */
+	y?: number;
+	/**
 	 * Yaw the landing snaps to, in **degrees**, or omitted to keep whatever
 	 * rotation the entity already had. Degrees to match the card DTO's tap
-	 * rotation (`actions/card.ts`) and TTS's `SnapPoints`.
+	 * rotation (`actions/card.ts`) and TTS's `SnapPoints`. On a grid this is
+	 * the lattice's yaw instead, and the landing's yaw steps by `yawStep`.
 	 */
 	rotation?: number;
 	/** catch radius in world units; omitted means `SNAP_RADIUS_DEFAULT` */
 	radius?: number;
+	/**
+	 * `'grid'` makes this one entry a whole lattice of square cells: a drop
+	 * anywhere over the grid pulls to the nearest cell centre. Absent (or
+	 * `'point'`) is the discrete spot it always was — fully backward
+	 * compatible, and no sibling collection to teach a dozen call sites about.
+	 */
+	kind?: 'point' | 'grid';
+	/** grid only — cell size in world units */
+	pitch?: number;
+	/** grid only — extent in cells; `position` is the grid's centre */
+	cols?: number;
+	/** grid only — extent in cells */
+	rows?: number;
+	/**
+	 * grid only — degrees; a snapped entity's yaw rounds to the nearest
+	 * multiple, measured from the grid's own `rotation`. Default 90 (the
+	 * modular-kit case).
+	 */
+	yawStep?: number;
 };
 
 // index signatures (not Record<…>) so the generated JSON Schema keeps the

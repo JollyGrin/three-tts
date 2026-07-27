@@ -34,6 +34,8 @@ export type Table = {
 		id: string
 	) => Promise<{ meshes: number; materials: unknown[]; size: [number, number, number] } | null>;
 	dragBy: (id: string, dx: number, dy: number) => Promise<void>;
+	/** drag an entity and release it over a table-plane world position */
+	dragTo: (id: string, worldX: number, worldZ: number) => Promise<void>;
 	positionOf: (id: string) => Promise<number[] | null>;
 	settle: (ms?: number) => Promise<void>;
 	close: () => Promise<void>;
@@ -152,9 +154,8 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 	 * DRAG_THRESHOLD_PX, and the position the drop commits comes from the
 	 * interactivity context's raycast on the last move.
 	 */
-	const dragBy = async (id: string, dx: number, dy: number) => {
-		const from = await locate(id);
-		if (!from) throw new Error(`cannot locate ${id} on screen`);
+	/** press on the entity, walk the pointer to a screen point, release there */
+	const dragFromTo = async (id: string, from: ScreenPoint, to: ScreenPoint) => {
 		// A HUD pane over the entity swallows the press, and the failure looks
 		// exactly like a dead table — which cost an hour of chasing a bag that was
 		// never broken. Fail on the real reason instead: put the entity somewhere
@@ -170,12 +171,38 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		await page.mouse.down();
 		await sleep(80);
 		for (let step = 1; step <= 12; step++) {
-			await page.mouse.move(from.x + (dx * step) / 12, from.y + (dy * step) / 12);
+			await page.mouse.move(
+				from.x + ((to.x - from.x) * step) / 12,
+				from.y + ((to.y - from.y) * step) / 12
+			);
 			await sleep(20);
 		}
 		await sleep(150);
 		await page.mouse.up();
 		await sleep(400);
+	};
+
+	const dragBy = async (id: string, dx: number, dy: number) => {
+		const from = await locate(id);
+		if (!from) throw new Error(`cannot locate ${id} on screen`);
+		await dragFromTo(id, from, { x: from.x + dx, y: from.y + dy });
+	};
+
+	/**
+	 * Release over a table-plane world position: the drop commits wherever the
+	 * pointer's raycast hits the table, so the target pixel is the projection
+	 * of that spot on the felt — where a snap grid can then pull it from.
+	 */
+	const dragTo = async (id: string, worldX: number, worldZ: number) => {
+		const from = await locate(id);
+		if (!from) throw new Error(`cannot locate ${id} on screen`);
+		const to = await page.evaluate(
+			(x, z) => window.__tableplace!.project([x, 0.26, z]),
+			worldX,
+			worldZ
+		);
+		if (!to) throw new Error(`world (${worldX}, ${worldZ}) projects off-screen`);
+		await dragFromTo(id, from, to);
 	};
 
 	return {
@@ -189,6 +216,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		elementAt,
 		describe,
 		dragBy,
+		dragTo,
 		positionOf,
 		settle,
 		close: () => page.close()

@@ -10,6 +10,7 @@
 	import Deck from './Deck.svelte';
 	import Piece from './Piece.svelte';
 	import SnapPointMarker from './SnapPointMarker.svelte';
+	import SnapGridMarker from './SnapGridMarker.svelte';
 	import Hdr from './HDR.svelte';
 	import HudPreviewScene from './HUDPreview/HUDPreviewScene.svelte';
 	import RemoteCameraAvatar from './RemoteCameraAvatar.svelte';
@@ -216,7 +217,11 @@
 <!-- authored placement guides, drawn only while they're being authored -->
 {#if snapEditing}
 	{#each Object.keys($gameStore?.snapPoints ?? {}).filter((key) => $gameStore?.snapPoints?.[key]) as id (id)}
-		<SnapPointMarker {id} />
+		{#if $gameStore?.snapPoints?.[id]?.kind === 'grid'}
+			<SnapGridMarker {id} />
+		{:else}
+			<SnapPointMarker {id} />
+		{/if}
 	{/each}
 {/if}
 

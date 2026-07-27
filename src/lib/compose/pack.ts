@@ -213,6 +213,7 @@ export function composePackPiece(
 		radius: def.radius,
 		maxValue: def.maxValue,
 		sides: def.sides,
+		snap: def.snap,
 		value: opts.value,
 		...(def.kind === 'bag'
 			? { contents: bagContents(def), drawMode: def.drawMode, infinite: def.infinite }
