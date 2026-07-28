@@ -83,6 +83,12 @@ type SceneHandles = {
 	camera: () => THREE.Camera | undefined;
 	canvas: () => HTMLCanvasElement | undefined;
 	scene: () => THREE.Scene | undefined;
+	/**
+	 * Extra readiness the mounting component wants `ready` to wait for —
+	 * TestBridge.svelte holds it false until the scene's environment lighting
+	 * has applied and rendered once (the recompile storm; see its comment).
+	 */
+	isReady?: () => boolean;
 };
 
 /**
@@ -181,7 +187,9 @@ export function installTestBridge(handles: SceneHandles): void {
 	};
 
 	window.__tableplace = {
-		ready: true,
+		get ready() {
+			return handles.isReady?.() ?? true;
+		},
 		actions: gameActions,
 		state: () => get(gameStore),
 		project,
