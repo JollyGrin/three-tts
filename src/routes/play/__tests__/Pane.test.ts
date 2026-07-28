@@ -104,13 +104,27 @@ describe('/play settings pane on first paint', () => {
 		expect(term?.nextElementSibling?.textContent?.trim()).toBe('Arrow Down');
 	});
 
+	it('documents shuffle at its new Shift+S home', async () => {
+		const { container } = render(Pane);
+		await settle();
+
+		// tableplace-161 took bare S for panning; the card has to say so, or the
+		// only way to find shuffle is the radial menu
+		const term = [...container.querySelectorAll('dt')].find(
+			(t) => t.textContent?.trim() === 'Shuffle hovered deck'
+		);
+		expect(term?.nextElementSibling?.textContent?.trim()).toBe('Shift + S');
+	});
+
 	it('renders help and keybinds as prose, not as disabled form controls', async () => {
 		const { container } = render(Pane);
 		await settle();
 
 		// the whole point of #115: nothing read-only may look like a field you
-		// are locked out of. Every keybind lives in the list...
-		expect(container.querySelectorAll('dt').length).toBe(12);
+		// are locked out of. Every keybind lives in the list — 12 at #115, plus
+		// the four tableplace-161 added (the wheel, its no-right-button opener,
+		// WASD panning and shuffle's new Shift+S home)...
+		expect(container.querySelectorAll('dt').length).toBe(16);
 		// ...and no blade in the pane is rendered disabled
 		expect(container.querySelectorAll('.tp-lblv-disabled').length).toBe(0);
 		expect([...container.querySelectorAll('input')].filter((i) => i.disabled).length).toBe(0);

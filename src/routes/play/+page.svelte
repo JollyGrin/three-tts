@@ -17,6 +17,7 @@
 	import { isTyping } from '$lib/hotkeys/is-typing';
 	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import ModelMenu from '$lib/ModelMenu.svelte';
+	import RadialMenu from '$lib/RadialMenu.svelte';
 	import { startAutoClaim } from '$lib/scenario/autoClaim';
 	import Pane from './Pane.svelte';
 	import { page } from '$app/state';
@@ -45,7 +46,10 @@
 		// T/R turn a hovered model by the grid step; otherwise they tap the card
 		if (event.code === 'KeyT' && !rotateHoveredModel(1)) gameActions.tapCard();
 		if (event.code === 'KeyR' && !rotateHoveredModel(-1)) gameActions.tapCard(true);
-		if (event.code === 'KeyS') shuffleHoveredDeck();
+		// Shift+S, not S: W/A/S/D pan the camera and auto-repeat while held, so a
+		// bare contextual S would shuffle-spam the moment you panned toward
+		// yourself. The radial menu is shuffle's discoverable home now.
+		if (event.code === 'KeyS' && event.shiftKey) shuffleHoveredDeck();
 		// G groups the hovered pile into a deck; Shift+G spreads a hovered deck
 		// back into loose cards
 		if (event.code === 'KeyG' && event.shiftKey) ungroupHoveredDeck();
@@ -121,6 +125,7 @@
 <PlayerHud />
 <PieceStateMenu />
 <ModelMenu />
+<RadialMenu />
 
 <!-- a pack or scenario dropped mid-game lands on the live table (and, for a
      pack, in this browser's library) — no detour through /setup -->

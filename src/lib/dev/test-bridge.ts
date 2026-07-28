@@ -23,6 +23,7 @@ import { get } from 'svelte/store';
 import { dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
+import { isWebSocketConnected } from '$lib/websocket/connection';
 import type { GameDTO } from '$lib/store/game/types';
 
 export type ScreenPoint = { x: number; y: number };
@@ -45,6 +46,21 @@ export type TestBridge = {
 		isBagHovered: string | null;
 		isDeckHovered: string | null;
 	};
+	/**
+	 * Where the table camera is right now. A pan — dragged with the right button
+	 * or held on W/A/S/D — moves the eye, so this is what a spec measures a pan
+	 * with. Read off the live camera rather than a store: nothing broadcasts the
+	 * pose locally, and the throttled presence stream is not a clock a spec can
+	 * wait on.
+	 */
+	camera: () => { position: number[]; direction: number[] } | null;
+	/**
+	 * Is the lobby socket still open? The relay *disconnects* a client that
+	 * sustains more than ~7 messages a second, so this is how a spec proves a
+	 * held-key camera pan still rides the throttled presence stream instead of
+	 * streaming a pose per frame.
+	 */
+	connected: () => boolean;
 	/** what an entity is actually made of — null if it never mounted at all */
 	describe: (id: string) => EntityShape | null;
 	/**
@@ -259,6 +275,15 @@ export function installTestBridge(handles: SceneHandles): void {
 		drag: () => {
 			const { isDragging, isHovered, isBagHovered, isDeckHovered } = get(dragStore);
 			return { isDragging, isHovered, isBagHovered, isDeckHovered };
+		},
+		connected: () => isWebSocketConnected(),
+		camera: () => {
+			const camera = handles.camera();
+			if (!camera) return null;
+			return {
+				position: camera.position.toArray(),
+				direction: camera.getWorldDirection(new THREE.Vector3()).toArray()
+			};
 		},
 		describe: (id) => {
 			const object = handles.scene()?.getObjectByName(id);

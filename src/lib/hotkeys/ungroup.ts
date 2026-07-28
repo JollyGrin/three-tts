@@ -6,10 +6,12 @@ import { UNGROUP_MAX_CARDS } from '$lib/store/game/actions/deck';
  * `Shift+G` on a hovered deck: spread it back into loose cards.
  *
  * Shared by /play and /setup so the refusal wording — the only place the
- * card cap is visible while playing — is written once.
+ * card cap is visible while playing — is written once. The radial menu passes
+ * the pressed deck's id explicitly (the pointer has left it by the time a
+ * wedge is chosen); the keybind passes nothing and keeps the hover fallback.
  */
-export function ungroupHoveredDeck() {
-	const result = gameActions.ungroupDeck();
+export function ungroupHoveredDeck(deckId?: string) {
+	const result = gameActions.ungroupDeck(deckId);
 	if (result.ok) return result;
 
 	switch (result.reason) {

@@ -12,6 +12,7 @@
 	import { snapEditor } from './store/snapEditor';
 	import { tableFeatures } from './store/tableFeatures';
 	import { DRAG_THRESHOLD_PX } from './utils/counter-input';
+	import { armRadialPress } from '$lib/radial/gesture';
 	import type { IntersectionEvent } from '@threlte/extras';
 	import { TABLE_TOP_Y } from './utils/constants-table';
 
@@ -44,6 +45,29 @@
 		pressedFelt = get(dragStore).isDragging
 			? null
 			: { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+		/**
+		 * Bare felt gets a wheel too (v1: reset view) — but ONLY on the right
+		 * button, never on a left long-press.
+		 *
+		 * The felt is the one surface a press can reach by accident. Every other
+		 * entity claims its own pointerdown, so a press that arrives here either
+		 * was aimed at the table or MISSED what it was aimed at — and a grab that
+		 * misses is routine on a stalled renderer, where an entity is still drawn
+		 * (and raycast) where it was a frame ago. Arming a left hold on that path
+		 * puts a wheel in the middle of what the hand is doing: the left button
+		 * on felt already means orbit, and the gesture it interrupts is a drag.
+		 * Right-press-hold and right-click are unambiguous, so the table keeps
+		 * those and nothing else. Pieces, which own their own right-click, are
+		 * vetoed in the gesture.
+		 */
+		if (event.nativeEvent.button !== 2) return;
+		armRadialPress({
+			target: { kind: 'table' },
+			event: event.nativeEvent,
+			// the wheel ate the press: a release on /setup's armed snap layer must
+			// not also drop a snap point where the wheel opened
+			onOpen: () => (pressedFelt = null)
+		});
 	}
 
 	function handleClick(event: IntersectionEvent<MouseEvent>) {

@@ -65,6 +65,17 @@ async function eventually<T>(
 }
 
 /**
+ * Walk the pointer from wherever it is to `to`, the way a hand flicks toward a
+ * wedge: several moves, so the wheel's highlight tracks and the entities under
+ * the path get their hover events — a single jump would test a gesture nobody
+ * makes. The button is left DOWN; the caller's release is what decides.
+ */
+async function flickTo(table: Table, to: { x: number; y: number }): Promise<void> {
+	await table.page.mouse.move(to.x, to.y, { steps: 10 });
+	await sleep(200); // the highlight, and any hover the path crossed, land first
+}
+
+/**
  * Called with `what just happened`. The runtime-teardown case is named
  * separately because it is the failure #102 actually was, and because its
  * signature — `effect_update_depth_exceeded` — is worth reading in the report
@@ -947,23 +958,28 @@ export const SPECS: Spec[] = [
 	},
 	{
 		/**
-		 * tableplace-103: the deck's three gestures, driven by a real mouse.
-		 * Tap draws one; travel without a hold draws the top card INTO the
-		 * in-flight drag (the deck itself must not budge); a 400ms hold arms a
-		 * whole-pile move — with a visible cue — and only then does travel move
-		 * the deck. A hold released without travel does nothing at all.
+		 * The deck's gestures, driven by a real mouse — REWRITTEN for
+		 * tableplace-161's contract, which is deliberately not -103's:
 		 *
-		 * Timing follows #141's de-flake pattern: every gesture first ASSERTS
-		 * IT ARRIVED (the drag started / the cue mounted) before judging what
-		 * it did, a slipped or mis-timed synthetic gesture is retried up to 3x,
-		 * and animated outcomes are polled to a bounded final state instead of
-		 * racing a fixed settle. Draw-vs-move itself is decided by EVENT
-		 * timestamps in Deck.svelte (pointermove delivery is rAF-aligned, so on
-		 * a slow-framed runner a quick drag's first move can arrive after the
-		 * 400ms arm timer) — this spec is what caught that; the retries remain
-		 * for grabs that slip entirely.
+		 *   tap                → draw one
+		 *   drag               → draw the top card INTO the drag (always now:
+		 *                        there is no hold that turns a drag into a move)
+		 *   press and hold     → the radial wheel
+		 *   "Move pile" wedge  → the pile follows the pointer and lands on the
+		 *                        next click, once
+		 *
+		 * -103's hold-then-travel arm (and its amber cue) is gone: the long
+		 * press belongs to the wheel, at the same beat as every other entity,
+		 * and moving a pile is a verb you can see rather than a timing you have
+		 * to know. The old spec asserted the arm cue's meshes; this asserts the
+		 * wheel and the carry.
+		 *
+		 * Timing still follows #141: every gesture first ASSERTS IT ARRIVED (the
+		 * drag started, the wheel is up, the pile is carried) before judging what
+		 * it did, slipped synthetic gestures retry, and animated outcomes are
+		 * polled to a bounded final state instead of racing a fixed settle.
 		 */
-		name: 'deck gestures: tap draws, drag draws into the drag, long press moves',
+		name: 'deck gestures: tap draws, drag draws into the drag, the wheel moves the pile',
 		run: (context) =>
 			withTable(context, 'deck-gestures', async (table) => {
 				const deck = await table.seedDeck();
@@ -977,7 +993,6 @@ export const SPECS: Spec[] = [
 				const looseCards = () =>
 					table.page.evaluate(() => Object.keys(window.__tableplace!.state()?.cards ?? {}));
 				const dragOwner = () => table.page.evaluate(() => window.__tableplace!.drag().isDragging);
-				const deckMeshes = async () => (await table.describe(deck))!.meshes;
 
 				// ── tap: one card to the felt, deck stays put ─────────────────
 				const start = await deckCount();
@@ -1057,37 +1072,27 @@ export const SPECS: Spec[] = [
 					`the drawn card did not follow the pointer away from the deck: ${JSON.stringify(drawnPos)}`
 				);
 
-				// ── long press, no travel: cue mounts, nothing is drawn ───────
+				// ── long press: the wheel, and nothing drawn ──────────────────
 				const countBeforeHold = await deckCount();
-				const meshesAtRest = await deckMeshes();
-				let meshesArmed = meshesAtRest;
-				for (let attempt = 0; attempt < 3 && meshesArmed <= meshesAtRest; attempt++) {
-					const at = await table.locate(deck);
-					ok(at, 'the deck vanished before the long press');
-					await table.page.mouse.move(at!.x, at!.y);
-					await sleep(80);
-					await table.page.mouse.down();
-					// poll for the cue rather than sleeping DECK_MOVE_HOLD_MS of
-					// wall-clock — page time is what the arm timer runs on
-					meshesArmed = await eventually(deckMeshes, (m) => m > meshesAtRest, 4000);
-					await table.page.mouse.up();
-					if (meshesArmed <= meshesAtRest) await table.settle(600); // slipped grab
-				}
+				const wheel = await table.openRadial(deck, { button: 'left', timeoutMs: 8000 });
 				ok(
-					meshesArmed > meshesAtRest,
-					`no visible cue mounted after the long press armed the move ` +
-						`(${meshesAtRest} meshes at rest, ${meshesArmed} armed)`
+					['draw', 'flip', 'shuffle', 'ungroup', 'move'].every((slug) =>
+						wheel.actions.includes(slug)
+					),
+					`the deck wheel is missing verbs: ${JSON.stringify(wheel.actions)}`
 				);
-				const meshesReleased = await eventually(deckMeshes, (m) => m === meshesAtRest);
-				ok(meshesReleased === meshesAtRest, `the armed cue did not unmount after release`);
+				await table.page.mouse.up(); // released in the deadzone: a cancel
+				await table.settle(700);
+				ok(!(await table.radial()), 'the deck wheel stayed up after a deadzone release');
 				ok(
 					(await deckCount()) === countBeforeHold,
-					`a long press released without travel drew a card — it must do nothing`
+					`a long press that opened the wheel drew a card — it must not`
 				);
 
-				// ── long press then travel: the whole pile moves ──────────────
-				// dragBy waits for the arm cue before travelling (see table.ts);
-				// the outcome is still polled and a slipped grab retried
+				// ── the "Move pile" wedge carries the pile to the next click ──
+				// The whole gesture — hold, flick to the wedge, walk, click down —
+				// lives in table.ts's grabMoveTo, which is what dragBy now does for
+				// a deck. Outcome polled, slipped attempts retried, same as before.
 				let moved: { count: number } | null = null;
 				for (let attempt = 0; attempt < 3 && !moved; attempt++) {
 					const count = await deckCount();
@@ -1100,8 +1105,40 @@ export const SPECS: Spec[] = [
 					);
 					if (after && planarDistance(before, after) > 0.5) moved = { count };
 				}
-				ok(!!moved, `a long press + travel did not move the pile in 3 attempts`);
+				ok(!!moved, `the "Move pile" wedge did not move the pile in 3 attempts`);
 				ok((await deckCount()) === moved!.count, `moving the pile changed its card count`);
+				ok(!(await table.radial()), 'the wheel was still up after the pile was placed');
+				// one use only: the pile is settled, not still following the pointer
+				const owner = await table.page.evaluate(() => window.__tableplace!.drag().isDragging);
+				ok(owner === null, `the pile is still being carried after its placing click: ${owner}`);
+				const placedAt = await table.positionOf(deck);
+				await table.page.mouse.move(placedAt ? 200 : 200, 200);
+				await table.settle(500);
+				const stillPlaced = await table.positionOf(deck);
+				ok(
+					planarDistance(placedAt, stillPlaced) < 0.05,
+					`the pile followed the pointer after being placed: ${JSON.stringify(placedAt)} → ${JSON.stringify(stillPlaced)}`
+				);
+
+				// ── Escape puts a carried pile back ──────────────────────────
+				const homeAt = await table.positionOf(deck);
+				const carry = await table.openRadial(deck, { button: 'left', timeoutMs: 8000 });
+				await table.page.mouse.move(carry.wedges.move!.x, carry.wedges.move!.y, { steps: 8 });
+				await sleep(120);
+				await table.page.mouse.up();
+				const lifted = await eventually(dragOwner, (o) => o === deck, 3000);
+				ok(lifted === deck, `the "Move pile" wedge did not pick the pile up: ${lifted}`);
+				const away = await table.locate(deck);
+				await table.page.mouse.move(away!.x + 120, away!.y, { steps: 8 });
+				await table.settle(300);
+				await table.page.keyboard.press('Escape');
+				await table.settle(800);
+				ok((await dragOwner()) === null, 'Escape left the pile in the air');
+				const returned = await table.positionOf(deck);
+				ok(
+					planarDistance(homeAt, returned) < 0.05,
+					`Escape did not put the carried pile back: ${JSON.stringify(homeAt)} → ${JSON.stringify(returned)}`
+				);
 
 				assertClean(table, 'after the deck gesture suite');
 				await table.snap('deck-gestures');
@@ -1371,6 +1408,485 @@ export const SPECS: Spec[] = [
 				const pose = await table.locate(token);
 				if (pose) await table.page.mouse.move(pose.x, pose.y);
 				await table.snap('badges');
+			})
+	},
+	{
+		/**
+		 * tableplace-161, the wheel itself: a right press that HOLDS STILL opens
+		 * the radial menu on the card under it, a flick to a wedge fires exactly
+		 * that wedge, and a release in the centre deadzone is a cancel.
+		 *
+		 * Driven with the real CDP mouse, because everything under test lives
+		 * between the pointer and the store: which entity the press claimed, what
+		 * angle the release was at, and whether the action took the id it was
+		 * pressed with. A store-level test would pass on a build where the wheel
+		 * opened on the wrong card.
+		 */
+		name: 'radial: right-press flick flips the pressed card, deadzone cancels',
+		run: (context) =>
+			withTable(context, 'radial-card', async (table) => {
+				const deck = await table.page.evaluate(() => {
+					const cards = ['AS', 'KH'].map((code) => ({
+						id: `card:std:radial-${code}`,
+						faceImageUrl: `gen:std52/${code}`,
+						backImageUrl: 'gen:std52/back'
+					}));
+					return String(
+						window.__tableplace!.actions.addDeck({ cards, position: [-2, 0.4, -2] } as never) ?? ''
+					);
+				});
+				await table.settle(1000);
+				const card = await table.page.evaluate(
+					(id) => window.__tableplace!.actions.drawFromTop(id, 1)[0]?.id ?? '',
+					deck
+				);
+				ok(!!card, 'nothing came off the top of the deck');
+				await table.settle(1500);
+				// park it in the clear lane, well away from the deck and the panes
+				await table.dragTo(card, -4, 1);
+				await table.settle(900);
+
+				const rotationOf = () =>
+					table.page.evaluate(
+						(id) => window.__tableplace!.state()?.cards?.[id]?.rotation ?? null,
+						card
+					);
+
+				// ── the wheel opens on the card, with the card's own verbs ────
+				const wheel = await table.openRadial(card, { button: 'right' });
+				ok(
+					['flip', 'tap', 'tap-reverse', 'group'].every((slug) => wheel.actions.includes(slug)),
+					`the card wheel is missing verbs: ${JSON.stringify(wheel.actions)}`
+				);
+
+				// ── flick to Flip and release: that card turns over ───────────
+				const before = await rotationOf();
+				ok(before, 'the card has no rotation to start from');
+				const flip = wheel.wedges.flip!;
+				await flickTo(table, flip);
+				await table.page.mouse.up({ button: 'right' });
+				const flipped = await eventually(rotationOf, (r) => !!r && r[0] !== before![0]);
+				ok(
+					!!flipped && flipped[0] !== before![0],
+					`the flick did not flip the card: ${JSON.stringify(before)} → ${JSON.stringify(flipped)}`
+				);
+				ok(!(await table.radial()), 'the wheel stayed up after the release fired a wedge');
+
+				// ── and the deadzone release is a cancel ──────────────────────
+				const held = await table.openRadial(card, { button: 'right' });
+				ok(!!held, 'the wheel did not reopen on the card');
+				const centre = await table.locate(card);
+				await table.page.mouse.move(centre!.x + 8, centre!.y + 6); // inside the deadzone
+				await sleep(120);
+				await table.page.mouse.up({ button: 'right' });
+				await table.settle();
+				ok(!(await table.radial()), 'a deadzone release left the wheel up');
+				const unchanged = await rotationOf();
+				ok(
+					JSON.stringify(unchanged) === JSON.stringify(flipped),
+					`a deadzone release changed the card anyway: ${JSON.stringify(flipped)} → ${JSON.stringify(unchanged)}`
+				);
+
+				// the wheel must not have cost the table its raycast
+				await assertDraggable(table, deck, 'deck (with the radial menu in play)');
+				assertClean(table, 'after flicking the card wheel');
+				await table.snap('radial-card');
+			})
+	},
+	{
+		/**
+		 * The sticky half of the opener: a quick right-click leaves the wheel up
+		 * to be read and clicked. Escape and a click on bare felt must dismiss it
+		 * without firing anything — an accidental right-click has to be free.
+		 *
+		 * The last section is the promise this ticket makes to Piece.svelte: a
+		 * piece still owns its own right-click (a counter heals), and the felt
+		 * behind it must not answer for it with a table wheel.
+		 */
+		name: 'radial: quick right-click sticks, Escape and click-away cancel, pieces keep theirs',
+		run: (context) =>
+			withTable(context, 'radial-sticky', async (table) => {
+				const deck = await table.page.evaluate(() => {
+					const cards = ['AS', 'KH'].map((code) => ({
+						id: `card:std:sticky-${code}`,
+						faceImageUrl: `gen:std52/${code}`,
+						backImageUrl: 'gen:std52/back'
+					}));
+					return String(
+						window.__tableplace!.actions.addDeck({ cards, position: [-2, 0.4, -2] } as never) ?? ''
+					);
+				});
+				await table.settle(1000);
+				const card = await table.page.evaluate(
+					(id) => window.__tableplace!.actions.drawFromTop(id, 1)[0]?.id ?? '',
+					deck
+				);
+				ok(!!card, 'nothing came off the top of the deck');
+				await table.settle(1500);
+				await table.dragTo(card, -4, 1);
+				await table.settle(900);
+
+				const rotationOf = () =>
+					table.page.evaluate(
+						(id) => window.__tableplace!.state()?.cards?.[id]?.rotation ?? null,
+						card
+					);
+				const at = await table.locate(card);
+				ok(at, 'the card never mounted — nothing to right-click');
+
+				// ── a quick right-click leaves the wheel up ───────────────────
+				const stickAt = async (point: { x: number; y: number }) => {
+					await table.page.mouse.click(point.x, point.y, { button: 'right' });
+					const open = await eventually(
+						() => table.radial(),
+						(wheel) => !!wheel
+					);
+					ok(!!open, 'a quick right-click did not leave the wheel up');
+					return open!;
+				};
+				const stick = () => stickAt(at!);
+
+				const before = await rotationOf();
+				await stick();
+				await table.page.keyboard.press('Escape');
+				await table.settle(400);
+				ok(!(await table.radial()), 'Escape did not dismiss the sticky wheel');
+				ok(
+					JSON.stringify(await rotationOf()) === JSON.stringify(before),
+					'Escape fired a wedge on the way out'
+				);
+
+				// ── click-away on bare felt: same, no action ──────────────────
+				await stick();
+				const felt = await table.page.evaluate(() => window.__tableplace!.project([6, 0.26, 4]));
+				ok(felt, 'the felt click-away spot projects off-screen');
+				await table.page.mouse.click(felt!.x, felt!.y);
+				await table.settle(400);
+				ok(!(await table.radial()), 'clicking away did not dismiss the sticky wheel');
+				ok(
+					JSON.stringify(await rotationOf()) === JSON.stringify(before),
+					'clicking away fired a wedge'
+				);
+
+				// ── clicking a wedge fires exactly it ─────────────────────────
+				const wheel = await stick();
+				const tap = wheel.wedges.tap!;
+				await table.page.mouse.click(tap.x, tap.y);
+				const tapped = await eventually(rotationOf, (r) => !!r && r[2] !== before![2]);
+				ok(
+					!!tapped && Math.abs((tapped[2] ?? 0) - (before![2] ?? 0)) === 90,
+					`clicking the Tap wedge did not turn the card a quarter: ${JSON.stringify(before)} → ${JSON.stringify(tapped)}`
+				);
+				ok(!(await table.radial()), 'the wheel stayed up after a wedge was clicked');
+
+				// ── the felt answers the right button and nothing else ───────
+				// A press reaches bare felt either because it was aimed there or
+				// because it MISSED what it was aimed at — and on a stalled
+				// renderer a grab misses routinely, mid-drag. So a left hold here
+				// must produce no wheel at all: the left button on felt is an
+				// orbit, and the gesture it would interrupt is somebody's drag.
+				await table.page.mouse.move(felt!.x, felt!.y);
+				await table.page.mouse.down();
+				await sleep(1400); // well past every hold this app has
+				const onLeftHold = await table.radial();
+				await table.page.mouse.up();
+				await table.settle(400);
+				ok(!onLeftHold, 'a left press-and-hold on bare felt opened a wheel');
+				// …while the right button still reaches the table's own verbs
+				const feltWheel = await stickAt(felt!);
+				ok(
+					feltWheel.actions.includes('reset-view'),
+					`the felt wheel is missing its verbs: ${JSON.stringify(feltWheel.actions)}`
+				);
+				await table.page.keyboard.press('Escape');
+				await table.settle(300);
+				ok(!(await table.radial()), 'the felt wheel would not dismiss');
+
+				// ── a piece still owns its right-click, and the felt behind it
+				//    must not open a table wheel over the top of it ────────────
+				const counter = await table.spawn('counter', {
+					name: 'HP',
+					maxValue: 17,
+					value: 5,
+					position: LANE(2)
+				});
+				await table.settle(1200);
+				const over = await table.locate(counter);
+				ok(over, 'the counter never mounted');
+				await table.page.mouse.move(over!.x, over!.y);
+				await table.settle(300); // let the hover register
+				await table.page.mouse.click(over!.x, over!.y, { button: 'right' });
+				await table.settle(600);
+				ok(!(await table.radial()), 'right-clicking a counter opened the radial menu over it');
+				const healed = await eventually(
+					() =>
+						table.page.evaluate(
+							(id) => window.__tableplace!.state()?.pieces?.[id]?.value ?? null,
+							counter
+						),
+					(value) => value === 6
+				);
+				ok(
+					healed === 6,
+					`the counter's own right-click stopped healing: ${JSON.stringify(healed)}`
+				);
+
+				await assertDraggable(table, deck, 'deck (after the sticky wheel)');
+				assertClean(table, 'after the sticky wheel suite');
+				await table.snap('radial-sticky');
+			})
+	},
+	{
+		/**
+		 * The deck, where the wheel had to fit around a gesture that was already
+		 * there: tableplace-103 gave hold-then-travel to the pile move, so the
+		 * wheel now owns the long press outright and the pile move is a wedge on
+		 * it. Both halves are pinned here — travel still draws into the drag and
+		 * never opens a wheel; the hold opens one and draws nothing.
+		 *
+		 * The last section is the ticket's sharpest promise: a wedge acts on the
+		 * deck the press LANDED on, even though the flick has by then carried the
+		 * pointer onto a different deck. An option that fell back to the hover
+		 * store would draw from the wrong pile.
+		 */
+		name: 'radial: deck long-press opens the wheel, travel still drags, wedges hit the pressed deck',
+		run: (context) =>
+			withTable(context, 'radial-deck', async (table) => {
+				const build = (slug: string, position: [number, number, number]) =>
+					table.page.evaluate(
+						(tag, at) => {
+							const cards = ['AS', 'KH', 'QD', 'JC', '10S'].map((code) => ({
+								id: `card:std:${tag}-${code}`,
+								faceImageUrl: `gen:std52/${code}`,
+								backImageUrl: 'gen:std52/back'
+							}));
+							return String(
+								window.__tableplace!.actions.addDeck({
+									cards,
+									position: at as [number, number, number]
+								} as never) ?? ''
+							);
+						},
+						slug,
+						position
+					);
+
+				// pressed deck below, second deck three units UP-SCREEN of it (the
+				// seat-0 camera looks straight down, so -Z is up on screen) — which
+				// is exactly where the "Draw 1" wedge sits
+				const pressed = await build('a', [-4, 0.4, 1]);
+				const other = await build('b', [-4, 0.4, -2]);
+				await table.settle(1200);
+
+				const countOf = (id: string) =>
+					table.page.evaluate(
+						(deckId) => window.__tableplace!.state()?.decks?.[deckId]?.cards?.length ?? -1,
+						id
+					);
+				const dragOwner = () => table.page.evaluate(() => window.__tableplace!.drag().isDragging);
+
+				// ── travel, no hold: the #103 draw-into-the-drag, no wheel ────
+				const startCount = await countOf(pressed);
+				const startAt = await table.positionOf(pressed);
+				const from = await table.locate(pressed);
+				ok(from, 'the pressed deck never mounted');
+				await table.page.mouse.move(from!.x, from!.y);
+				await sleep(80);
+				await table.page.mouse.down();
+				await table.page.mouse.move(from!.x, from!.y - 40);
+				const owner = await eventually(dragOwner, (id) => id !== null, 3000);
+				ok(
+					!(await table.radial()),
+					'a press that travelled immediately opened the wheel instead of dragging'
+				);
+				for (let step = 1; step <= 5; step++) {
+					await table.page.mouse.move(from!.x, from!.y - 40 - step * 16);
+					await sleep(30);
+				}
+				await table.page.mouse.up();
+				await table.settle(600);
+				ok(
+					owner?.startsWith('card:'),
+					`travel off the deck did not draw a card into the drag: ${JSON.stringify(owner)}`
+				);
+				ok(!(await table.radial()), 'the wheel appeared during a deck drag');
+
+				// ── the long hold: the wheel, and nothing else ────────────────
+				const heldCount = await countOf(pressed);
+				const wheel = await table.openRadial(pressed, { button: 'left', timeoutMs: 8000 });
+				ok(
+					['draw', 'flip', 'shuffle', 'ungroup', 'move'].every((slug) =>
+						wheel.actions.includes(slug)
+					),
+					`the deck wheel is missing verbs: ${JSON.stringify(wheel.actions)}`
+				);
+				await table.page.mouse.up(); // released in the deadzone: a cancel
+				await table.settle(700);
+				ok(!(await table.radial()), 'the deck wheel stayed up after a deadzone release');
+				ok(
+					(await countOf(pressed)) === heldCount,
+					'a long press that opened the wheel drew a card anyway'
+				);
+				const stillThere = await table.positionOf(pressed);
+				ok(
+					planarDistance(startAt, stillThere) < 0.05,
+					`the long press moved the pile: ${JSON.stringify(startAt)} → ${JSON.stringify(stillThere)}`
+				);
+				ok(startCount > heldCount, 'the earlier drag-off draw never happened');
+
+				// ── a wedge acts on the PRESSED deck, not the hovered one ─────
+				const beforePressed = await countOf(pressed);
+				const beforeOther = await countOf(other);
+				await table.openRadial(pressed, { button: 'right' });
+				const onOther = await table.locate(other);
+				ok(onOther, 'the second deck left the screen');
+				// flick up-screen onto the other deck — it becomes the hover target,
+				// and the release still has to draw from the deck we pressed
+				await flickTo(table, onOther!);
+				const hovered = await eventually(
+					() => table.page.evaluate(() => window.__tableplace!.drag().isDeckHovered),
+					(id) => id === other,
+					3000
+				);
+				ok(
+					hovered === other,
+					`the flick never reached the other deck — hover is ${JSON.stringify(hovered)}, ` +
+						`so this run would not have proved anything`
+				);
+				await table.page.mouse.up({ button: 'right' });
+				const drawn = await eventually(
+					() => countOf(pressed),
+					(n) => n === beforePressed - 1
+				);
+				ok(
+					drawn === beforePressed - 1,
+					`the wedge did not draw from the pressed deck (${beforePressed} → ${drawn})`
+				);
+				ok(
+					(await countOf(other)) === beforeOther,
+					'the wedge drew from the deck under the pointer instead of the pressed one'
+				);
+
+				await assertDraggable(table, other, 'the second deck (after the wheel)');
+				assertClean(table, 'after the deck wheel suite');
+				await table.snap('radial-deck');
+			})
+	},
+	{
+		/**
+		 * Camera bindings, before and after this ticket: a right drag that never
+		 * held still is still a pan (the wheel let go of it), and W/A/S/D pan
+		 * screen-relatively while held.
+		 *
+		 * The last two assertions are the ones with teeth. Typing must pan
+		 * nothing — every table route binds bare letters, and a lobby name with a
+		 * W in it would otherwise walk the camera off the felt. And a long held
+		 * pan must leave the socket UP: the relay disconnects (it does not drop)
+		 * over ~7 msg/s, so a pan that broadcast per frame instead of riding
+		 * cameraStream's throttle would end the session outright.
+		 */
+		name: 'camera: right quick-drag pans, WASD pans screen-relatively, typing pans nothing',
+		run: (context) =>
+			withTable(context, 'camera-pan', async (table) => {
+				const deck = await table.seedDeck();
+				await table.settle(1000);
+				const eye = async () => (await table.cameraPose())!.position;
+
+				// ── a right drag that never holds still is a pan ──────────────
+				const felt = await table.page.evaluate(() => window.__tableplace!.project([0, 0.26, 4]));
+				ok(felt, 'the felt press point projects off-screen');
+				const beforeDrag = await eye();
+				await table.page.mouse.move(felt!.x, felt!.y);
+				await sleep(60);
+				await table.page.mouse.down({ button: 'right' });
+				// travel immediately: no still hold, so nothing may open
+				for (let step = 1; step <= 10; step++) {
+					await table.page.mouse.move(felt!.x + step * 18, felt!.y);
+					await sleep(20);
+				}
+				ok(!(await table.radial()), 'a right quick-drag opened the wheel instead of panning');
+				await table.page.mouse.up({ button: 'right' });
+				await table.settle(500);
+				const afterDrag = await eye();
+				ok(
+					planarDistance(beforeDrag, afterDrag) > 0.5,
+					`the right quick-drag did not pan the camera: ${JSON.stringify(beforeDrag)} → ${JSON.stringify(afterDrag)}`
+				);
+
+				// ── W pans away from the viewer, D to the right ───────────────
+				const beforeKeys = await eye();
+				await table.page.keyboard.down('KeyW');
+				await sleep(900);
+				await table.page.keyboard.up('KeyW');
+				await table.settle(500);
+				const afterW = await eye();
+				ok(
+					afterW[2]! < beforeKeys[2]! - 0.5,
+					`W did not pan away from the viewer: ${JSON.stringify(beforeKeys)} → ${JSON.stringify(afterW)}`
+				);
+				await table.page.keyboard.down('KeyD');
+				await sleep(900);
+				await table.page.keyboard.up('KeyD');
+				await table.settle(500);
+				const afterD = await eye();
+				ok(
+					afterD[0]! > afterW[0]! + 0.5,
+					`D did not pan to the right: ${JSON.stringify(afterW)} → ${JSON.stringify(afterD)}`
+				);
+
+				// ── typing pans nothing ──────────────────────────────────────
+				// a real focused field, so the app's own isTyping guard is what is
+				// under test rather than a mocked target
+				await table.page.evaluate(() => {
+					const field = document.createElement('input');
+					field.id = 'e2e-typing';
+					field.style.cssText = 'position:fixed;top:0;left:0;z-index:9999';
+					document.body.appendChild(field);
+					field.focus();
+				});
+				await table.settle(900); // OrbitControls damping is still easing out
+				const beforeTyping = await eye();
+				await table.page.keyboard.down('KeyW');
+				await sleep(800);
+				await table.page.keyboard.up('KeyW');
+				await table.settle(400);
+				const afterTyping = await eye();
+				await table.page.evaluate(() => document.getElementById('e2e-typing')?.remove());
+				// generous next to a real pan (~15 units in that window) but far
+				// tighter than one: what is left here is the damping tail
+				ok(
+					planarDistance(beforeTyping, afterTyping) < 0.5,
+					`typing panned the camera: ${JSON.stringify(beforeTyping)} → ${JSON.stringify(afterTyping)}`
+				);
+
+				// ── a long held pan must not disconnect the socket ────────────
+				ok(await table.connected(), 'the socket was already down before the long pan');
+				await table.page.mouse.move(felt!.x, felt!.y); // focus back on the table
+				await table.page.keyboard.down('KeyA');
+				await sleep(4000); // ~11 throttled samples; per-frame would be ~240
+				await table.page.keyboard.up('KeyA');
+				await table.settle(800);
+				ok(
+					await table.connected(),
+					'a four-second held pan closed the lobby socket — the pose stream is bypassing ' +
+						"cameraStream's throttle and tripping the relay's rate limit"
+				);
+
+				// the table still answers the pointer after all that camera work —
+				// from the seat's own view again, which is C's job (a keybind this
+				// ticket left alone, and the deck is off-screen without it)
+				await table.page.keyboard.press('KeyC');
+				await table.settle(1200);
+				const home = await eye();
+				ok(
+					planarDistance(home, [0, 25, 0]) < 0.5,
+					`C did not bring the camera home after panning: ${JSON.stringify(home)}`
+				);
+				await table.dragTo(deck, 0, 0);
+				await table.settle(600);
+				await assertDraggable(table, deck, 'deck (after panning the camera)');
+				assertClean(table, 'after the camera pan suite');
+				await table.snap('camera-pan');
 			})
 	},
 	{
