@@ -4,6 +4,7 @@
 	import type { OrbitControls as OrbitControlsType } from 'three/examples/jsm/controls/OrbitControls.js';
 	import * as THREE from 'three';
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { dragStore } from '$lib/store/dragStore.svelte';
 	import { cameraBroadcastSignal, cameraResetSignal } from '$lib/store/cameraStore.svelte';
 	import { isRadialOpen } from '$lib/store/radialUi';
@@ -104,7 +105,7 @@
 	 * `cameraStream` (≤ ~3 Hz). A held key must never outrun that: the relay
 	 * disconnects a socket over ~7 msg/s, it does not drop.
 	 */
-	const held = new Set<string>();
+	const held = new SvelteSet<string>();
 
 	onMount(() => {
 		// a W typed into a pane field is text, not a pan (the same guard every
@@ -127,24 +128,42 @@
 		};
 	});
 
-	useTask((delta) => {
-		if (!held.size || !camera || !controls) return;
-		const step = panDelta(
-			held,
-			// matrixWorld's second column: the camera's up axis in world space
-			new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).toArray(),
-			camera.position.toArray(),
-			controls.target.toArray(),
-			delta
-		);
-		if (!step) return;
-		const [dx, dz] = step;
-		camera.position.x += dx;
-		camera.position.z += dz;
-		controls.target.x += dx;
-		controls.target.z += dz;
-		controls.update();
-	});
+	/**
+	 * `running` is load-bearing, not tidiness.
+	 *
+	 * threlte renders ON DEMAND — `shouldRender()` is true while any
+	 * auto-invalidating task is *started* — and `useTask` opts into invalidation
+	 * by default. A pan task that stays started for the camera's whole life
+	 * therefore converts the table from on-demand to continuous rendering:
+	 * measured at 33.8 renders/sec on an idle /play, where the right answer is
+	 * zero. Gating on a key actually being held gives back both halves — a held
+	 * key still gets every frame it needs (that is what the auto-invalidation is
+	 * FOR), and an idle table draws nothing.
+	 *
+	 * Hence SvelteSet above: a plain Set mutates without telling anyone, so
+	 * `running` would never re-evaluate and the task would never start.
+	 */
+	useTask(
+		(delta) => {
+			if (!camera || !controls) return;
+			const step = panDelta(
+				held,
+				// matrixWorld's second column: the camera's up axis in world space
+				new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).toArray(),
+				camera.position.toArray(),
+				controls.target.toArray(),
+				delta
+			);
+			if (!step) return;
+			const [dx, dz] = step;
+			camera.position.x += dx;
+			camera.position.z += dz;
+			controls.target.x += dx;
+			controls.target.z += dz;
+			controls.update();
+		},
+		{ running: () => held.size > 0 }
+	);
 </script>
 
 <!-- near/far bound tightly to the orbit range (min 1 / max 40): depth precision
