@@ -612,6 +612,136 @@ export const SPECS: Spec[] = [
 	},
 	{
 		/**
+		 * tableplace-164: the same tile → felt → tile gesture as `model surface`,
+		 * run while the page's main thread is deliberately held for long
+		 * stretches — the frame gaps a shared CI runner, a slow GPU or a
+		 * backgrounded window produce.
+		 *
+		 * What it is guarding, precisely: a press aims at where an entity is
+		 * DRAWN, and is dispatched against wherever the scene has got to by the
+		 * time the main thread frees up. When frames are scarce those two states
+		 * drift apart — an entity still animating toward its resting place is
+		 * drawn at a stale place, the press queues behind the stall, and the
+		 * raycast at the aimed pixel finds whatever is underneath instead. That
+		 * is how the token's press relocated the TILE on CI (#157/#159), which
+		 * is why the tile's own position is asserted here: it is the sharpest
+		 * signature of the race, and it holds no matter which drag attempt won.
+		 */
+		name: 'frame stalls: a drag survives long frame gaps',
+		run: (context) =>
+			withTable(context, 'frame-stalls', async (table) => {
+				const PIECE_FELT_REST = 0.335; // TABLE_TOP_Y + half the disc thickness
+
+				/**
+				 * Tuned, not guessed. The gap has to outlast the harness's own
+				 * settles so an entity is still mid-flight when the next press aims
+				 * at it, and the free window has to be about one frame wide —
+				 * svelte's springs clamp their integration to 1/30s per tick, so a
+				 * wider window lets a whole flight finish in one catch-up and there
+				 * is nothing left to race. At these numbers the pre-fix build
+				 * relocates the tile to (6, 1): CI's exact failing position.
+				 */
+				const STALL = { ms: 800, everyMs: 20 };
+
+				/**
+				 * The invariant the whole ticket is about: an entity's own pixel has
+				 * to belong to that entity. It is checked with no settle in front of
+				 * it, because the window where it fails is the flight itself — a
+				 * token still rising onto a raised tile is UNDER that tile's top
+				 * surface, so the pointer aimed at the token grabs the tile and
+				 * drags it away (#157/#159, and reproduced here to the millimetre).
+				 */
+				const assertAimBelongsTo = async (id: string, when: string) => {
+					const point = await table.locate(id);
+					ok(point, `${id} could not be located ${when}`);
+					const hits = await table.hits(point!);
+					ok(
+						hits[0] === id,
+						`${when}, the pixel ${id} is DRAWN at belongs to ${hits[0] ?? 'nothing'} — ` +
+							`a press aimed at it would grab that instead (hits: ${hits.join(', ')})`
+					);
+				};
+
+				/** as `model surface`: what is retried is pointer delivery, not the property under test */
+				const dragToArrives = async (id: string, x: number, z: number, label: string) => {
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await table.dragTo(id, x, z);
+						await table.settle(900);
+						const position = await table.positionOf(id);
+						if (position && Math.hypot(position[0] - x, position[2] - z) < 1.0) return position;
+					}
+					const stuck = await table.positionOf(id);
+					throw new Error(
+						`${label} (${id}) never arrived at (${x}, ${z}) after 3 drags: ${JSON.stringify(stuck)}`
+					);
+				};
+
+				const deck = await table.seedDeck();
+				const tile = await table.spawn('model', {
+					name: 'raised',
+					model: 'model:kenney-cave/template-floor-layer-raised',
+					radius: 2.83,
+					position: [-4, 0.16, 1]
+				});
+				const token = await table.spawn('token', { position: [4, 0.16, 1] });
+				await table.settle(2500);
+				assertClean(table, 'with a raised tile and a token on the table');
+
+				const tileAtRest = await table.positionOf(tile);
+				ok(tileAtRest, `the raised tile (${tile}) never landed in the store`);
+
+				let injected = 0;
+				try {
+					await table.stall(STALL);
+
+					// onto the tile — then, with no settle, the moment the race lives in
+					await table.dragTo(token, -4, 1);
+					await assertAimBelongsTo(token, 'just after the token was dropped on the raised tile');
+
+					const onTile = await dragToArrives(token, -4, 1, 'the token (onto the tile)');
+					ok(
+						(onTile[1] ?? 0) > 0.5,
+						`under frame stalls the token sank to felt height instead of resting on the tile: ${JSON.stringify(onTile)}`
+					);
+
+					// and off again: the drop that must fall back to felt rest
+					await table.dragTo(token, 6, 1);
+					await assertAimBelongsTo(token, 'just after the token was dragged off the tile');
+
+					const onFelt = await dragToArrives(token, 6, 1, 'the token (off the tile)');
+					ok(
+						Math.abs((onFelt[1] ?? 9) - PIECE_FELT_REST) < 0.02,
+						`under frame stalls the token did not return to felt rest (${PIECE_FELT_REST}) after ` +
+							`leaving the tile: ${JSON.stringify(onFelt)}`
+					);
+				} finally {
+					injected = await table.stall(null);
+				}
+
+				// the injector is the whole point of the spec: if it never ran, the
+				// green above means nothing
+				ok(
+					injected > 5,
+					`the stall injector only ran ${injected} times — this spec did not test what it claims to`
+				);
+
+				// the race's own fingerprint: a press meant for the token, dispatched
+				// against a scene it could no longer see, grabs the tile and drags THAT
+				const tileNow = await table.positionOf(tile);
+				ok(
+					planarDistance(tileAtRest, tileNow) < 0.5,
+					`a press meant for the token grabbed the raised tile underneath it and moved it: ` +
+						`${JSON.stringify(tileAtRest)} → ${JSON.stringify(tileNow)}`
+				);
+
+				await table.settle(1200); // frames are free again; let the scene catch up
+				await assertDraggable(table, deck, 'deck (after a run of frame stalls)');
+				assertClean(table, 'after dragging through injected frame stalls');
+				await table.snap('frame-stalls');
+			})
+	},
+	{
+		/**
 		 * Scene sanity (tableplace-135 acceptance): a template-built ~30-tile
 		 * cave plus decks and dice stays interactive — thirty clones of one GLB,
 		 * one texture, and the shared raycast still answers for everything.

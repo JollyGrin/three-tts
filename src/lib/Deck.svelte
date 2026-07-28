@@ -20,6 +20,7 @@
 	import { gameStore } from './store/game/gameStore.svelte';
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
+	import { driveSpring } from '$lib/utils/frame-stall.svelte';
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	import { DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import DropFootprint from './drop/DropFootprint.svelte';
@@ -89,10 +90,14 @@
 		damping: 0.7,
 		precision: 0.0001
 	});
+	// driveSpring: on a starved frame loop the pile lands at its store height at
+	// once rather than gliding down through the pointer that is about to press
+	// on it (tableplace-164)
 	$effect(() => {
-		lift.target = isDragged
-			? CARD_DRAG_Y
-			: (deck.position?.[1] ?? 0) + (moveArmed ? DECK_ARM_LIFT : 0);
+		driveSpring(
+			lift,
+			isDragged ? CARD_DRAG_Y : (deck.position?.[1] ?? 0) + (moveArmed ? DECK_ARM_LIFT : 0)
+		);
 	});
 
 	const planar = new Spring(
@@ -101,8 +106,7 @@
 	);
 	$effect(() => {
 		const [x = 0, , z = 0] = deck.position ?? [];
-		if (isDragged) planar.set({ x, z }, { instant: true });
-		else planar.target = { x, z };
+		driveSpring(planar, { x, z }, isDragged);
 	});
 
 	// Shuffle wiggle: a decaying yaw twitch, kicked whenever `shuffledAt`

@@ -23,6 +23,7 @@
 	import { playerColor } from './hud/players';
 	import { clampToTable } from './utils/transforms/drop';
 	import { cancelActiveDrag, commitActiveDrag } from './drop/commit';
+	import { watchFrameStalls } from '$lib/utils/frame-stall.svelte';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
@@ -127,7 +128,13 @@
 	//   read off the pointer event at release so the commit agrees with what
 	//   the indicator was drawing. Blur clears it — alt-tabbing away never
 	//   delivers the keyup.
+	// - and the frame-loop watcher, whose whole job is to notice when frames
+	//   have stopped arriving so the entity springs stop pretending to animate
+	//   (see utils/frame-stall.svelte.ts). Registered here because this is the
+	//   scene those springs belong to; it costs one rAF callback that reads a
+	//   timestamp.
 	onMount(() => {
+		const unwatch = watchFrameStalls();
 		const onPointerUp = (event: PointerEvent) => {
 			setNoSnap(event.altKey);
 			commitActiveDrag();
@@ -144,6 +151,7 @@
 		window.addEventListener('keyup', onKeyUp);
 		window.addEventListener('blur', onBlur);
 		return () => {
+			unwatch();
 			window.removeEventListener('pointerup', onPointerUp);
 			window.removeEventListener('pointercancel', onPointerUp);
 			window.removeEventListener('keydown', onKeyDown);
