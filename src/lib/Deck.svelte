@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as THREE from 'three';
 	import { T } from '@threlte/core';
-	import { Text, Billboard, ImageMaterial } from '@threlte/extras';
+	import { ImageMaterial } from '@threlte/extras';
 	import type { IntersectionEvent } from '@threlte/extras';
 	import { Spring } from 'svelte/motion';
 	import { dragStart, dragStore, setDeckHover } from '$lib/store/dragStore.svelte';
@@ -23,6 +23,7 @@
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	import { DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import DropFootprint from './drop/DropFootprint.svelte';
+	import LabelBadge from './LabelBadge.svelte';
 	import { selectedDeckId, DECK_SELECT_COLOR } from '$lib/store/deckSelection';
 
 	// No interactivity() here on purpose. It calls setContext, so a per-deck call
@@ -247,14 +248,11 @@
 	onpointerenter={() => setDeckHover(id)}
 	onpointerleave={() => setDeckHover(null)}
 >
-	<Billboard>
-		<Text
-			fontSize={0.5}
-			text={(cards ?? [])?.length?.toString() ?? '0'}
-			position={[0, 1.75, 0]}
-			anchorX="center"
-		/>
-	</Billboard>
+	<LabelBadge
+		text={(cards ?? [])?.length?.toString() ?? '0'}
+		fontSize={0.5}
+		position={[0, 1.75, 0]}
+	/>
 	{#if cards?.length > 0}
 		{#key displayedImage}
 			<T.Mesh castShadow receiveShadow rotation.x={-Math.PI / 2} position.y={height / 2 + 0.01}>

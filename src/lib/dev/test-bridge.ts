@@ -47,6 +47,13 @@ export type TestBridge = {
 	};
 	/** what an entity is actually made of — null if it never mounted at all */
 	describe: (id: string) => EntityShape | null;
+	/**
+	 * The entity's floating label badge (LabelBadge.svelte), or null while none
+	 * is mounted — which is itself the assertion for hover-only labels. `scale`
+	 * is the live pulse spring, so a spec can watch a counter's value-change
+	 * kick (jumps toward 1.6) and settle back to 1.
+	 */
+	badge: (id: string) => { scale: number } | null;
 };
 
 /**
@@ -79,6 +86,34 @@ type SceneHandles = {
 };
 
 /**
+ * Walk an entity's rendered meshes, skipping its floating label badge
+ * (LabelBadge.svelte tags its group `userData.badge`). The badge billboards
+ * ABOVE the body — folding it into the bounding box drags the box centre off
+ * the body, and a pointer aimed there grabs whatever happens to be behind the
+ * label instead of the entity it belongs to. A player aims at the body; so
+ * does everything here.
+ */
+function eachBodyMesh(node: THREE.Object3D, visit: (mesh: THREE.Mesh) => void): void {
+	if (node.userData.badge) return;
+	const mesh = node as THREE.Mesh;
+	if (mesh.isMesh) visit(mesh);
+	for (const child of node.children) eachBodyMesh(child, visit);
+}
+
+function bodyBox(object: THREE.Object3D): THREE.Box3 {
+	object.updateWorldMatrix(true, true);
+	const box = new THREE.Box3();
+	const meshBox = new THREE.Box3();
+	eachBodyMesh(object, (mesh) => {
+		mesh.geometry.computeBoundingBox();
+		if (!mesh.geometry.boundingBox) return;
+		meshBox.copy(mesh.geometry.boundingBox).applyMatrix4(mesh.matrixWorld);
+		box.union(meshBox);
+	});
+	return box;
+}
+
+/**
  * Where an entity actually *draws*, not where the store says it is.
  *
  * The two differ enough to matter: a die sits a shape-dependent distance above
@@ -90,7 +125,7 @@ type SceneHandles = {
 function renderedCentre(scene: THREE.Scene, id: string): THREE.Vector3 | null {
 	const object = scene.getObjectByName(id);
 	if (!object) return null;
-	const box = new THREE.Box3().setFromObject(object);
+	const box = bodyBox(object);
 	if (box.isEmpty()) return object.getWorldPosition(new THREE.Vector3());
 	return box.getCenter(new THREE.Vector3());
 }
@@ -163,14 +198,14 @@ export function installTestBridge(handles: SceneHandles): void {
 		describe: (id) => {
 			const object = handles.scene()?.getObjectByName(id);
 			if (!object) return null;
-			const box = new THREE.Box3().setFromObject(object);
+			// body only, like locate: the badge is a readout riding along, and its
+			// meshes/materials would pollute every "did the body mount right" check
+			const box = bodyBox(object);
 			const size = box.isEmpty()
 				? ([0, 0, 0] as [number, number, number])
 				: (box.getSize(new THREE.Vector3()).toArray() as [number, number, number]);
 			const shape: EntityShape = { meshes: 0, materials: [], size };
-			object.traverse((node) => {
-				const mesh = node as THREE.Mesh;
-				if (!mesh.isMesh) return;
+			eachBodyMesh(object, (mesh) => {
 				shape.meshes++;
 				for (const material of [mesh.material].flat()) {
 					const standard = material as THREE.MeshStandardMaterial;
@@ -182,6 +217,17 @@ export function installTestBridge(handles: SceneHandles): void {
 				}
 			});
 			return shape;
+		},
+		badge: (id) => {
+			const object = handles.scene()?.getObjectByName(id);
+			if (!object) return null;
+			// found by userData, not by name: naming the badge group would steal
+			// the raycast attribution `hits()` resolves by nearest named ancestor
+			let group: THREE.Object3D | null = null;
+			object.traverse((node) => {
+				if (!group && node.userData.badge) group = node;
+			});
+			return group ? { scale: (group as THREE.Object3D).scale.x } : null;
 		}
 	};
 }
