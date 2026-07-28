@@ -54,6 +54,29 @@ export type TestBridge = {
 	 * kick (jumps toward 1.6) and settle back to 1.
 	 */
 	badge: (id: string) => { scale: number } | null;
+	/**
+	 * Inject artificial main-thread stalls — the long frame gaps a shared CI
+	 * runner, a slow GPU or a backgrounded window produce, made deterministic.
+	 *
+	 * `{ ms: 400, everyMs: 250 }` holds the thread for 400ms, frees it for
+	 * 250ms, repeats; `null` stops it. A busy-wait, not a sleep: what breaks a
+	 * drag is the main thread being *unavailable* — frames stop arriving, the
+	 * springs that draw every entity fall behind the store, and pointer events
+	 * queue up to land against a scene that no longer matches what is on screen
+	 * (see `frame-stall.svelte.ts`). Nothing short of occupying the thread
+	 * reproduces that; `emulateCPUThrottling` does not, because it never
+	 * touches the GPU process, which is what a SwiftShader runner actually
+	 * starves (#157).
+	 *
+	 * Scheduled on a timer rather than per animation frame on purpose: the page
+	 * this has to reproduce a stall on may already be down to 3 fps, and
+	 * "every Nth frame" would then inject three stalls a second by accident of
+	 * the load rather than by the spec's intent.
+	 *
+	 * Returns the number of stalls injected since the last call, so a spec can
+	 * assert the injection really happened rather than trusting that it did.
+	 */
+	stall: (options: { ms: number; everyMs?: number } | null) => number;
 };
 
 /**
@@ -134,6 +157,40 @@ function renderedCentre(scene: THREE.Scene, id: string): THREE.Vector3 | null {
 	const box = bodyBox(object);
 	if (box.isEmpty()) return object.getWorldPosition(new THREE.Vector3());
 	return box.getCenter(new THREE.Vector3());
+}
+
+/**
+ * The stall injector's whole state. Module-level rather than per-install so a
+ * bridge that remounts (an effect re-run) cannot leave a second busy-waiting
+ * timer running behind the first.
+ */
+let stallOptions: { ms: number; everyMs: number } | null = null;
+let stallCount = 0;
+let stallLoop: ReturnType<typeof setTimeout> | null = null;
+
+function setStall(options: { ms: number; everyMs?: number } | null): number {
+	const injected = stallCount;
+	stallCount = 0;
+	stallOptions = options ? { ms: options.ms, everyMs: Math.max(0, options.everyMs ?? 0) } : null;
+	if (stallLoop) clearTimeout(stallLoop);
+	stallLoop = null;
+	if (!stallOptions) return injected;
+
+	const tick = () => {
+		const current = stallOptions;
+		if (!current) return;
+		stallCount++;
+		// deliberately a spin, not a sleep: only occupying the thread stops the
+		// frames and queues the pointer events behind it, which is the condition
+		// under test
+		const until = performance.now() + current.ms;
+		while (performance.now() < until) {
+			/* hold the main thread */
+		}
+		stallLoop = setTimeout(tick, current.everyMs);
+	};
+	stallLoop = setTimeout(tick, stallOptions.everyMs);
+	return injected;
 }
 
 export function installTestBridge(handles: SceneHandles): void {
@@ -236,10 +293,12 @@ export function installTestBridge(handles: SceneHandles): void {
 				if (!group && node.userData.badge) group = node;
 			});
 			return group ? { scale: (group as THREE.Object3D).scale.x } : null;
-		}
+		},
+		stall: setStall
 	};
 }
 
 export function removeTestBridge(): void {
+	setStall(null);
 	delete window.__tableplace;
 }

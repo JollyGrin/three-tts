@@ -112,6 +112,12 @@ with 0 errors and a clean build, because no test in the repo could see it.
   controls cannot be driven synthetically.
 - Anything a spec clicks must draw clear of the HUD panes; `dragBy` fails with
   that diagnosis rather than looking like a frozen table.
+- `table.stall({ ms, everyMs })` holds the page's main thread on a duty cycle —
+  the long frame gaps a loaded CI runner produces, on demand, and the tool for
+  any change that adds per-frame cost. It reproduces the queued-pointer drag
+  race (#164) exactly: with `{ ms: 800, everyMs: 20 }` a pre-fix build drags the
+  raised tile to the token's drop point. `stall(null)` stops it and returns how
+  many stalls ran, so a spec can prove the injection was live.
 - Needs Chrome (`CHROME_PATH` overrides discovery) and Go for the relay. Reuses
   a relay already on `:8080`; takes a random high port for the web server so it
   can never disturb a dev server you are using.
