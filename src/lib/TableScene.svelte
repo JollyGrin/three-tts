@@ -2,6 +2,7 @@
 	import { T, useThrelte } from '@threlte/core';
 	import * as THREE from 'three';
 	import { HUD, interactivity } from '@threlte/extras';
+	import TableContactShadows from './TableContactShadows.svelte';
 	import Table from './Table.svelte';
 	import Card from './Card.svelte';
 	import TableCamera from './TableCamera.svelte';
@@ -23,11 +24,12 @@
 	import { playerColor } from './hud/players';
 	import { clampToTable } from './utils/transforms/drop';
 	import { cancelActiveDrag, commitActiveDrag } from './drop/commit';
+	import { watchFrameStalls } from '$lib/utils/frame-stall.svelte';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { CARD_DRAG_Y } from '$lib/utils/constants-cards';
 	import { PIECE_DRAG_Y } from '$lib/utils/constants-pieces';
-	import { TABLE_TOP_Y } from '$lib/utils/constants-table';
+	import { TABLE_HALF_X, TABLE_HALF_Z, TABLE_TOP_Y } from '$lib/utils/constants-table';
 	import type { GameDTO } from './store/game/types';
 	type CardDTO = GameDTO['cards'][string];
 
@@ -127,7 +129,13 @@
 	//   read off the pointer event at release so the commit agrees with what
 	//   the indicator was drawing. Blur clears it — alt-tabbing away never
 	//   delivers the keyup.
+	// - and the frame-loop watcher, whose whole job is to notice when frames
+	//   have stopped arriving so the entity springs stop pretending to animate
+	//   (see utils/frame-stall.svelte.ts). Registered here because this is the
+	//   scene those springs belong to; it costs one rAF callback that reads a
+	//   timestamp.
 	onMount(() => {
+		const unwatch = watchFrameStalls();
 		const onPointerUp = (event: PointerEvent) => {
 			setNoSnap(event.altKey);
 			commitActiveDrag();
@@ -144,6 +152,7 @@
 		window.addEventListener('keyup', onKeyUp);
 		window.addEventListener('blur', onBlur);
 		return () => {
+			unwatch();
 			window.removeEventListener('pointerup', onPointerUp);
 			window.removeEventListener('pointercancel', onPointerUp);
 			window.removeEventListener('keydown', onKeyDown);
@@ -162,6 +171,19 @@
 			.map((id) => ({ id, color: playerColor(id, $gameStore?.players?.[id]?.seat) }))
 	);
 
+	/**
+	 * The key light's shadow camera: an ortho box around the whole felt
+	 * (60×30, constants-table). The light is tilted, so the felt's projection
+	 * onto the light's image plane is wider than its own footprint — the
+	 * extent below is the worst-case corner projection at this angle, not
+	 * TABLE_HALF_X. One square bound keeps the fit honest either axis; at
+	 * mapSize 1024 a texel is ~0.06 world units — 2048 doubled the
+	 * SwiftShader fill-rate of the whole shadow pass and tripped the CI
+	 * runner's drag race (see PR #157); 1024 is fill-rate parity with the
+	 * old 6-face point-light shadow, with normalBias scaled to the texel.
+	 */
+	const SHADOW_EXTENT = TABLE_HALF_X + 2;
+
 	// One shared clock for the presence fade + expiry, instead of a timer per
 	// avatar. Cheap enough to leave running; it only touches a store. The
 	// roster goes in so a player the server says is still connected keeps their
@@ -179,9 +201,51 @@
 </script>
 
 <TableCamera />
-<T.PointLight position={[0, 20, 0]} intensity={500} scale={1} castShadow />
+<!-- Directional key light, slightly warm, angled in from the player's right.
+     The point light this replaces sat dead overhead, so every resting piece
+     hid its own shadow — a keyed angle throws a visible offset shadow instead.
+     bias/normalBias are tuned together: bias alone left acne bands on the
+     flat felt, normalBias alone detached the shadow from card edges
+     (peter-panning); the pair below shows neither in the harness captures. -->
+<T.DirectionalLight
+	position={[14, 26, 10]}
+	intensity={1.5}
+	color="#fff3e2"
+	castShadow
+	shadow.mapSize.width={1024}
+	shadow.mapSize.height={1024}
+	shadow.camera.left={-SHADOW_EXTENT}
+	shadow.camera.right={SHADOW_EXTENT}
+	shadow.camera.top={SHADOW_EXTENT}
+	shadow.camera.bottom={-SHADOW_EXTENT}
+	shadow.camera.near={4}
+	shadow.camera.far={65}
+	shadow.bias={-0.0002}
+	shadow.normalBias={0.06}
+/>
 <!-- soft fill so vertical faces (card edges, deck sides) aren't pitch black -->
 <T.AmbientLight intensity={0.5} />
+<!-- Contact shadows: a blurred top-down depth pass composited on a plane just
+     above the felt (see TableContactShadows for why this is a fork of the
+     @threlte/extras component). This — not the shadow map — is what grounds
+     pieces on a map overlay: the overlay's ImageMaterial is unlit, so real
+     shadows can never darken it, but this plane sits ABOVE the overlay
+     (felt + overlay clearance 0.003 < 0.0045 < card rest 0.26). `far` stops
+     at 0.5 so only the GROUNDED BULK of resting entities casts: anything held
+     aloft (CARD_DRAG_Y 2, PIECE_DRAG_Y 1.2) and the billboarded labels are
+     clipped out, and so are the wide upper bulges of tall pieces — the bag's
+     pouch and the pawn's head used to inflate their shadows well past their
+     bases (each translucent depth layer accumulates, so a wide silhouette
+     saturates oversized). -->
+<TableContactShadows
+	position.y={TABLE_TOP_Y + 0.0045}
+	width={TABLE_HALF_X * 2 + 2}
+	height={TABLE_HALF_Z * 2 + 2}
+	far={0.5}
+	resolution={256}
+	opacity={0.6}
+	blur={1.2}
+/>
 
 {#if hand}
 	<HUD>

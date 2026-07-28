@@ -53,6 +53,13 @@ export type Table = {
 	positionOf: (id: string) => Promise<number[] | null>;
 	settle: (ms?: number) => Promise<void>;
 	/**
+	 * Hold the page's main thread for `ms` at a time, freeing it for `everyMs`
+	 * in between — the long frame gaps a shared CI runner produces, on demand.
+	 * `null` stops it and returns how many stalls were injected, so a spec can
+	 * prove the injection was live rather than assume it.
+	 */
+	stall: (options: { ms: number; everyMs?: number } | null) => Promise<number>;
+	/**
 	 * capture the page to e2e/screenshots/<name>.png — the visual-polish
 	 * train's evidence artifact — failing if the frame is silently blank
 	 */
@@ -161,6 +168,9 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 
 	const describe = (id: string) =>
 		page.evaluate((entityId) => window.__tableplace!.describe(entityId), id);
+
+	const stall = (options: { ms: number; everyMs?: number } | null) =>
+		page.evaluate((injection) => window.__tableplace!.stall(injection), options);
 
 	const positionOf = (id: string) =>
 		page.evaluate((entityId) => {
@@ -374,6 +384,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		dragTo,
 		positionOf,
 		settle,
+		stall,
 		snap,
 		close: () => page.close()
 	};

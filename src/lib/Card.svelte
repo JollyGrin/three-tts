@@ -24,6 +24,7 @@
 	import { fanOffset } from '$lib/utils/transforms/stacking';
 	import { pickCard, pickedCard } from './store/cardPick';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
+	import { driveSpring } from '$lib/utils/frame-stall.svelte';
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
 	type Vec3Array = [number, number, number];
 
@@ -70,10 +71,15 @@
 	// connector meets the card. Otherwise: stays lifted while a flip is
 	// mid-rotation (so the card can't clip the table), settles to the store's
 	// stack height once the rotation completes.
+	//
+	// Every target goes through driveSpring so a starved frame loop puts the
+	// card at its store height at once: a card still visibly airborne over the
+	// pile it just landed in is a card the next press cannot grab
+	// (tableplace-164).
 	$effect(() => {
 		if (isDragging) {
-			height.target = CARD_DRAG_Y + 0.2;
-			const handle = setTimeout(() => (height.target = CARD_DRAG_Y), 150);
+			driveSpring(height, CARD_DRAG_Y + 0.2);
+			const handle = setTimeout(() => driveSpring(height, CARD_DRAG_Y), 150);
 			return () => clearTimeout(handle);
 		}
 		const flipping = Math.abs(rotation.current - rotation.target) > 2;
@@ -81,7 +87,7 @@
 		// and only here: the store keeps the squared-up resting position, same
 		// as the hover fan
 		const restY = (cardState?.position?.[1] ?? CARD_REST_Y) + (isPicked ? CARD_PICK_LIFT : 0);
-		height.target = flipping ? Math.max(1.5, restY) : restY;
+		driveSpring(height, flipping ? Math.max(1.5, restY) : restY);
 	});
 
 	const rotation = new Spring((cardState?.rotation as Vec3Array)?.[0] ?? 0, {
@@ -146,8 +152,8 @@
 	$effect(() => {
 		const [x = 0, , z = 0] = cardState?.position ?? [];
 		const [fanX, fanZ] = fanShift;
-		if (isDragging) planar.set({ x, z }, { instant: true });
-		else planar.target = { x: x + fanX, z: z + fanZ };
+		if (isDragging) driveSpring(planar, { x, z }, true);
+		else driveSpring(planar, { x: x + fanX, z: z + fanZ });
 	});
 
 	// Create derived values for each component
@@ -165,8 +171,8 @@
 
 	// Flip / tap rotation targets
 	$effect(() => {
-		rotation.target = baseRotation[0];
-		rotationTap.target = baseRotation[2];
+		driveSpring(rotation, baseRotation[0]);
+		driveSpring(rotationTap, baseRotation[2]);
 	});
 
 	// px the pointer may travel between down and up and still count as a click

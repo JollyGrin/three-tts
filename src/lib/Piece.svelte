@@ -8,6 +8,7 @@
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
+	import { driveSpring } from '$lib/utils/frame-stall.svelte';
 	import { createCounterInput, DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
 	import { setPieceHover, clearPieceHover, openPieceMenu, openModelMenu } from '$lib/store/pieceUi';
 	import { createDieInput } from '$lib/utils/die-input';
@@ -70,8 +71,13 @@
 	// Entirely derived from this piece's own drag ownership and store state —
 	// see the matching comment on Card's height effect — so a piece that
 	// starts a drag it never actually wins can't stay stuck airborne.
+	//
+	// driveSpring, not `height.target =`, so a starved frame loop lands the
+	// piece at its store height at once instead of leaving it visibly airborne
+	// over the tile it just landed on — where the next press aimed at it hits
+	// the tile instead (tableplace-164).
 	$effect(() => {
-		height.target = isDragging ? PIECE_DRAG_Y : (piece?.position?.[1] ?? REST_Y);
+		driveSpring(height, isDragging ? PIECE_DRAG_Y : (piece?.position?.[1] ?? REST_Y));
 	});
 
 	// Horizontal glide: remote drags only arrive every ~200ms (network throttle),
@@ -84,8 +90,7 @@
 
 	$effect(() => {
 		const [x = 0, , z = 0] = piece?.position ?? [];
-		if (isDragging) planar.set({ x, z }, { instant: true });
-		else planar.target = { x, z };
+		driveSpring(planar, { x, z }, isDragging);
 	});
 
 	const position: [number, number, number] = $derived([
