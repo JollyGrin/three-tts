@@ -10,8 +10,10 @@
 		AutoValue,
 		Folder,
 		FpsGraph,
-		Monitor
+		Monitor,
+		Slider
 	} from 'svelte-tweakpane-ui';
+	import { environmentIntensity } from '$lib/store/environment';
 	import { DEG2RAD } from 'three/src/math/MathUtils.js';
 	import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 	import type { GameDTO } from '$lib/store/game/types';
@@ -233,5 +235,6 @@
 	<!-- instrumentation, not settings: out of the player's way until asked for -->
 	<Folder title="Debug" expanded={false}>
 		<FpsGraph />
+		<Slider label="Env light" bind:value={$environmentIntensity} min={0} max={2} step={0.05} />
 	</Folder>
 </Pane>
