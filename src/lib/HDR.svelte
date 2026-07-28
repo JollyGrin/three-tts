@@ -27,4 +27,11 @@
 	visible backdrop belongs to a later car of the visual train (tableplace-152
 	is IBL only).
 -->
-<Environment url={getStaticResourceUrl('/rock-hill2.hdr')} />
+<!--
+	The -1k file is rock-hill2.hdr downsampled to 1024x512 (magick -resize):
+	PMREM renders at most a 256px cubemap, so the reflections are identical,
+	but the 4k original cost 24 MB and a multi-second main-thread decode +
+	prefilter on every page load — long enough on a slow machine to stall
+	frames mid-drag (see #159 for the CI failure it caused).
+-->
+<Environment url={getStaticResourceUrl('/rock-hill2-1k.hdr')} />
