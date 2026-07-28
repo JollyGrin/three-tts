@@ -15,6 +15,7 @@
 	import { disconnect } from '$lib/websocket/connection';
 	import PieceStateMenu from '$lib/PieceStateMenu.svelte';
 	import ModelMenu from '$lib/ModelMenu.svelte';
+	import RadialMenu from '$lib/RadialMenu.svelte';
 	import SetupPane from './SetupPane.svelte';
 
 	function handleKeyDown(event: KeyboardEvent) {
@@ -33,7 +34,9 @@
 		// T/R turn a hovered model by the grid step; otherwise they tap the card
 		if (event.code === 'KeyT' && !rotateHoveredModel(1)) gameActions.tapCard();
 		if (event.code === 'KeyR' && !rotateHoveredModel(-1)) gameActions.tapCard(true);
-		if (event.code === 'KeyS') shuffleHoveredDeck();
+		// Shift+S, not S: W/A/S/D pan the camera (mirrors /play — a held pan key
+		// must not shuffle on every repeat)
+		if (event.code === 'KeyS' && event.shiftKey) shuffleHoveredDeck();
 		// G groups the hovered pile into a deck; Shift+G spreads a hovered deck
 		// back into loose cards
 		if (event.code === 'KeyG' && event.shiftKey) ungroupHoveredDeck();
@@ -73,6 +76,7 @@
 <SetupPane />
 <PieceStateMenu />
 <ModelMenu />
+<RadialMenu />
 
 <div class="h-screen w-screen overflow-clip bg-gray-700">
 	<Canvas toneMapping={ACESFilmicToneMapping}>

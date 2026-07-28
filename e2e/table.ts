@@ -33,6 +33,25 @@ export type Table = {
 	hits: (point: ScreenPoint) => Promise<string[]>;
 	/** the DOM element on top at a screen point — the table canvas, or a HUD pane covering it */
 	elementAt: (point: ScreenPoint) => Promise<string>;
+	/**
+	 * The radial menu as it is on screen right now — its wedge slugs and where
+	 * each one draws — or null while no wheel is up.
+	 *
+	 * Read from the DOM rather than from a store: the wedges are laid out at the
+	 * same angles the selection maths picks by, so flicking at a wedge's own
+	 * pixel is exactly the gesture a player makes, and "is the menu up" is the
+	 * same question for a spec as for a player.
+	 */
+	radial: () => Promise<{ actions: string[]; wedges: Record<string, ScreenPoint> } | null>;
+	/** press a button on an entity, hold still until the wheel opens, and leave it open */
+	openRadial: (
+		id: string,
+		options?: { button?: 'left' | 'right'; timeoutMs?: number }
+	) => Promise<{ actions: string[]; wedges: Record<string, ScreenPoint> }>;
+	/** the live table camera — what a pan is measured with */
+	cameraPose: () => Promise<{ position: number[]; direction: number[] } | null>;
+	/** is the lobby socket still open (the relay drops rate-limit offenders) */
+	connected: () => Promise<boolean>;
 	/** how an entity is rendered right now; null if it never mounted */
 	describe: (
 		id: string
@@ -171,6 +190,58 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 
 	const stall = (options: { ms: number; everyMs?: number } | null) =>
 		page.evaluate((injection) => window.__tableplace!.stall(injection), options);
+
+	const radial = () =>
+		page.evaluate(() => {
+			const wedges = [...document.querySelectorAll('[data-radial-action]')];
+			if (!wedges.length) return null;
+			const at: Record<string, { x: number; y: number }> = {};
+			const actions: string[] = [];
+			for (const wedge of wedges) {
+				const slug = wedge.getAttribute('data-radial-action') ?? '';
+				const box = wedge.getBoundingClientRect();
+				actions.push(slug);
+				at[slug] = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+			}
+			return { actions, wedges: at };
+		});
+
+	/**
+	 * Press and hold until the wheel is up.
+	 *
+	 * Polled rather than slept for the same reason the deck's arm cue is (see
+	 * dragFromTo): the hold runs on the page's timers, and on a choked
+	 * SwiftShader main thread wall-clock time and page time drift apart. The
+	 * pointer is left DOWN — the caller decides what the release means.
+	 */
+	const openRadial = async (
+		id: string,
+		options: { button?: 'left' | 'right'; timeoutMs?: number } = {}
+	) => {
+		const at = await locate(id);
+		if (!at) throw new Error(`cannot locate ${id} on screen`);
+		const cover = await elementAt(at);
+		if (!cover.startsWith('canvas')) {
+			throw new Error(
+				`${id} draws where the HUD covers the table (${cover}) — move it clear of the panes`
+			);
+		}
+		const button = options.button ?? 'right';
+		await page.mouse.move(at.x, at.y);
+		await sleep(80);
+		await page.mouse.down({ button });
+		const deadline = Date.now() + (options.timeoutMs ?? 6000);
+		while (Date.now() < deadline) {
+			await sleep(100);
+			const open = await radial();
+			if (open) return open;
+		}
+		await page.mouse.up({ button });
+		throw new Error(`the radial menu never opened on ${id} after a ${button}-button hold`);
+	};
+
+	const cameraPose = () => page.evaluate(() => window.__tableplace!.camera());
+	const connected = () => page.evaluate(() => window.__tableplace!.connected());
 
 	const positionOf = (id: string) =>
 		page.evaluate((entityId) => {
@@ -379,6 +450,10 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		locate,
 		hits,
 		elementAt,
+		radial,
+		openRadial,
+		cameraPose,
+		connected,
 		describe,
 		dragBy,
 		dragTo,

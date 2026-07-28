@@ -21,8 +21,9 @@
 	import { gameActions } from './store/game/actions';
 	import { resolveCardImage, sheetRefCache, CARD_BACK_DEFAULT } from '$lib/packs';
 	import { driveSpring } from '$lib/utils/frame-stall.svelte';
-	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
+	import { claimPointerDown, createSingleDispatchGuard } from '$lib/utils/single-hit-dispatch';
 	import { DRAG_THRESHOLD_PX } from '$lib/utils/counter-input';
+	import { armRadialPress, cancelRadialPress, RADIAL_DECK_HOLD_MS } from '$lib/radial/gesture';
 	import DropFootprint from './drop/DropFootprint.svelte';
 	import LabelBadge from './LabelBadge.svelte';
 	import { selectedDeckId, DECK_SELECT_COLOR } from '$lib/store/deckSelection';
@@ -166,6 +167,8 @@
 		// click that follows the eventual release must not also draw
 		suppressClick = true;
 		cancelPendingDrag();
+		// travel means draw-or-move, never the wheel
+		cancelRadialPress();
 		// an empty deck has nothing to draw — moving the slab is the only drag
 		if (heldLong || (cards?.length ?? 0) === 0) {
 			// origin (pre-lift store position) is what Esc returns the deck to
@@ -203,10 +206,33 @@
 
 	$effect(() => cancelPendingDrag);
 
+	// one wheel per right press, on the nearest entity only — and without
+	// stopping the native event, so a right DRAG still pans the camera
+	const claimRadialPress = createSingleDispatchGuard();
+
 	function handlePointerDown(e: IntersectionEvent<PointerEvent>) {
+		// right press: hold still for the wheel, travel for a camera pan
+		if (e.nativeEvent.button === 2) {
+			if (claimRadialPress(e))
+				armRadialPress({ target: { kind: 'deck', id }, event: e.nativeEvent });
+			return;
+		}
 		// claims the pointerdown ahead of anything behind the deck — see
 		// claimPointerDown — and locks OrbitControls out of the gesture
 		if (!claimPointerDown(e)) return;
+		// A left hold on a deck already means something (tableplace-103: the pile
+		// arms for a move at DECK_MOVE_HOLD_MS, and the next travel moves it).
+		// Keep holding past that without travelling and the wheel takes over —
+		// it drops the arm as it opens, so only one of the two is ever live.
+		armRadialPress({
+			target: { kind: 'deck', id },
+			event: e.nativeEvent,
+			holdMs: RADIAL_DECK_HOLD_MS,
+			onOpen: () => {
+				cancelPendingDrag();
+				suppressClick = true; // the release belongs to the wheel, not to a draw
+			}
+		});
 		pendingDrag = {
 			x: e.nativeEvent.clientX,
 			y: e.nativeEvent.clientY,

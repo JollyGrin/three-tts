@@ -12,6 +12,7 @@
 	import { snapEditor } from './store/snapEditor';
 	import { tableFeatures } from './store/tableFeatures';
 	import { DRAG_THRESHOLD_PX } from './utils/counter-input';
+	import { armRadialPress } from '$lib/radial/gesture';
 	import type { IntersectionEvent } from '@threlte/extras';
 	import { TABLE_TOP_Y } from './utils/constants-table';
 
@@ -44,6 +45,16 @@
 		pressedFelt = get(dragStore).isDragging
 			? null
 			: { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+		// bare felt gets a wheel too (v1: reset view). Nothing is claimed here:
+		// an entity nearer the camera stops the dispatch before the felt sees it,
+		// and a piece — which owns its own right-click — vetoes it in the gesture.
+		armRadialPress({
+			target: { kind: 'table' },
+			event: event.nativeEvent,
+			// the wheel ate the press: a release on /setup's armed snap layer must
+			// not also drop a snap point where the wheel opened
+			onOpen: () => (pressedFelt = null)
+		});
 	}
 
 	function handleClick(event: IntersectionEvent<MouseEvent>) {

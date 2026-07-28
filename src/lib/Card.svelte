@@ -25,7 +25,8 @@
 	import { pickCard, pickedCard } from './store/cardPick';
 	import { resolveCardImage, sheetRefCache } from '$lib/packs';
 	import { driveSpring } from '$lib/utils/frame-stall.svelte';
-	import { claimPointerDown } from '$lib/utils/single-hit-dispatch';
+	import { claimPointerDown, createSingleDispatchGuard } from '$lib/utils/single-hit-dispatch';
+	import { armRadialPress, cancelRadialPress } from '$lib/radial/gesture';
 	type Vec3Array = [number, number, number];
 
 	let { id }: { id: string } = $props();
@@ -193,6 +194,9 @@
 		if (Math.hypot(ne.clientX - pendingDrag.x, ne.clientY - pendingDrag.y) < DRAG_THRESHOLD_PX)
 			return;
 		cancelPendingDrag();
+		// this travel is the drag, whichever listener saw it first — the wheel
+		// must not still be counting down behind it
+		cancelRadialPress();
 		liftIntoDrag();
 	}
 
@@ -204,11 +208,31 @@
 
 	$effect(() => cancelPendingDrag);
 
+	// the radial menu's right-press has to reach exactly one card in a pile,
+	// same as the drag does — but WITHOUT stopping the native event, so a right
+	// drag still pans the camera (see claimPointerDown for why the left button
+	// stops it immediately and this does not)
+	const claimRadialPress = createSingleDispatchGuard();
+
 	function handleDragStart(e: IntersectionEvent<PointerEvent>) {
+		// right press: hold still for the wheel, travel for a camera pan
+		if (e.nativeEvent.button === 2) {
+			if (claimRadialPress(e))
+				armRadialPress({ target: { kind: 'card', id }, event: e.nativeEvent });
+			return;
+		}
 		// claims the pointerdown for the topmost card in a pile — see
 		// claimPointerDown — so the rest of the stack never sees this event
 		if (!claimPointerDown(e)) return;
 		pendingDrag = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY };
+		// press-and-hold-still opens the wheel instead; the FIRST travel past the
+		// threshold cancels it (in the gesture's own move listener) and this drag
+		// proceeds exactly as it always has
+		armRadialPress({
+			target: { kind: 'card', id },
+			event: e.nativeEvent,
+			onOpen: cancelPendingDrag
+		});
 		window.addEventListener('pointermove', onPendingMove);
 		window.addEventListener('pointerup', cancelPendingDrag);
 	}

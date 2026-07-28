@@ -132,6 +132,11 @@
 	// (#115). Ordered as you meet them: look, then act on one card, then on a
 	// pile, then the drag modifiers.
 	const KEYBINDS: [action: string, key: string][] = [
+		// the wheel first: it is how you find the rest of this list without
+		// reading it (tableplace-161)
+		['Actions on card / deck / table', 'right-click'],
+		['Same wheel, no right button', 'press & hold'],
+		['Pan camera', 'W A S D'],
 		['Reset camera', 'C'],
 		['Preview hovered', 'spacebar'],
 		['Tap card', 'T'],
@@ -140,6 +145,8 @@
 		['Flip card', 'F'],
 		['Group stack into deck', 'G'],
 		[`Ungroup deck (max ${UNGROUP_MAX_CARDS} cards)`, 'Shift + G'],
+		// moved off bare S in tableplace-161: S is a pan key now
+		['Shuffle hovered deck', 'Shift + S'],
 		['Drop without snapping', 'hold Alt'],
 		['Cancel drag', 'Esc'],
 		['Nudge card higher', 'Arrow Up'],
