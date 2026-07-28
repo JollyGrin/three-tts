@@ -127,6 +127,22 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		});
 	});
 
+	/**
+	 * `E2E_CPU_THROTTLE=8` slows the renderer's main thread by that factor.
+	 *
+	 * The failures worth chasing here are timing ones: pointermove delivery is
+	 * rAF-aligned, so on a machine that cannot keep up, input a hand delivered
+	 * in one order can reach the page in another. A CI runner under SwiftShader
+	 * is such a machine; a developer's laptop is not, which is how a gesture bug
+	 * reaches CI green-locally. This knob makes the difference reproducible on
+	 * demand, and is off unless asked for — no spec's own timings change.
+	 */
+	const throttle = Number(process.env.E2E_CPU_THROTTLE ?? 0);
+	if (throttle > 1) {
+		const cdp = await page.createCDPSession();
+		await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
+	}
+
 	// before ANY script runs: the module-level fallback in connection.ts reads
 	// localStorage at import time, and it defaults to the PUBLIC relay
 	await page.evaluateOnNewDocument((relay: string) => {
@@ -257,24 +273,16 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 	 * DRAG_THRESHOLD_PX, and the position the drop commits comes from the
 	 * interactivity context's raycast on the last move.
 	 *
-	 * `hold` keeps the pointer pressed and still before travelling — since
-	 * tableplace-103 a deck only moves after a long press has armed it
-	 * (DECK_MOVE_HOLD_MS, 400ms; travel without the hold draws the top card
-	 * into the drag instead). The hold waits for the ARM CUE (the amber
-	 * footprint mounts, so the deck's mesh count grows) rather than a fixed
-	 * sleep: on a choked SwiftShader main thread, wall-clock time and page
-	 * event-loop time drift apart, and a fixed hold can release the moves into
-	 * the queue before the page has processed the press — or, worse, travel
-	 * before the arm timer has fired and draw a card instead of moving the
-	 * pile. Bounded: if the cue never mounts (the grab slipped entirely), the
-	 * drag proceeds and the caller's own movement assertion reports it.
+	 * A DECK does not travel this way at all — see `grabMoveTo`. Dragging one
+	 * draws off its top, which is the whole point of the gesture; the pile
+	 * itself moves through its wheel.
 	 */
 	/** press on the entity, walk the pointer to a screen point, release there */
 	const dragFromTo = async (
 		id: string,
 		from: ScreenPoint,
 		to: ScreenPoint,
-		options: { alt?: boolean; hold?: boolean } = {}
+		options: { alt?: boolean } = {}
 	) => {
 		// A HUD pane over the entity swallows the press, and the failure looks
 		// exactly like a dead table — which cost an hour of chasing a bag that was
@@ -286,7 +294,6 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 				`${id} draws at (${Math.round(from.x)}, ${Math.round(from.y)}), where the HUD covers the table (${cover}) — move it clear of the panes`
 			);
 		}
-		const meshesAtRest = options.hold ? ((await describe(id))?.meshes ?? 0) : 0;
 		// held for the whole gesture: puppeteer stamps keyboard modifiers onto
 		// every mouse event it dispatches, so the release's pointerup carries
 		// altKey exactly like a user holding Alt
@@ -295,15 +302,7 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 			await page.mouse.move(from.x, from.y);
 			await sleep(80);
 			await page.mouse.down();
-			if (options.hold) {
-				const deadline = Date.now() + 4000;
-				while (Date.now() < deadline) {
-					await sleep(100);
-					if (((await describe(id))?.meshes ?? 0) > meshesAtRest) break;
-				}
-			} else {
-				await sleep(80);
-			}
+			await sleep(80);
 			for (let step = 1; step <= 12; step++) {
 				await page.mouse.move(
 					from.x + ((to.x - from.x) * step) / 12,
@@ -319,13 +318,59 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		await sleep(400);
 	};
 
-	/** decks arm-for-move on a long press; everything else lifts immediately */
-	const holdFor = (id: string) => id.startsWith('deck:');
+	/**
+	 * Move a whole pile: the gesture a player makes since tableplace-161 gave
+	 * the deck's long press to its wheel.
+	 *
+	 * Press and hold until the wheel is up, flick to "Move pile" and release —
+	 * the pile then follows the pointer with no button held — walk it to the
+	 * target and click it down. The placing click commits through the same drop
+	 * resolver a dragged card does, so snapping, stacking and surface rest all
+	 * behave exactly as they did when this was a drag.
+	 *
+	 * Every wait here is on OBSERVED page state (the wheel is up; the drag store
+	 * names this deck) rather than on wall-clock: page time and the runner's
+	 * clock come apart under software GL, which is what made the old arm-cue
+	 * hold flaky enough to need the same treatment.
+	 */
+	const grabMoveTo = async (id: string, to: ScreenPoint) => {
+		const wheel = await openRadial(id, { button: 'left', timeoutMs: 8000 });
+		const wedge = wheel.wedges.move;
+		if (!wedge) {
+			await page.mouse.up();
+			throw new Error(
+				`the deck wheel has no "Move pile" wedge — it offers ${JSON.stringify(wheel.actions)}`
+			);
+		}
+		await page.mouse.move(wedge.x, wedge.y, { steps: 8 });
+		await sleep(120);
+		await page.mouse.up(); // the flick fires the wedge: the pile is now carried
+		const carried = await page.evaluate(
+			(deckId) =>
+				new Promise<boolean>((resolve) => {
+					const deadline = Date.now() + 3000;
+					const tick = () => {
+						if (window.__tableplace!.drag().isDragging === deckId) return resolve(true);
+						if (Date.now() > deadline) return resolve(false);
+						setTimeout(tick, 50);
+					};
+					tick();
+				}),
+			id
+		);
+		if (!carried) throw new Error(`"Move pile" did not pick ${id} up`);
+		await page.mouse.move(to.x, to.y, { steps: 12 });
+		await sleep(150);
+		await page.mouse.click(to.x, to.y); // and down it goes
+		await sleep(400);
+	};
 
 	const dragBy = async (id: string, dx: number, dy: number) => {
 		const from = await locate(id);
 		if (!from) throw new Error(`cannot locate ${id} on screen`);
-		await dragFromTo(id, from, { x: from.x + dx, y: from.y + dy }, { hold: holdFor(id) });
+		const to = { x: from.x + dx, y: from.y + dy };
+		if (id.startsWith('deck:')) return grabMoveTo(id, to);
+		await dragFromTo(id, from, to);
 	};
 
 	/**
@@ -347,7 +392,9 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 			worldZ
 		);
 		if (!to) throw new Error(`world (${worldX}, ${worldZ}) projects off-screen`);
-		await dragFromTo(id, from, to, { ...options, hold: holdFor(id) });
+		// a pile travels by its wheel, not by being dragged (see grabMoveTo)
+		if (id.startsWith('deck:')) return grabMoveTo(id, to);
+		await dragFromTo(id, from, to, options);
 	};
 
 	/**

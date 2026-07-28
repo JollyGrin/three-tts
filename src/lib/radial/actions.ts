@@ -13,6 +13,7 @@
  */
 
 import { gameActions } from '$lib/store/game/actions';
+import { grabDeck } from '$lib/drop/grab';
 import { shuffleHoveredDeck } from '$lib/hotkeys/shuffle';
 import { ungroupHoveredDeck } from '$lib/hotkeys/ungroup';
 import { cameraTransforms } from '$lib/utils/transforms/camera';
@@ -55,7 +56,11 @@ export function radialOptions(target: RadialTarget): RadialOption[] {
 			{ id: 'draw', label: 'Draw 1', run: () => void gameActions.drawFromTop(id, 1) },
 			{ id: 'flip', label: 'Flip', run: () => void gameActions.flipDeck(id) },
 			{ id: 'shuffle', label: 'Shuffle', run: () => void shuffleHoveredDeck(id) },
-			{ id: 'ungroup', label: 'Ungroup', run: () => void ungroupHoveredDeck(id) }
+			{ id: 'ungroup', label: 'Ungroup', run: () => void ungroupHoveredDeck(id) },
+			// moving a pile lives here now rather than on a long press: dragging a
+			// deck draws off its top, and the hold it used to need is this wheel.
+			// The pile follows the pointer until you click it down (see drop/grab).
+			{ id: 'move', label: 'Move pile', run: () => void grabDeck(id) }
 		];
 	}
 	// deliberately sparse — the layout handles 1-8, so a table verb (spawn, ping)

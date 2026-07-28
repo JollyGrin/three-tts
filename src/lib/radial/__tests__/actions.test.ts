@@ -62,12 +62,15 @@ describe('card wheel', () => {
 describe('deck wheel', () => {
 	const target = { kind: 'deck', id: 'deck:me:0' } as const;
 
-	it('offers draw, flip, shuffle and ungroup', () => {
+	it('offers draw, flip, shuffle, ungroup and the pile move', () => {
 		expect(radialOptions(target).map((option) => option.id)).toEqual([
 			'draw',
 			'flip',
 			'shuffle',
-			'ungroup'
+			'ungroup',
+			// moving a pile is a wedge since tableplace-161 took the long press
+			// for the wheel itself — there is no hold-then-drag left to do it
+			'move'
 		]);
 	});
 

@@ -114,27 +114,12 @@ export const CARD_PICK_COLOR = '#a78bfa';
  */
 export const CARD_DRAG_Y = 2;
 
-/**
- * Hold duration that arms a deck for a whole-pile move (tableplace-103).
- * Drawing is the frequent gesture, moving the pile the rare one, so the move
- * costs a deliberate press: 400ms is comfortably past the press-and-go of a
- * drag-off-the-top draw (which cancels this timer at 5px of travel anyway),
- * short enough not to feel like the deck is ignoring you, and under the
- * ~500ms native touch long-press so the arm cue appears before the browser's
- * context menu would (which the gesture suppresses regardless).
+/*
+ * The deck's arm-for-move constants (hold duration, lift, amber cue) lived
+ * here for tableplace-103. tableplace-161 gave the long press to the radial
+ * menu and the pile move to its "Move pile" wedge, so there is no armed state
+ * left to time or to draw — see Deck.svelte and drop/grab.ts.
  */
-export const DECK_MOVE_HOLD_MS = 400;
-
-/**
- * How far an armed deck rises off the felt (tableplace-103) — the "you are
- * now holding the whole pile" cue, paired with the amber outline. Well under
- * CARD_DRAG_Y so arming reads as a different state from actually dragging.
- */
-export const DECK_ARM_LIFT = 0.5;
-
-/** The armed-for-move outline. Amber: a warning-adjacent "heavy" cue, distinct
- * from the cyan drop target and the violet editor selection. */
-export const DECK_ARM_COLOR = '#ffc857';
 
 /**
  * Max XZ center-distance for two cards to count as stacked.

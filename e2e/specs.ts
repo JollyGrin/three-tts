@@ -958,23 +958,28 @@ export const SPECS: Spec[] = [
 	},
 	{
 		/**
-		 * tableplace-103: the deck's three gestures, driven by a real mouse.
-		 * Tap draws one; travel without a hold draws the top card INTO the
-		 * in-flight drag (the deck itself must not budge); a 400ms hold arms a
-		 * whole-pile move — with a visible cue — and only then does travel move
-		 * the deck. A hold released without travel does nothing at all.
+		 * The deck's gestures, driven by a real mouse — REWRITTEN for
+		 * tableplace-161's contract, which is deliberately not -103's:
 		 *
-		 * Timing follows #141's de-flake pattern: every gesture first ASSERTS
-		 * IT ARRIVED (the drag started / the cue mounted) before judging what
-		 * it did, a slipped or mis-timed synthetic gesture is retried up to 3x,
-		 * and animated outcomes are polled to a bounded final state instead of
-		 * racing a fixed settle. Draw-vs-move itself is decided by EVENT
-		 * timestamps in Deck.svelte (pointermove delivery is rAF-aligned, so on
-		 * a slow-framed runner a quick drag's first move can arrive after the
-		 * 400ms arm timer) — this spec is what caught that; the retries remain
-		 * for grabs that slip entirely.
+		 *   tap                → draw one
+		 *   drag               → draw the top card INTO the drag (always now:
+		 *                        there is no hold that turns a drag into a move)
+		 *   press and hold     → the radial wheel
+		 *   "Move pile" wedge  → the pile follows the pointer and lands on the
+		 *                        next click, once
+		 *
+		 * -103's hold-then-travel arm (and its amber cue) is gone: the long
+		 * press belongs to the wheel, at the same beat as every other entity,
+		 * and moving a pile is a verb you can see rather than a timing you have
+		 * to know. The old spec asserted the arm cue's meshes; this asserts the
+		 * wheel and the carry.
+		 *
+		 * Timing still follows #141: every gesture first ASSERTS IT ARRIVED (the
+		 * drag started, the wheel is up, the pile is carried) before judging what
+		 * it did, slipped synthetic gestures retry, and animated outcomes are
+		 * polled to a bounded final state instead of racing a fixed settle.
 		 */
-		name: 'deck gestures: tap draws, drag draws into the drag, long press moves',
+		name: 'deck gestures: tap draws, drag draws into the drag, the wheel moves the pile',
 		run: (context) =>
 			withTable(context, 'deck-gestures', async (table) => {
 				const deck = await table.seedDeck();
@@ -988,7 +993,6 @@ export const SPECS: Spec[] = [
 				const looseCards = () =>
 					table.page.evaluate(() => Object.keys(window.__tableplace!.state()?.cards ?? {}));
 				const dragOwner = () => table.page.evaluate(() => window.__tableplace!.drag().isDragging);
-				const deckMeshes = async () => (await table.describe(deck))!.meshes;
 
 				// ── tap: one card to the felt, deck stays put ─────────────────
 				const start = await deckCount();
@@ -1068,37 +1072,27 @@ export const SPECS: Spec[] = [
 					`the drawn card did not follow the pointer away from the deck: ${JSON.stringify(drawnPos)}`
 				);
 
-				// ── long press, no travel: cue mounts, nothing is drawn ───────
+				// ── long press: the wheel, and nothing drawn ──────────────────
 				const countBeforeHold = await deckCount();
-				const meshesAtRest = await deckMeshes();
-				let meshesArmed = meshesAtRest;
-				for (let attempt = 0; attempt < 3 && meshesArmed <= meshesAtRest; attempt++) {
-					const at = await table.locate(deck);
-					ok(at, 'the deck vanished before the long press');
-					await table.page.mouse.move(at!.x, at!.y);
-					await sleep(80);
-					await table.page.mouse.down();
-					// poll for the cue rather than sleeping DECK_MOVE_HOLD_MS of
-					// wall-clock — page time is what the arm timer runs on
-					meshesArmed = await eventually(deckMeshes, (m) => m > meshesAtRest, 4000);
-					await table.page.mouse.up();
-					if (meshesArmed <= meshesAtRest) await table.settle(600); // slipped grab
-				}
+				const wheel = await table.openRadial(deck, { button: 'left', timeoutMs: 8000 });
 				ok(
-					meshesArmed > meshesAtRest,
-					`no visible cue mounted after the long press armed the move ` +
-						`(${meshesAtRest} meshes at rest, ${meshesArmed} armed)`
+					['draw', 'flip', 'shuffle', 'ungroup', 'move'].every((slug) =>
+						wheel.actions.includes(slug)
+					),
+					`the deck wheel is missing verbs: ${JSON.stringify(wheel.actions)}`
 				);
-				const meshesReleased = await eventually(deckMeshes, (m) => m === meshesAtRest);
-				ok(meshesReleased === meshesAtRest, `the armed cue did not unmount after release`);
+				await table.page.mouse.up(); // released in the deadzone: a cancel
+				await table.settle(700);
+				ok(!(await table.radial()), 'the deck wheel stayed up after a deadzone release');
 				ok(
 					(await deckCount()) === countBeforeHold,
-					`a long press released without travel drew a card — it must do nothing`
+					`a long press that opened the wheel drew a card — it must not`
 				);
 
-				// ── long press then travel: the whole pile moves ──────────────
-				// dragBy waits for the arm cue before travelling (see table.ts);
-				// the outcome is still polled and a slipped grab retried
+				// ── the "Move pile" wedge carries the pile to the next click ──
+				// The whole gesture — hold, flick to the wedge, walk, click down —
+				// lives in table.ts's grabMoveTo, which is what dragBy now does for
+				// a deck. Outcome polled, slipped attempts retried, same as before.
 				let moved: { count: number } | null = null;
 				for (let attempt = 0; attempt < 3 && !moved; attempt++) {
 					const count = await deckCount();
@@ -1111,8 +1105,40 @@ export const SPECS: Spec[] = [
 					);
 					if (after && planarDistance(before, after) > 0.5) moved = { count };
 				}
-				ok(!!moved, `a long press + travel did not move the pile in 3 attempts`);
+				ok(!!moved, `the "Move pile" wedge did not move the pile in 3 attempts`);
 				ok((await deckCount()) === moved!.count, `moving the pile changed its card count`);
+				ok(!(await table.radial()), 'the wheel was still up after the pile was placed');
+				// one use only: the pile is settled, not still following the pointer
+				const owner = await table.page.evaluate(() => window.__tableplace!.drag().isDragging);
+				ok(owner === null, `the pile is still being carried after its placing click: ${owner}`);
+				const placedAt = await table.positionOf(deck);
+				await table.page.mouse.move(placedAt ? 200 : 200, 200);
+				await table.settle(500);
+				const stillPlaced = await table.positionOf(deck);
+				ok(
+					planarDistance(placedAt, stillPlaced) < 0.05,
+					`the pile followed the pointer after being placed: ${JSON.stringify(placedAt)} → ${JSON.stringify(stillPlaced)}`
+				);
+
+				// ── Escape puts a carried pile back ──────────────────────────
+				const homeAt = await table.positionOf(deck);
+				const carry = await table.openRadial(deck, { button: 'left', timeoutMs: 8000 });
+				await table.page.mouse.move(carry.wedges.move!.x, carry.wedges.move!.y, { steps: 8 });
+				await sleep(120);
+				await table.page.mouse.up();
+				const lifted = await eventually(dragOwner, (o) => o === deck, 3000);
+				ok(lifted === deck, `the "Move pile" wedge did not pick the pile up: ${lifted}`);
+				const away = await table.locate(deck);
+				await table.page.mouse.move(away!.x + 120, away!.y, { steps: 8 });
+				await table.settle(300);
+				await table.page.keyboard.press('Escape');
+				await table.settle(800);
+				ok((await dragOwner()) === null, 'Escape left the pile in the air');
+				const returned = await table.positionOf(deck);
+				ok(
+					planarDistance(homeAt, returned) < 0.05,
+					`Escape did not put the carried pile back: ${JSON.stringify(homeAt)} → ${JSON.stringify(returned)}`
+				);
 
 				assertClean(table, 'after the deck gesture suite');
 				await table.snap('deck-gestures');
@@ -1509,8 +1535,8 @@ export const SPECS: Spec[] = [
 				ok(at, 'the card never mounted — nothing to right-click');
 
 				// ── a quick right-click leaves the wheel up ───────────────────
-				const stick = async () => {
-					await table.page.mouse.click(at!.x, at!.y, { button: 'right' });
+				const stickAt = async (point: { x: number; y: number }) => {
+					await table.page.mouse.click(point.x, point.y, { button: 'right' });
 					const open = await eventually(
 						() => table.radial(),
 						(wheel) => !!wheel
@@ -1518,6 +1544,7 @@ export const SPECS: Spec[] = [
 					ok(!!open, 'a quick right-click did not leave the wheel up');
 					return open!;
 				};
+				const stick = () => stickAt(at!);
 
 				const before = await rotationOf();
 				await stick();
@@ -1551,6 +1578,29 @@ export const SPECS: Spec[] = [
 					`clicking the Tap wedge did not turn the card a quarter: ${JSON.stringify(before)} → ${JSON.stringify(tapped)}`
 				);
 				ok(!(await table.radial()), 'the wheel stayed up after a wedge was clicked');
+
+				// ── the felt answers the right button and nothing else ───────
+				// A press reaches bare felt either because it was aimed there or
+				// because it MISSED what it was aimed at — and on a stalled
+				// renderer a grab misses routinely, mid-drag. So a left hold here
+				// must produce no wheel at all: the left button on felt is an
+				// orbit, and the gesture it would interrupt is somebody's drag.
+				await table.page.mouse.move(felt!.x, felt!.y);
+				await table.page.mouse.down();
+				await sleep(1400); // well past every hold this app has
+				const onLeftHold = await table.radial();
+				await table.page.mouse.up();
+				await table.settle(400);
+				ok(!onLeftHold, 'a left press-and-hold on bare felt opened a wheel');
+				// …while the right button still reaches the table's own verbs
+				const feltWheel = await stickAt(felt!);
+				ok(
+					feltWheel.actions.includes('reset-view'),
+					`the felt wheel is missing its verbs: ${JSON.stringify(feltWheel.actions)}`
+				);
+				await table.page.keyboard.press('Escape');
+				await table.settle(300);
+				ok(!(await table.radial()), 'the felt wheel would not dismiss');
 
 				// ── a piece still owns its right-click, and the felt behind it
 				//    must not open a table wheel over the top of it ────────────
@@ -1590,9 +1640,9 @@ export const SPECS: Spec[] = [
 		/**
 		 * The deck, where the wheel had to fit around a gesture that was already
 		 * there: tableplace-103 gave hold-then-travel to the pile move, so the
-		 * wheel waits out that arm and only takes over a hold that keeps holding.
-		 * Both halves are pinned here — travel still draws into the drag and
-		 * never opens a wheel; the long hold opens one and draws nothing.
+		 * wheel now owns the long press outright and the pile move is a wedge on
+		 * it. Both halves are pinned here — travel still draws into the drag and
+		 * never opens a wheel; the hold opens one and draws nothing.
 		 *
 		 * The last section is the ticket's sharpest promise: a wedge acts on the
 		 * deck the press LANDED on, even though the flick has by then carried the
@@ -1663,9 +1713,11 @@ export const SPECS: Spec[] = [
 
 				// ── the long hold: the wheel, and nothing else ────────────────
 				const heldCount = await countOf(pressed);
-				const wheel = await table.openRadial(pressed, { button: 'left', timeoutMs: 9000 });
+				const wheel = await table.openRadial(pressed, { button: 'left', timeoutMs: 8000 });
 				ok(
-					['draw', 'flip', 'shuffle', 'ungroup'].every((slug) => wheel.actions.includes(slug)),
+					['draw', 'flip', 'shuffle', 'ungroup', 'move'].every((slug) =>
+						wheel.actions.includes(slug)
+					),
 					`the deck wheel is missing verbs: ${JSON.stringify(wheel.actions)}`
 				);
 				await table.page.mouse.up(); // released in the deadzone: a cancel

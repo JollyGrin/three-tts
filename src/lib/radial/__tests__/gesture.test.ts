@@ -16,9 +16,7 @@ vi.mock('../actions', () => ({
 	radialTitle: () => 'Card'
 }));
 
-const { armRadialPress, cancelRadialPress, RADIAL_HOLD_MS, RADIAL_RIGHT_HOLD_MS } = await import(
-	'../gesture'
-);
+const { armRadialPress, cancelRadialPress, RADIAL_HOLD_MS } = await import('../gesture');
 const { radialMenu, registerRadialSurface } = await import('$lib/store/radialUi');
 const { dragStore } = await import('$lib/store/dragStore.svelte');
 const { hoveredPiece } = await import('$lib/store/pieceUi');
@@ -65,7 +63,7 @@ describe('right button', () => {
 	it('opens the flick wheel once the press has held still', () => {
 		press(2);
 		expect(get(radialMenu)).toBeNull();
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
 		expect(get(radialMenu)?.mode).toBe('flick');
 		expect(get(radialMenu)?.target).toEqual(target);
 	});
@@ -73,7 +71,7 @@ describe('right button', () => {
 	it('yields to the camera pan when the press travels first', () => {
 		press(2);
 		move(ORIGIN.x + 40, ORIGIN.y);
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS * 4);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS * 4);
 		expect(get(radialMenu)).toBeNull();
 	});
 
@@ -117,11 +115,13 @@ describe('left button', () => {
 		expect(get(radialMenu)).toBeNull();
 	});
 
-	it('honours a per-entity hold — the deck waits out its own long press first', () => {
-		press(0, { holdMs: 800 });
-		vi.advanceTimersByTime(500);
+	it('holds for the same beat whatever was pressed — one opener, no per-kind timing', () => {
+		// the caller CAN override, but nothing in the app does any more: the deck's
+		// 800ms special case died with its hold-to-move arm
+		press(0);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS - 50);
 		expect(get(radialMenu)).toBeNull();
-		vi.advanceTimersByTime(300);
+		vi.advanceTimersByTime(50);
 		expect(get(radialMenu)?.mode).toBe('flick');
 	});
 });
@@ -129,7 +129,7 @@ describe('left button', () => {
 describe('the flick', () => {
 	beforeEach(() => {
 		press(2);
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
 	});
 
 	it('highlights the wedge the pointer is aimed at', () => {
@@ -202,13 +202,13 @@ describe('a late-delivered move', () => {
 			target,
 			event: at('pointerdown', ORIGIN.x, ORIGIN.y, 2, timeStamp) as unknown as PointerEvent
 		});
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
 	}
 
 	it('takes the wheel back down when the travel happened during the hold', () => {
 		pressAt(1000);
 		expect(get(radialMenu)).not.toBeNull();
-		// delivered now, but it HAPPENED 100ms into a 200ms hold
+		// delivered now, but it HAPPENED 100ms into the hold
 		window.dispatchEvent(at('pointermove', ORIGIN.x + 120, ORIGIN.y, -1, 1100));
 		expect(get(radialMenu)).toBeNull();
 		expect(run.some((fn) => fn.mock.calls.length)).toBe(false);
@@ -223,11 +223,67 @@ describe('a late-delivered move', () => {
 	});
 });
 
+/**
+ * The render harness caught this class on CI and nowhere else: under a stalled
+ * renderer, input a hand delivered in one order reaches the page in another,
+ * and a wheel that opened over a live drag left an entity stuck at drag height
+ * because the release that should have dropped it went somewhere else.
+ *
+ * Timing cannot be tested by waiting for it, so the orderings are dispatched
+ * directly here. The rule they pin is absolute: while ANYTHING is being
+ * dragged, this module holds no listeners, opens nothing, and fires nothing.
+ */
+describe('a drag in flight always wins', () => {
+	const lift = (id = 'piece:me:token') =>
+		dragStore.update((state) => ({ ...state, isDragging: id }));
+
+	it('drops a pending press the moment a drag starts, however late the timer is', () => {
+		press(0);
+		lift(); // the entity lifted under this very press
+		vi.advanceTimersByTime(RADIAL_HOLD_MS * 4);
+		expect(get(radialMenu)).toBeNull();
+	});
+
+	it('takes an open wheel down the moment a drag starts, without acting', () => {
+		press(2);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
+		expect(get(radialMenu)).not.toBeNull();
+		lift();
+		expect(get(radialMenu)).toBeNull();
+		expect(run.some((fn) => fn.mock.calls.length)).toBe(false);
+	});
+
+	it('leaves the release to the drop, not to a wedge', () => {
+		press(2);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
+		move(ORIGIN.x, ORIGIN.y - 90);
+		// the wheel is up and aimed at a wedge when a drag appears from under it
+		lift();
+		release(ORIGIN.x, ORIGIN.y - 90, 2);
+		expect(run.some((fn) => fn.mock.calls.length)).toBe(false);
+		expect(get(radialMenu)).toBeNull();
+	});
+
+	it('stops listening to the window entirely while a drag is live', () => {
+		const listen = vi.spyOn(window, 'addEventListener');
+		press(0);
+		lift();
+		vi.advanceTimersByTime(RADIAL_HOLD_MS * 2);
+		// whatever it attached while arming, it has taken back off: a later move
+		// or release cannot reach it
+		move(ORIGIN.x + 200, ORIGIN.y);
+		release(ORIGIN.x + 200, ORIGIN.y);
+		expect(get(radialMenu)).toBeNull();
+		expect(run.some((fn) => fn.mock.calls.length)).toBe(false);
+		listen.mockRestore();
+	});
+});
+
 describe('presses that must not open anything', () => {
 	it('stays out of the way mid-drag', () => {
 		dragStore.update((state) => ({ ...state, isDragging: 'card:me:KH' }));
 		press(2);
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS * 2);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS * 2);
 		expect(get(radialMenu)).toBeNull();
 	});
 
@@ -237,14 +293,14 @@ describe('presses that must not open anything', () => {
 			target: { kind: 'table' },
 			event: pointer('pointerdown', ORIGIN.x, ORIGIN.y, 2) as unknown as PointerEvent
 		});
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS * 2);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS * 2);
 		expect(get(radialMenu)).toBeNull();
 	});
 
 	it('stays inert on a route with no wheel to draw it (the /create preview)', () => {
 		unmount();
 		press(2);
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS * 2);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS * 2);
 		expect(get(radialMenu)).toBeNull();
 		unmount = registerRadialSurface(); // afterEach unmounts once
 	});
@@ -257,10 +313,10 @@ describe('presses that must not open anything', () => {
 
 	it('does not stack a second wheel on top of an open one', () => {
 		press(2);
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
 		const first = get(radialMenu);
 		press(2);
-		vi.advanceTimersByTime(RADIAL_RIGHT_HOLD_MS);
+		vi.advanceTimersByTime(RADIAL_HOLD_MS);
 		expect(get(radialMenu)).toBe(first);
 	});
 });

@@ -34,32 +34,40 @@ import {
 import { radialOptions, type RadialTarget } from './actions';
 import { selectWedge } from './geometry';
 
-/** left long-press: the touch convention, and what a trackpad can reach */
-export const RADIAL_HOLD_MS = 350;
-/** right press-and-hold — shorter, because the right button has nothing else to mean here */
-export const RADIAL_RIGHT_HOLD_MS = 200;
 /**
- * Left long-press on a DECK waits out the pile-move arm (DECK_MOVE_HOLD_MS,
- * 400ms) and then some: tableplace-103 gave the deck's hold-then-travel to the
- * pile move, and that gesture is unchanged. Hold past the amber cue without
- * travelling and the wheel takes over instead — the arm is dropped when it
- * opens, so the two can never both be live.
+ * How long a press must hold still to become a wheel — ONE number, for every
+ * button and every kind of thing you can press.
+ *
+ * It was briefly three: the deck held its long press for the pile move
+ * (tableplace-103), so the wheel had to wait that out at 800ms while a card
+ * answered at 350. A gesture whose timing depends on what is underneath it is
+ * a gesture nobody can learn. The pile move has moved onto the wheel itself
+ * (the "Move pile" wedge), which freed the slot — press and hold anything for
+ * this long and you get its verbs.
  */
-export const RADIAL_DECK_HOLD_MS = 800;
+export const RADIAL_HOLD_MS = 400;
 /** travel that vetoes the wheel — same threshold every drag in the app uses */
 export const RADIAL_MOVE_CANCEL_PX = 5;
 
 /**
- * Movement is watched on `pointerrawupdate` as well as `pointermove`, because
- * `pointermove` delivery is rAF-aligned: on a slow-framed client (a big table
- * under software GL) a flick's first move can be handed to the page AFTER a
- * 200ms timer has already fired, and the wheel would open over a gesture that
- * had visibly moved. Raw updates are not frame-gated, which is what they exist
- * for. Where they are unavailable the timestamp veto below still catches it.
+ * While a press is PENDING, movement is watched on `pointerrawupdate` as well
+ * as `pointermove`, because `pointermove` delivery is rAF-aligned: on a
+ * slow-framed client (a big table under software GL) a flick's first move can
+ * be handed to the page AFTER the hold timer has fired, and the wheel would
+ * open over a gesture that had visibly moved. Raw updates are not frame-gated,
+ * which is what they exist for.
+ *
+ * Deliberately scoped to the pending window only — a raw-update listener
+ * changes how Chrome delivers pointer input to the WHOLE page, and this module
+ * has no business perturbing that a millisecond longer than the ~200-800ms it
+ * is deciding what a press meant. Once a wheel is open, plain `pointermove`
+ * plus the event-time veto below is enough. And no listener of either kind
+ * survives the start of a drag (see the drag watch).
  */
-// `pointerrawupdate` is not in lib.dom's WindowEventMap, so the pair is typed
-// as plain strings and the listeners as EventListener
-const MOVE_EVENTS = ['pointerrawupdate', 'pointermove'];
+// `pointerrawupdate` is not in lib.dom's WindowEventMap, so these are typed as
+// plain strings and the listeners as EventListener
+const PENDING_MOVE_EVENTS = ['pointerrawupdate', 'pointermove'];
+const WHEEL_MOVE_EVENTS = ['pointermove'];
 
 type Pending = {
 	target: RadialTarget;
@@ -79,13 +87,48 @@ let opened: Pending | null = null;
 /** the button that opened a flick wheel — only its release decides */
 let flickButton: number | null = null;
 let unwatch: (() => void) | null = null;
+let dragWatch: (() => void) | null = null;
+
+/**
+ * A drag in flight beats the wheel, in every ordering.
+ *
+ * Checking `isDragging` when the press is armed is not enough: the drag it has
+ * to yield to may not exist yet. A card lifts on its first travel, a deck's
+ * pile move arms on a hold, and — the case that matters — on a stalled
+ * renderer those events can reach the page in an order no hand produced. So
+ * instead of asking once, this watches the drag store for the whole life of a
+ * press and of an open wheel, and the moment anything starts dragging the
+ * press is dropped, the wheel goes away without acting, and every listener
+ * this module owns comes off the window.
+ *
+ * That is the invariant the render harness cares about: while an entity is in
+ * the air, this file is not participating in input at all.
+ */
+function startDragWatch() {
+	dragWatch?.();
+	dragWatch = dragStore.subscribe((state) => {
+		if (!state.isDragging) return;
+		clearPending();
+		if (get(radialMenu)) closeRadialMenu();
+	});
+}
+
+function stopDragWatch() {
+	const stop = dragWatch;
+	dragWatch = null;
+	stop?.();
+}
 
 function clearPending() {
 	if (pending?.timer) clearTimeout(pending.timer);
 	pending = null;
-	for (const name of MOVE_EVENTS) window.removeEventListener(name, onPendingMove as EventListener);
+	for (const name of PENDING_MOVE_EVENTS)
+		window.removeEventListener(name, onPendingMove as EventListener);
 	window.removeEventListener('pointerup', onPendingUp);
 	window.removeEventListener('pointercancel', onPendingCancel);
+	// the open wheel keeps the watch alive; nothing pending and nothing open
+	// means this module is fully detached
+	if (!get(radialMenu)) stopDragWatch();
 }
 
 function onPendingMove(event: PointerEvent) {
@@ -101,6 +144,7 @@ function onPendingUp(event: PointerEvent) {
 	const press = pending;
 	clearPending();
 	if (press.button !== 2) return; // a quick left click is just a click
+	if (!canOpen(press)) return;
 	// the sticky wheel is only vetoed by movement that happened while the button
 	// was DOWN — after the release, moving toward a wedge is the whole point
 	press.holdMs = Math.max(0, event.timeStamp - press.pressedAt);
@@ -110,6 +154,18 @@ function onPendingUp(event: PointerEvent) {
 
 function onPendingCancel() {
 	clearPending();
+}
+
+/**
+ * Re-asked at OPEN time, not just when the press was armed: everything it
+ * tests can change during the hold — a card can lift under the same press, a
+ * piece can come under the pointer — and opening on a stale answer is how a
+ * wheel ends up on top of a live drag.
+ */
+function canOpen(press: Pending): boolean {
+	if (get(dragStore).isDragging) return false;
+	if (press.target.kind === 'table' && get(hoveredPiece)) return false;
+	return hasRadialSurface() && !get(radialMenu);
 }
 
 function open(press: Pending, mode: 'flick' | 'sticky') {
@@ -124,7 +180,7 @@ function open(press: Pending, mode: 'flick' | 'sticky') {
 		y: press.y,
 		options: radialOptions(press.target)
 	});
-	for (const name of MOVE_EVENTS) window.addEventListener(name, onWheelMove as EventListener);
+	for (const name of WHEEL_MOVE_EVENTS) window.addEventListener(name, onWheelMove as EventListener);
 	if (mode === 'flick') {
 		flickButton = press.button;
 		window.addEventListener('pointerup', onWheelUp);
@@ -137,18 +193,23 @@ function open(press: Pending, mode: 'flick' | 'sticky') {
 	unwatch = radialMenu.subscribe((menu) => {
 		if (!menu) detach();
 	});
+	// the open wheel inherits the watch — clearPending drops it on the way in
+	// here, since at that instant there is neither a press nor a menu
+	startDragWatch();
 }
 
 function detach() {
 	flickButton = null;
 	opened = null;
-	for (const name of MOVE_EVENTS) window.removeEventListener(name, onWheelMove as EventListener);
+	for (const name of WHEEL_MOVE_EVENTS)
+		window.removeEventListener(name, onWheelMove as EventListener);
 	window.removeEventListener('pointerup', onWheelUp);
 	window.removeEventListener('pointercancel', dismiss);
 	window.removeEventListener('keydown', onWheelKey);
 	const stop = unwatch;
 	unwatch = null;
 	stop?.();
+	if (!pending) stopDragWatch();
 }
 
 function onWheelMove(event: PointerEvent) {
@@ -175,6 +236,10 @@ function onWheelUp(event: PointerEvent) {
 	if (flickButton !== null && event.button !== flickButton) return;
 	const menu = get(radialMenu);
 	if (!menu) return dismiss();
+	// a release that ends a DROP is not a wedge choice — the drag watch should
+	// already have taken this wheel down, and if ordering ever beats it, the
+	// release still belongs to the entity in the air
+	if (get(dragStore).isDragging) return dismiss();
 	// the release position decides, not the last move we happened to see
 	fireRadialOption(
 		selectWedge(event.clientX - menu.x, event.clientY - menu.y, menu.options.length)
@@ -224,7 +289,7 @@ export function armRadialPress(options: {
 	if (get(radialMenu)) return;
 
 	clearPending();
-	const holdMs = options.holdMs ?? (event.button === 2 ? RADIAL_RIGHT_HOLD_MS : RADIAL_HOLD_MS);
+	const holdMs = options.holdMs ?? RADIAL_HOLD_MS;
 	const press: Pending = {
 		target,
 		button: event.button,
@@ -238,13 +303,18 @@ export function armRadialPress(options: {
 	press.timer = setTimeout(() => {
 		press.timer = null;
 		if (pending !== press) return;
+		const allowed = canOpen(press);
 		clearPending();
-		open(press, 'flick');
+		if (allowed) open(press, 'flick');
 	}, holdMs);
 	pending = press;
-	for (const name of MOVE_EVENTS) window.addEventListener(name, onPendingMove as EventListener);
+	for (const name of PENDING_MOVE_EVENTS)
+		window.addEventListener(name, onPendingMove as EventListener);
 	window.addEventListener('pointerup', onPendingUp);
 	window.addEventListener('pointercancel', onPendingCancel);
+	// last, so its immediate replay of the current (drag-free) state cannot
+	// tear down the press it is meant to protect
+	startDragWatch();
 }
 
 /** the entity's own gesture won (it lifted, it armed, it drew) — drop the press */
