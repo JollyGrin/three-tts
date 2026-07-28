@@ -144,7 +144,10 @@
 		scene.overrideMaterial = initialOverrideMaterial;
 
 		blurShadows(blur);
-		blurShadows(blur * 0.4); // second pass smooths banding artifacts
+		// second, tighter pass: fills the gaps between the 9-tap kernel's taps —
+		// on a hard wide silhouette edge (a bag pouch) the taps otherwise print
+		// as discrete spikes, a fur-like fringe at the shadow's rim
+		blurShadows(blur * 0.6);
 
 		renderer.setRenderTarget(null);
 		scene.background = initialBackground;

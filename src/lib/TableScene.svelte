@@ -231,15 +231,17 @@
      pieces on a map overlay: the overlay's ImageMaterial is unlit, so real
      shadows can never darken it, but this plane sits ABOVE the overlay
      (felt + overlay clearance 0.003 < 0.0045 < card rest 0.26). `far` stops
-     at 0.8 so only RESTING entities cast: anything held aloft (CARD_DRAG_Y 2,
-     PIECE_DRAG_Y 1.2) and the billboarded labels (≥ ~1.1 world) are clipped
-     out of the depth pass — labels would otherwise print rectangular
-     glyph-quad blobs. -->
+     at 0.5 so only the GROUNDED BULK of resting entities casts: anything held
+     aloft (CARD_DRAG_Y 2, PIECE_DRAG_Y 1.2) and the billboarded labels are
+     clipped out, and so are the wide upper bulges of tall pieces — the bag's
+     pouch and the pawn's head used to inflate their shadows well past their
+     bases (each translucent depth layer accumulates, so a wide silhouette
+     saturates oversized). -->
 <TableContactShadows
 	position.y={TABLE_TOP_Y + 0.0045}
 	width={TABLE_HALF_X * 2 + 2}
 	height={TABLE_HALF_Z * 2 + 2}
-	far={0.8}
+	far={0.5}
 	resolution={256}
 	opacity={0.6}
 	blur={1.2}
