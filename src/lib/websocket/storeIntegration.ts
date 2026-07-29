@@ -1,4 +1,5 @@
 import { gameStore } from '$lib/store/game/gameStore.svelte';
+import { attachIntents, INTENTS_KEY, mintIntent } from '$lib/store/game/intents';
 import type { GameDTO } from '$lib/store/game/types';
 import { purgeUndefinedValues } from '$lib/utils/transforms/data';
 import { createWsMetaData } from '$lib/utils/transforms/websocket';
@@ -94,6 +95,14 @@ export function wsWrapperUpdateDeck(fn: Function) {
 function mergePendingValue(pending: any, incoming: any) {
 	const merged = { ...pending };
 	for (const collection of Object.keys(incoming ?? {})) {
+		// the piggybacked intents are a log, not a collection: coalescing two
+		// patches must CONCATENATE them (pending first — it happened first), or a
+		// throttled drop would silently lose the verb that caused it and the two
+		// clients' intent streams would stop matching
+		if (collection === INTENTS_KEY) {
+			merged[INTENTS_KEY] = [...(pending?.[INTENTS_KEY] ?? []), ...(incoming[INTENTS_KEY] ?? [])];
+			continue;
+		}
 		const incomingEntities = incoming[collection];
 		if (!incomingEntities || typeof incomingEntities !== 'object') {
 			merged[collection] = incomingEntities;
@@ -126,9 +135,16 @@ export function wsWrapperUpdateGameState(fn: Function) {
 
 		const [...[rest]] = args;
 
+		// Name the verb behind this patch and send it along WITH the patch
+		// (tableplace-169) — a second message would consume the relay's 7/sec
+		// budget twice over. It rides inside `value`, which the Go relay carries
+		// as an opaque json.RawMessage, so nothing server-side has to learn about
+		// it. Minted here rather than left to the store call below so the event
+		// exists before the send; the store's own mint then finds it done.
+		const intent = mintIntent();
 		const payload = {
 			...createWsMetaData(),
-			value: { ...(rest as GameDTO) }
+			value: attachIntents({ ...(rest as GameDTO) }, intent ? [intent] : [])
 		};
 
 		// NOTE: This is a hacky way to check if there are any position updates
@@ -190,5 +206,8 @@ export function wsWrapperUpdateGameState(fn: Function) {
 export function initWrappers() {
 	const originalFn = gameStore.updateState;
 	gameStore.updateState = wsWrapperUpdateGameState(originalFn);
-	gameStore.updateStateSilently = originalFn;
+	// `updateStateSilently` is deliberately left alone: it is its own function
+	// now (it peels the piggybacked intents off an inbound patch), and pointing
+	// it back at the local one would blind every observer to the remote half of
+	// the game.
 }

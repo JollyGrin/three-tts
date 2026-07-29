@@ -24,6 +24,7 @@ import { dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
 import { isWebSocketConnected } from '$lib/websocket/connection';
+import { clearIntentLog, intentLog, type IntentEvent } from '$lib/store/game/intents';
 import type { GameDTO } from '$lib/store/game/types';
 
 export type ScreenPoint = { x: number; y: number };
@@ -61,6 +62,15 @@ export type TestBridge = {
 	 * streaming a pose per frame.
 	 */
 	connected: () => boolean;
+	/**
+	 * Every named action this client has seen — its own and its peers' — oldest
+	 * first (tableplace-169). Two clients in one lobby must agree on this list
+	 * exactly, which is the only way to prove the verb survived the wire rather
+	 * than only the patch it caused.
+	 */
+	intents: () => IntentEvent[];
+	/** forget the log, so a spec can bracket one gesture and compare just that */
+	clearIntents: () => void;
 	/** what an entity is actually made of — null if it never mounted at all */
 	describe: (id: string) => EntityShape | null;
 	/**
@@ -277,6 +287,8 @@ export function installTestBridge(handles: SceneHandles): void {
 			return { isDragging, isHovered, isBagHovered, isDeckHovered };
 		},
 		connected: () => isWebSocketConnected(),
+		intents: () => intentLog(),
+		clearIntents: () => clearIntentLog(),
 		camera: () => {
 			const camera = handles.camera();
 			if (!camera) return null;
