@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
 import type { GameDTO } from './types';
 import { merge } from '../transform-helpers';
+import { mintIntent, receiveIntents, splitIntents } from './intents';
 
 const initGameState = {
 	players: {},
@@ -73,7 +74,7 @@ type PartialWithNull<T> = {
 		: T[P] | null;
 };
 
-function updateState(update: PartialWithNull<GameDTO>) {
+function applyPatch(update: PartialWithNull<GameDTO>) {
 	const paths = findNullPaths(update);
 
 	game.update((state) => {
@@ -92,10 +93,36 @@ function updateState(update: PartialWithNull<GameDTO>) {
 	});
 }
 
+/**
+ * A local mutation. Naming what just happened (tableplace-169) happens HERE
+ * rather than in the action wrapper, so a verb that only reads — `getMe`,
+ * `getDeckLength` — stays silent without anything having to list them: no
+ * patch, no intent. `mintIntent` is idempotent per action call, so the
+ * websocket wrapper minting first (to put the event on the wire) leaves this
+ * one a no-op rather than a second event.
+ */
+function updateState(update: PartialWithNull<GameDTO>) {
+	mintIntent();
+	applyPatch(update);
+}
+
+/**
+ * An inbound mutation, applied without rebroadcasting it. Anything the sender
+ * piggybacked on the patch is peeled off and published to the intent observers
+ * before the merge — the intents are not game state and must never reach the
+ * store — which is what makes an observer on this client see the whole table
+ * instead of only its own half.
+ */
+function updateStateSilently(update: PartialWithNull<GameDTO>) {
+	const { state, intents } = splitIntents(update);
+	receiveIntents(intents);
+	applyPatch(state);
+}
+
 export const gameStore = {
 	...game,
 	// NOTE: wrapped in storeIntegration.ts to broadcast messages
 	updateState,
 	// NOTE: silent used in websocket/index.ts to sync received messages without rebroadcasting
-	updateStateSilently: updateState
+	updateStateSilently
 };

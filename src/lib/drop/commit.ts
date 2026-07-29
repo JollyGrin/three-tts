@@ -2,6 +2,7 @@ import { get } from 'svelte/store';
 import { dragEnd, dragStore } from '$lib/store/dragStore.svelte';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
 import { gameActions } from '$lib/store/game/actions';
+import { withIntent } from '$lib/store/game/intents';
 import { tableFeatures } from '$lib/store/tableFeatures';
 import { modelSurfaceYAt } from '$lib/models/surface';
 import { resolveDrop, type DropTarget } from '$lib/utils/transforms/drop';
@@ -51,16 +52,32 @@ export function commitActiveDrag() {
 		// client between the preview and this release) — then the entity has to
 		// land somewhere rather than stay floating at drag height
 		if (!gameActions.returnToBag(drop.targetId, id)) commitActiveDragAtRest(id);
-	} else if (drop && id.startsWith('piece:')) {
-		gameStore.updateState({ pieces: { [id]: dropPatch(drop) } });
-	} else if (drop && id.startsWith('deck:')) {
-		gameStore.updateState({ decks: { [id]: dropPatch(drop) } });
 	} else if (drop) {
-		gameStore.updateState({ cards: { [id]: dropPatch(drop) } });
+		land(id, dropPatch(drop));
 	}
 
 	dragEnd();
 }
+
+/** What a landing writes: position, and rotation when the drop turned it. */
+type Landing = { position: [number, number, number]; rotation?: [number, number, number] };
+
+/**
+ * A landing on plain felt — the one branch of a release with no `gameActions`
+ * verb behind it. Named for the intent channel (tableplace-169) so a drag reads
+ * as `moveEntity` in a game log rather than as an anonymous position patch; the
+ * tray / deck / bag landings above already carry verbs of their own.
+ *
+ * The per-frame positions a drag streams while it is in flight are deliberately
+ * NOT named: they go straight to `gameStore.updateState` from TableScene, and a
+ * verb per pointer move is a flood, not a log. Only where it comes to rest is
+ * an intent.
+ */
+const land = withIntent('moveEntity', (id: string, patch: Landing) => {
+	if (id.startsWith('piece:')) gameStore.updateState({ pieces: { [id]: patch } });
+	else if (id.startsWith('deck:')) gameStore.updateState({ decks: { [id]: patch } });
+	else gameStore.updateState({ cards: { [id]: patch } });
+});
 
 /**
  * The state patch a landing writes. Position always; rotation only when the
@@ -68,10 +85,7 @@ export function commitActiveDrag() {
  * other kind resolves the rotation the entity already has, and re-sending it
  * would put an unchanged field on the wire on every single drop.
  */
-function dropPatch(drop: DropTarget): {
-	position: [number, number, number];
-	rotation?: [number, number, number];
-} {
+function dropPatch(drop: DropTarget): Landing {
 	return drop.snap?.rotation !== undefined
 		? { position: drop.position, rotation: drop.rotation }
 		: { position: drop.position };
@@ -93,18 +107,13 @@ export function cancelActiveDrag() {
 		return;
 	}
 
-	if (id.startsWith('piece:')) gameStore.updateState({ pieces: { [id]: { position: origin } } });
-	else if (id.startsWith('deck:')) gameStore.updateState({ decks: { [id]: { position: origin } } });
-	else gameStore.updateState({ cards: { [id]: { position: origin } } });
+	land(id, { position: origin });
 
 	dragEnd();
 }
 
 function commitActiveDragAtRest(id: string) {
 	const drop = resolveDrop(get(gameStore), id, null, {}, { surfaceYAt: modelSurfaceYAt(id) });
-	if (drop && id.startsWith('piece:')) gameStore.updateState({ pieces: { [id]: dropPatch(drop) } });
-	else if (drop && id.startsWith('deck:'))
-		gameStore.updateState({ decks: { [id]: dropPatch(drop) } });
-	else if (drop) gameStore.updateState({ cards: { [id]: dropPatch(drop) } });
+	if (drop) land(id, dropPatch(drop));
 	dragEnd();
 }

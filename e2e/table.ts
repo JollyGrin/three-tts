@@ -18,6 +18,7 @@ import type { Servers } from './servers';
 
 export type Problem = { kind: 'console' | 'pageerror' | 'requestfailed'; text: string };
 export type ScreenPoint = { x: number; y: number };
+export type Intent = { seq: number; seat: string; verb: string; args: unknown[] };
 
 export type Table = {
 	page: Page;
@@ -52,6 +53,14 @@ export type Table = {
 	cameraPose: () => Promise<{ position: number[]; direction: number[] } | null>;
 	/** is the lobby socket still open (the relay drops rate-limit offenders) */
 	connected: () => Promise<boolean>;
+	/**
+	 * The named actions this client has seen, its own and its peers', oldest
+	 * first — the intent channel (tableplace-169). `{seq, seat}` is stamped by
+	 * whoever acted, so two clients in one lobby must report identical lists.
+	 */
+	intents: () => Promise<Intent[]>;
+	/** drop the log, so a spec compares only the gesture it is about to make */
+	clearIntents: () => Promise<void>;
 	/** how an entity is rendered right now; null if it never mounted */
 	describe: (
 		id: string
@@ -109,8 +118,29 @@ function ignorable(text: string): boolean {
 const SUITS = ['S', 'H', 'D', 'C'];
 const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 
-export async function openTable(browser: Browser, servers: Servers, lobby: string): Promise<Table> {
-	const page = await browser.newPage();
+export type TableOptions = {
+	/**
+	 * Open in a browser context of its own — a genuinely SECOND player.
+	 *
+	 * Every page in one browser shares an origin and therefore shares
+	 * localStorage, including the `myPlayerId` the app rolls on first visit. Two
+	 * plain tabs in one lobby are consequently the same player as far as the
+	 * relay is concerned, and the relay excludes a sender from its own broadcast
+	 * — so neither tab ever receives the other's patches, only the merged `sync`
+	 * they get on joining. A spec about live traffic between two clients has to
+	 * separate their storage, which is what a fresh context does.
+	 */
+	isolated?: boolean;
+};
+
+export async function openTable(
+	browser: Browser,
+	servers: Servers,
+	lobby: string,
+	options: TableOptions = {}
+): Promise<Table> {
+	const context = options.isolated ? await browser.createBrowserContext() : null;
+	const page = await (context ?? browser).newPage();
 	const problems: Problem[] = [];
 
 	page.on('console', (message: ConsoleMessage) => {
@@ -152,11 +182,16 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 	const url =
 		`${servers.web}/play?lobby=${encodeURIComponent(lobby)}` +
 		`&server=${encodeURIComponent(servers.relay)}`;
-	await page.goto(url, { waitUntil: 'networkidle2', timeout: 60_000 });
+	// A fresh context starts with a cold HTTP cache, so it re-fetches every
+	// unbundled dev module and warms every shader again, alongside a first table
+	// that is already holding a software WebGL context. Give it room rather than
+	// let a slow second client read as a broken one.
+	const readyMs = options.isolated ? 120_000 : 60_000;
+	await page.goto(url, { waitUntil: 'networkidle2', timeout: readyMs });
 
 	// the bridge mounts inside the Canvas, which mounts only once the socket is
 	// open — so waiting on it is also the connection assertion
-	await page.waitForFunction('window.__tableplace?.ready === true', { timeout: 60_000 });
+	await page.waitForFunction('window.__tableplace?.ready === true', { timeout: readyMs });
 
 	const settle = (ms = 700) => sleep(ms);
 	await settle(600);
@@ -258,6 +293,8 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 
 	const cameraPose = () => page.evaluate(() => window.__tableplace!.camera());
 	const connected = () => page.evaluate(() => window.__tableplace!.connected());
+	const intents = () => page.evaluate(() => window.__tableplace!.intents()) as Promise<Intent[]>;
+	const clearIntents = () => page.evaluate(() => window.__tableplace!.clearIntents());
 
 	const positionOf = (id: string) =>
 		page.evaluate((entityId) => {
@@ -501,6 +538,8 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		openRadial,
 		cameraPose,
 		connected,
+		intents,
+		clearIntents,
 		describe,
 		dragBy,
 		dragTo,
@@ -508,6 +547,9 @@ export async function openTable(browser: Browser, servers: Servers, lobby: strin
 		settle,
 		stall,
 		snap,
-		close: () => page.close()
+		close: async () => {
+			await page.close();
+			await context?.close();
+		}
 	};
 }

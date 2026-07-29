@@ -183,6 +183,8 @@ Discrete actions and continuous drags have opposite needs, so they ride the same
 
 In `local` mode both tiers collapse to direct store application. The 200ms client-side drag throttle from the legacy server is retired in `ws-v2` — the ephemeral tier exists precisely so drags can run at full rate.
 
+**Intent channel (shipped, `legacy-ws`).** Until an action protocol exists, the verb behind each patch rides *with* it: an `update` message's `value` may carry a reserved `__intents` array of `{seq, seat, verb, args}`, minted by the acting client (`store/game/intents.ts`) and published to `onIntent` observers on both the local and inbound apply paths. `seq` counts per actor and is never renumbered on arrival, so every client's stream is identical. Piggybacked rather than sent separately so the relay's 7 msg/s limit is spent once, and inside `value` because the relay carries that as an opaque `json.RawMessage` — no relay change, and none of it is game state: every client strips `__intents` before merging, and a `sync` snapshot's copy is discarded rather than replayed. It is a readout only — no validation, no ordering authority. That is what the action protocol above is for.
+
 ## 4d. Game packs — the content system
 
 A **pack** is a named, serializable definition of a game's contents — how many decks, what each is composed of, tokens, board — decoupled from any live game state. Everything that puts objects on the table goes through a pack:

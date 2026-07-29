@@ -1,6 +1,7 @@
 import { connect, joinLobby, onMessage, sendMessage, type WebSocketMessage } from './connection';
 import { gameActions } from '$lib/store/game/actions';
 import { gameStore } from '$lib/store/game/gameStore.svelte';
+import { withoutIntents } from '$lib/store/game/intents';
 import { prewarmGameState } from '$lib/packs/prewarm-state';
 import { remoteCameraActions } from '$lib/store/remoteCameraStore.svelte';
 import { requestCameraBroadcast } from '$lib/store/cameraStore.svelte';
@@ -107,12 +108,18 @@ function applyPresenceToCameras(value: unknown): void {
 function setupMessageHandlers(): void {
 	onMessage((message: WebSocketMessage) => {
 		switch (message.type) {
-			case 'sync':
+			case 'sync': {
 				console.log('Received sync message, updating local state', message);
-				gameStore.updateStateSilently(message.value);
+				// A sync is the relay's MERGED state, and the relay merges the
+				// intents a patch piggybacked (tableplace-169) like any other key
+				// — so the last batch before we joined is still sitting in it.
+				// Replaying that would invent history this client never saw, and
+				// put one client's intent stream out of step with everyone else's.
+				const synced = withoutIntents(message.value);
+				gameStore.updateStateSilently(synced);
 				// resolve all sheet refs in the synced state, then force one
 				// re-render sweep so everything repaints deterministically
-				prewarmGameState(message.value, ({ total, failed }) => {
+				prewarmGameState(synced, ({ total, failed }) => {
 					gameStore.updateStateSilently({});
 					toast(
 						failed > 0
@@ -122,6 +129,7 @@ function setupMessageHandlers(): void {
 					);
 				});
 				break;
+			}
 
 			case 'update':
 				console.log('Received update message', message);

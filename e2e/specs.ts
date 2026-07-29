@@ -18,7 +18,7 @@ import type { Browser } from 'puppeteer-core';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { ok, planarDistance } from './assert';
 import type { Servers } from './servers';
-import { openTable, type Table } from './table';
+import { openTable, type Intent, type Table } from './table';
 
 export type Spec = {
 	name: string;
@@ -1934,5 +1934,147 @@ export const SPECS: Spec[] = [
 				assertClean(table, 'at the end of the mixed table');
 				await table.snap('mixed');
 			})
+	},
+	{
+		/**
+		 * The intent channel (tableplace-169): every named action has to reach
+		 * BOTH clients, in the same order, carrying the same `{seq, seat, verb,
+		 * args}` — the patch alone was never enough to say what happened.
+		 *
+		 * Two browser contexts, not two tabs: tabs share localStorage and would
+		 * therefore share `myPlayerId`, which makes them one player the relay
+		 * excludes from its own broadcast (see `TableOptions.isolated`). The
+		 * gesture list is deliberately mixed — a mouse drag whose patch goes
+		 * through the position throttle, two immediate deck verbs, and one action
+		 * from the *other* client, because an observer wired to only one of the
+		 * two apply paths is blind to half the game.
+		 */
+		name: 'intents: two clients see the same verbs in the same order',
+		run: async (context) => {
+			const lobby = nextLobby('intents');
+			const host = await openTable(context.browser, context.servers, lobby);
+			try {
+				const deck = await host.seedDeck();
+				const token = await host.spawn('token', { name: 'Scout', position: LANE(1) });
+				await host.settle(1200);
+
+				const guest = await openTable(context.browser, context.servers, lobby, {
+					isolated: true
+				});
+				try {
+					await guest.settle(1500); // join, sync, prewarm the seeded deck's faces
+					// the guest acts on the token below, so it has to have arrived —
+					// a fixed sleep here would read a slow sync as a lost intent
+					ok(
+						await eventually(
+							() => guest.positionOf(token),
+							(position) => !!position
+						),
+						'the seeded token never reached the second client — nothing to act on'
+					);
+					const seats = await Promise.all([
+						host.page.evaluate(() => window.__tableplace!.actions.getMyId() ?? ''),
+						guest.page.evaluate(() => window.__tableplace!.actions.getMyId() ?? '')
+					]);
+					ok(
+						seats[0] && seats[1] && seats[0] !== seats[1],
+						`the two clients are the same player (${seats[0]} / ${seats[1]}) — ` +
+							`the relay excludes a sender from its own broadcast, so neither would ` +
+							`ever receive the other`
+					);
+
+					// everything up to here is setup — join handshakes, the seeded
+					// deck, seat rows. The comparison is about the scripted gesture.
+					await host.clearIntents();
+					await guest.clearIntents();
+
+					// a card off the top, then flipped: two collections in one patch,
+					// then a rotation-only one
+					const card = await host.page.evaluate((deckId) => {
+						const before = new Set(Object.keys(window.__tableplace!.state()?.cards ?? {}));
+						window.__tableplace!.actions.drawFromTop(deckId, 1);
+						return (
+							Object.keys(window.__tableplace!.state()?.cards ?? {}).find(
+								(id) => !before.has(id)
+							) ?? ''
+						);
+					}, deck);
+					ok(card, 'drawFromTop put no new card on the table to flip');
+					await host.settle(500);
+					await host.page.evaluate((id) => window.__tableplace!.actions.flipCard(id), card);
+					await host.settle(500);
+					await host.page.evaluate((id) => window.__tableplace!.actions.shuffleDeck(id), deck);
+					await host.settle(500);
+					// a real mouse drag: its landing patch carries a position, so it
+					// goes through the 200ms coalescing throttle on its way out
+					await host.dragBy(token, 0, 130);
+					await host.settle(900);
+					// and one from the other side, so this is not a one-way street
+					await guest.page.evaluate(
+						(id) => window.__tableplace!.actions.rotatePiece(id, 90),
+						token
+					);
+					await guest.settle(900);
+
+					const EXPECTED = ['drawFromTop', 'flipCard', 'shuffleDeck', 'moveEntity', 'rotatePiece'];
+					const key = (intents: Intent[]) =>
+						JSON.stringify(intents.map((i) => [i.seat, i.seq, i.verb, i.args]));
+
+					let hostSaw: Intent[] = [];
+					let guestSaw: Intent[] = [];
+					await eventually(
+						async () => {
+							[hostSaw, guestSaw] = await Promise.all([host.intents(), guest.intents()]);
+							return hostSaw.length >= EXPECTED.length && key(hostSaw) === key(guestSaw);
+						},
+						(matched) => matched,
+						12_000
+					);
+
+					ok(
+						key(hostSaw) === key(guestSaw),
+						`the two clients disagree about what happened:\n  host  ${key(hostSaw)}\n  guest ${key(guestSaw)}`
+					);
+					ok(
+						JSON.stringify(hostSaw.map((i) => i.verb)) === JSON.stringify(EXPECTED),
+						`the scripted gesture did not read as ${JSON.stringify(EXPECTED)}: ` +
+							`${JSON.stringify(hostSaw.map((i) => i.verb))}`
+					);
+					// the verb is only half of it — an engine needs what it was aimed at
+					ok(
+						hostSaw[1]?.args?.[0] === card && hostSaw[2]?.args?.[0] === deck,
+						`the arguments did not survive the wire: ${JSON.stringify(hostSaw.slice(1, 3))}`
+					);
+					// four from the host, the last from the guest — and numbered by
+					// whoever acted, on their own counter, rather than renumbered on
+					// arrival (which is what lets both clients agree on the list at all)
+					const hostSeqs = hostSaw.slice(0, 4).map((i) => i.seq);
+					ok(
+						hostSaw.slice(0, 4).every((i) => i.seat === seats[0]) &&
+							hostSeqs.every((seq, n) => n === 0 || seq > hostSeqs[n - 1]!) &&
+							hostSaw[4]?.seat === seats[1],
+						`the intents are not attributed to the seat that acted: ` +
+							`${JSON.stringify(hostSaw.map((i) => [i.seat, i.seq]))}`
+					);
+					// and none of it leaked into game state on either client
+					const leaked = await Promise.all(
+						[host, guest].map((table) =>
+							table.page.evaluate(() => Object.keys(window.__tableplace!.state() ?? {}))
+						)
+					);
+					ok(
+						!leaked.flat().includes('__intents'),
+						`the piggybacked intents were merged into game state: ${JSON.stringify(leaked)}`
+					);
+
+					assertClean(host, 'on the acting client after the scripted gesture');
+					assertClean(guest, 'on the watching client after the scripted gesture');
+				} finally {
+					await guest.close();
+				}
+			} finally {
+				await host.close();
+			}
+		}
 	}
 ];
