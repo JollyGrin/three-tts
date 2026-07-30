@@ -254,26 +254,30 @@ export async function openTable(
 	const url =
 		`${servers.web}/play?lobby=${encodeURIComponent(lobby)}` +
 		`&server=${encodeURIComponent(servers.relay)}`;
-	// How long a table gets to come up. Generous, and the same either way, because
-	// what decides it is not which page this is but how loaded the runner already
-	// is by the time it opens: a fresh context starts with a cold HTTP cache and
-	// re-fetches every unbundled dev module and warms every shader again, and a
-	// page opened late in a long suite is doing that behind however many software
-	// WebGL contexts the specs before it left warm.
-	const readyMs = 120_000;
-
+	// Two waits, sized for what each actually has to survive.
+	//
 	// `domcontentloaded`, NOT `networkidle2`. Idle is the wrong question to ask a
 	// vite dev server: it streams hundreds of unbundled modules and holds an HMR
 	// socket open, so "fewer than two requests in flight for 500ms" is a race
-	// against the runner's mood rather than a fact about the page — and once the
-	// suite grew past ~35 minutes it stopped resolving at all, failing three
-	// specs on a timeout that reads as a broken app and is really a busy server.
-	// Nothing was lost by dropping it: the wait below is an EXACT readiness
-	// signal (the bridge mounts inside the Canvas, which mounts only once the
-	// socket is open, and `ready` additionally waits out the environment-lighting
-	// recompile storm), so it is both the load assertion and the connection one.
-	await page.goto(url, { waitUntil: 'domcontentloaded', timeout: readyMs });
-	await page.waitForFunction('window.__tableplace?.ready === true', { timeout: readyMs });
+	// against the runner's mood rather than a fact about the page, and on a busy
+	// runner it stops resolving at all — a timeout that reads as a broken app.
+	await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+
+	// The bridge is the real wait, and the slow one, so it gets the big budget.
+	// It is also an EXACT signal rather than a heuristic: the bridge mounts inside
+	// the Canvas, the Canvas mounts only once the lobby socket is open, and
+	// `ready` additionally holds until the environment-lighting recompile storm
+	// has passed — so this one line is the load assertion and the connection
+	// assertion both.
+	//
+	// Four minutes because of the SECOND table in a two-client spec. It is a
+	// second software WebGL context inside one Chrome, with a cold HTTP cache
+	// re-fetching every dev module and warming every shader again, and the two
+	// contexts starve each other while it does: on a CI runner that reliably
+	// takes over two minutes. A table that is genuinely broken still fails here,
+	// just later — and `ready` never flipping is the loudest failure the harness
+	// has, so buying it room costs nothing but wall clock on a red run.
+	await page.waitForFunction('window.__tableplace?.ready === true', { timeout: 240_000 });
 
 	const settle = (ms = 700) => sleep(ms);
 	await settle(600);
