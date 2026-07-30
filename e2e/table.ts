@@ -259,15 +259,20 @@ export async function openTable(
 	// is by the time it opens: a fresh context starts with a cold HTTP cache and
 	// re-fetches every unbundled dev module and warms every shader again, and a
 	// page opened late in a long suite is doing that behind however many software
-	// WebGL contexts the specs before it left warm. 60s used to be enough for the
-	// non-isolated case and stopped being so once the suite grew past ~35 minutes —
-	// the tail three specs all died on `networkidle2`, which reads as a broken app
-	// and is really a busy dev server. Give it room instead.
+	// WebGL contexts the specs before it left warm.
 	const readyMs = 120_000;
-	await page.goto(url, { waitUntil: 'networkidle2', timeout: readyMs });
 
-	// the bridge mounts inside the Canvas, which mounts only once the socket is
-	// open — so waiting on it is also the connection assertion
+	// `domcontentloaded`, NOT `networkidle2`. Idle is the wrong question to ask a
+	// vite dev server: it streams hundreds of unbundled modules and holds an HMR
+	// socket open, so "fewer than two requests in flight for 500ms" is a race
+	// against the runner's mood rather than a fact about the page — and once the
+	// suite grew past ~35 minutes it stopped resolving at all, failing three
+	// specs on a timeout that reads as a broken app and is really a busy server.
+	// Nothing was lost by dropping it: the wait below is an EXACT readiness
+	// signal (the bridge mounts inside the Canvas, which mounts only once the
+	// socket is open, and `ready` additionally waits out the environment-lighting
+	// recompile storm), so it is both the load assertion and the connection one.
+	await page.goto(url, { waitUntil: 'domcontentloaded', timeout: readyMs });
 	await page.waitForFunction('window.__tableplace?.ready === true', { timeout: readyMs });
 
 	const settle = (ms = 700) => sleep(ms);
