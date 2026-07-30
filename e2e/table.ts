@@ -19,6 +19,22 @@ import type { Servers } from './servers';
 export type Problem = { kind: 'console' | 'pageerror' | 'requestfailed'; text: string };
 export type ScreenPoint = { x: number; y: number };
 export type Intent = { seq: number; seat: string; verb: string; args: unknown[] };
+/** a refusal the referee voiced on this client (tableplace-171) */
+export type Refusal = { verb: string; reason: string };
+/**
+ * One message this client actually put on the socket — captured at
+ * `WebSocket.prototype.send` itself (see `TableOptions.wire`), not reported by
+ * the app about itself, which is the whole point when the property under test is
+ * "nothing crossed the wire".
+ */
+export type WireFrame = {
+	type?: string;
+	playerId?: string;
+	timestamp?: number;
+	value?: Record<string, unknown>;
+	/** the raw payload, kept when it was not JSON at all */
+	raw?: string;
+};
 
 export type Table = {
 	page: Page;
@@ -27,8 +43,17 @@ export type Table = {
 	/** the subset that is genuinely the app's fault (see IGNORED) */
 	appProblems: () => Problem[];
 	spawn: (kind: string, options?: Record<string, unknown>) => Promise<string>;
-	/** a standard 52-card deck, procedurally faced — no network */
-	seedDeck: () => Promise<string>;
+	/** this client's player id — the `<owner>` segment of everything it spawns */
+	myId: () => Promise<string>;
+	/**
+	 * A standard 52-card deck, procedurally faced — no network.
+	 *
+	 * `owner` puts that id in the `card:<owner>:…` segment, which is where
+	 * ownership lives (see `dev/stub-validator.ts`). Cards default to a shared
+	 * `std` owner belonging to nobody, which is what every pre-gate spec wants;
+	 * a spec about the referee passes a real player id so the deck has a seat.
+	 */
+	seedDeck: (options?: { owner?: string }) => Promise<string>;
 	locate: (id: string) => Promise<ScreenPoint | null>;
 	/** what the shared raycaster hits at a screen point — [] means dispatch is dead */
 	hits: (point: ScreenPoint) => Promise<string[]>;
@@ -61,6 +86,24 @@ export type Table = {
 	intents: () => Promise<Intent[]>;
 	/** drop the log, so a spec compares only the gesture it is about to make */
 	clearIntents: () => Promise<void>;
+	/**
+	 * Turn the dev stub validator on or off (tableplace-171) — the toy rule "you
+	 * may only act on entities your own seat owns". Off is the shipped default,
+	 * and a spec that never touches this is testing an ungated table, which is
+	 * how every pre-existing spec keeps proving pass-through.
+	 */
+	setStubValidator: (on: boolean) => Promise<void>;
+	/** every refusal the referee voiced here, oldest first, with the reason */
+	refusals: () => Promise<Refusal[]>;
+	clearRefusals: () => Promise<void>;
+	/** the toast texts on screen right now — the player-facing half of a refusal */
+	toasts: () => Promise<string[]>;
+	/**
+	 * Everything this client has put on the socket, in order — empty unless the
+	 * table was opened with `{ wire: true }`. Bracket a gesture with `clearWire`.
+	 */
+	wire: () => Promise<WireFrame[]>;
+	clearWire: () => Promise<void>;
 	/** how an entity is rendered right now; null if it never mounted */
 	describe: (
 		id: string
@@ -131,6 +174,17 @@ export type TableOptions = {
 	 * separate their storage, which is what a fresh context does.
 	 */
 	isolated?: boolean;
+	/**
+	 * Record every outbound websocket frame, readable through `wire()`.
+	 *
+	 * Opt-in, and armed here rather than on demand for two reasons: enabling the
+	 * CDP network domain is overhead the specs that measure frame timings under
+	 * SwiftShader should not carry, and turning it on *after* the socket is
+	 * already open races — a recorder attached late was observed capturing an
+	 * entire gesture as nothing at all, which is indistinguishable from the
+	 * silence the gate specs are trying to prove.
+	 */
+	wire?: boolean;
 };
 
 export async function openTable(
@@ -142,6 +196,24 @@ export async function openTable(
 	const context = options.isolated ? await browser.createBrowserContext() : null;
 	const page = await (context ?? browser).newPage();
 	const problems: Problem[] = [];
+
+	/**
+	 * See `TableOptions.wire`. Installed before ANY page script runs, by wrapping
+	 * `WebSocket.prototype.send` itself: everything the app sends goes through
+	 * that one function, so there is nothing for a message to slip past — which is
+	 * the property a spec asserting "not one frame left" actually needs.
+	 */
+	if (options.wire) {
+		await page.evaluateOnNewDocument(() => {
+			const log: string[] = [];
+			(window as unknown as { __wire: string[] }).__wire = log;
+			const send = WebSocket.prototype.send;
+			WebSocket.prototype.send = function (this: WebSocket, data: never) {
+				log.push(String(data));
+				return send.call(this, data);
+			};
+		});
+	}
 
 	page.on('console', (message: ConsoleMessage) => {
 		if (message.type() === 'error') problems.push({ kind: 'console', text: message.text() });
@@ -203,17 +275,20 @@ export async function openTable(
 			options
 		) as Promise<string>;
 
+	const myId = () =>
+		page.evaluate(() => String(window.__tableplace!.actions.getMyId() ?? '')) as Promise<string>;
+
 	/**
 	 * A standard 52-card deck. The card list is built here rather than imported
 	 * so the harness only ever leans on the app's public action surface — and
 	 * `gen:` faces are canvas-drawn, so seeding one fetches nothing.
 	 */
-	const seedDeck = () =>
+	const seedDeck = (options: { owner?: string } = {}) =>
 		page.evaluate(
-			(suits, ranks) => {
+			(suits, ranks, owner) => {
 				const cards = suits.flatMap((suit) =>
 					ranks.map((rank) => ({
-						id: `card:std:${rank}${suit}`,
+						id: `card:${owner}:${rank}${suit}`,
 						faceImageUrl: `gen:std52/${rank}${suit}`,
 						backImageUrl: 'gen:std52/back'
 					}))
@@ -221,8 +296,57 @@ export async function openTable(
 				return String(window.__tableplace!.actions.addDeck({ cards } as never) ?? '');
 			},
 			SUITS,
-			RANKS
+			RANKS,
+			options.owner ?? 'std'
 		);
+
+	const setStubValidator = (on: boolean) =>
+		page.evaluate((enable) => {
+			if (enable) window.__tableplace!.enableStubValidator();
+			else window.__tableplace!.disableStubValidator();
+		}, on);
+
+	const refusals = () => page.evaluate(() => window.__tableplace!.refusals()) as Promise<Refusal[]>;
+	const clearRefusals = () => page.evaluate(() => window.__tableplace!.clearRefusals());
+
+	/**
+	 * svelte-french-toast stamps `role="status"` on every toast it raises (its
+	 * `ariaProps` default), so this reads what a screen reader would — no test
+	 * hook in the app, and no coupling to the library's class names.
+	 */
+	const toasts = () =>
+		page.evaluate(() =>
+			[...document.querySelectorAll('[role="status"]')].map((node) =>
+				(node.textContent ?? '').trim()
+			)
+		);
+
+	const wire = async (): Promise<WireFrame[]> => {
+		const sent = await page.evaluate(
+			() => (window as unknown as { __wire?: string[] }).__wire?.slice() ?? null
+		);
+		// "not installed" and "installed, nothing sent" are opposite answers and a
+		// spec asserting silence must never confuse them
+		if (!sent)
+			throw new Error(
+				'the outbound-frame recorder is not installed on this page — open the table ' +
+					'with { wire: true }'
+			);
+		return sent.map((payload) => {
+			try {
+				return JSON.parse(payload) as WireFrame;
+			} catch {
+				// a non-JSON frame is still a frame that left, and a spec asserting
+				// that nothing did has to see it
+				return { raw: payload };
+			}
+		});
+	};
+
+	const clearWire = () =>
+		page.evaluate(() => {
+			(window as unknown as { __wire?: string[] }).__wire?.splice(0);
+		});
 
 	const locate = (id: string) =>
 		page.evaluate((entityId) => window.__tableplace!.locate(entityId), id);
@@ -530,6 +654,7 @@ export async function openTable(
 		problems,
 		appProblems: () => problems.filter((problem) => !ignorable(problem.text)),
 		spawn,
+		myId,
 		seedDeck,
 		locate,
 		hits,
@@ -540,6 +665,12 @@ export async function openTable(
 		connected,
 		intents,
 		clearIntents,
+		setStubValidator,
+		refusals,
+		clearRefusals,
+		toasts,
+		wire,
+		clearWire,
 		describe,
 		dragBy,
 		dragTo,
