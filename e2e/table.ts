@@ -254,11 +254,16 @@ export async function openTable(
 	const url =
 		`${servers.web}/play?lobby=${encodeURIComponent(lobby)}` +
 		`&server=${encodeURIComponent(servers.relay)}`;
-	// A fresh context starts with a cold HTTP cache, so it re-fetches every
-	// unbundled dev module and warms every shader again, alongside a first table
-	// that is already holding a software WebGL context. Give it room rather than
-	// let a slow second client read as a broken one.
-	const readyMs = options.isolated ? 120_000 : 60_000;
+	// How long a table gets to come up. Generous, and the same either way, because
+	// what decides it is not which page this is but how loaded the runner already
+	// is by the time it opens: a fresh context starts with a cold HTTP cache and
+	// re-fetches every unbundled dev module and warms every shader again, and a
+	// page opened late in a long suite is doing that behind however many software
+	// WebGL contexts the specs before it left warm. 60s used to be enough for the
+	// non-isolated case and stopped being so once the suite grew past ~35 minutes —
+	// the tail three specs all died on `networkidle2`, which reads as a broken app
+	// and is really a busy dev server. Give it room instead.
+	const readyMs = 120_000;
 	await page.goto(url, { waitUntil: 'networkidle2', timeout: readyMs });
 
 	// the bridge mounts inside the Canvas, which mounts only once the socket is
